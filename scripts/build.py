@@ -64,6 +64,7 @@ DESC = {
 
 PREF_ABBR = [(p[:-1] if p[-1] in "都府県" else p)[:2] for p in PREFS]
 NEW_CHIP = '<span class="chip hot">新規掲載</span>'
+CORP_CHIP = '<span class="chip hot">新規参入</span>'
 
 # 12列のタイル地図での (行, 列)
 TILE = {
@@ -287,6 +288,11 @@ def muni_path(pi, name):
     return f"p/{PREF_SLUGS[pi]}/{name}/"
 
 
+def ps_path(pi, code):
+    """都道府県 × サービスのページ。市区町村名は「市区町村」で終わるので s とは重ならない。"""
+    return f"p/{PREF_SLUGS[pi]}/s/{SERVICES[code][2]}/"
+
+
 def href(rel, path):
     return rel + urllib.parse.quote(path)
 
@@ -391,7 +397,7 @@ def build():
         L, P_ = S[c][latest], S[c].get(prev)
         rates = {pi: pct(L["pref"].get(pi, 0), pref_at(c, year_ago, pi)) for pi in range(47)}
         titles = {pi: f"{PREFS[pi]} {L['pref'].get(pi, 0):,}件" + (f"（1年で{rates[pi]:+.1f}%）" if rates[pi] is not None else "") for pi in range(47)}
-        links = {pi: href(rel, f"p/{PREF_SLUGS[pi]}/") for pi in range(47)}
+        links = {pi: href(rel, ps_path(pi, c)) for pi in range(47)}
         rv = [v for v in rates.values() if v is not None] or [0]
         group = next(g for g, cs in GROUPS if c in cs)
         hero = f"""<div>
@@ -402,7 +408,7 @@ def build():
   <div class="big"><div><span class="n">{cur:,}</span><span class="u">事業所</span></div>
     <div class="meta">{f'<span>半年で <b>{delta(cur - pv)}</b></span>' if pv is not None else ''}{f'<span>1年で <b>{delta(cur - ya)}</b></span>' if ya is not None and year_ago != prev else ''}{f'<span>{label(periods[fi])}の <b>{cur / ser[fi]:.2f}倍</b></span>' if fi < len(ser) - 1 else ''}</div></div>
 </div>
-{tilemap(rates, links, titles, "都道府県別、1年間の事業所数の増加率。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}"""
+{tilemap(rates, links, titles, f"都道府県別、1年間の事業所数の増加率。タップでその都道府県の{short}のページへ。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}"""
         corp_cur = collections.Counter(o["corp_key"] for o in L["offices"].values())
         corp_prev = collections.Counter(o["corp_key"] for o in P_["offices"].values()) if P_ else collections.Counter()
         cnames = {}
@@ -485,7 +491,7 @@ def build():
                 ser = [pref_at(c, p, pi) for p in periods]
                 v, v0 = ser[-1], ser[-2]
                 nat_rank = sorted(range(47), key=lambda i: -S[c][latest]["pref"].get(i, 0)).index(pi) + 1
-                gr.append(f'<tr><td class="name"><a href="{href(rel, "s/" + SERVICES[c][2] + "/")}">{E(SERVICES[c][1])}</a></td>'
+                gr.append(f'<tr><td class="name"><a href="{href(rel, ps_path(pi, c))}">{E(SERVICES[c][1])}</a></td>'
                           f'<td class="n">{v:,}</td><td class="r">{delta(v - v0) if v0 is not None else ""}</td>'
                           f'<td class="r tnum">{nat_rank}位</td><td>{spark(ser, 64, 22)}</td></tr>')
             if gr:
@@ -500,7 +506,7 @@ def build():
             + f'<td class="bar-cell"><div class="bar"><i style="width:{muni_total[latest][mk] / mmax * 100:.1f}%"></i></div></td></tr>'
             for mk in pm)
         body = f"""
-<section><h2>サービス別の事業所数</h2><p class="sec-sub">増減は{E(label(prev))}との比較、順位は全国47都道府県の中での順位です。</p>
+<section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}内の市区町村別・法人別の内訳が見られます。増減は{E(label(prev))}との比較、順位は全国47都道府県の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">全国順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
 <section><h2>市区町村別の事業所数</h2><p class="sec-sub">全サービスの延べ事業所数の多い順です。市区町村名から、事業所の一覧が見られます。</p>
 <div class="table-wrap"><table><thead><tr><th>市区町村</th><th class="r">延べ</th><th class="r">半年</th><th class="r">GH</th><th class="r">就労B</th><th class="r">放デイ</th><th></th></tr></thead><tbody>{mrows}</tbody></table></div>
@@ -509,6 +515,91 @@ def build():
         page(path, f"{pref}の障害福祉事業所数（サービス別・市区町村別）",
              f"{pref}の障害福祉サービス事業所は{cur:,}件（{LATEST_LABEL}時点、延べ）。グループホーム・就労支援・放課後等デイなどサービス別、市区町村別の事業所数と増減。",
              hero, body)
+
+    # ---------- 都道府県 × サービス
+    for c in codes:
+        name, short, slug = SERVICES[c]
+        L, P_ = S[c][latest], S[c].get(prev)
+        nat_order = sorted(range(47), key=lambda i: -L["pref"].get(i, 0))
+        by_pref_cur = collections.defaultdict(list)
+        for no, o in L["offices"].items():
+            by_pref_cur[o["p"]].append((no, o))
+        by_pref_prev = collections.defaultdict(list)
+        if P_:
+            for no, o in P_["offices"].items():
+                by_pref_prev[o["p"]].append((no, o))
+        for pi in range(47):
+            pref = PREFS[pi]
+            path = ps_path(pi, c)
+            rel = "../../../../"
+            ser = [pref_at(c, p, pi) for p in periods]
+            cur, pv = ser[-1], ser[-2]
+            ya = pref_at(c, year_ago, pi)
+            nat_rank = nat_order.index(pi) + 1
+            hero = f"""<div>
+  {crumbs(rel, [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/")), (short, None)])}
+  <div class="eyebrow" style="margin-top:12px">{E(pref)}　{E(LATEST_LABEL)}時点</div>
+  <h1>{E(pref)}の{E(name)}</h1>
+  <p class="lede">{E(DESC.get(c, ""))}</p>
+  <div class="big"><div><span class="n">{cur:,}</span><span class="u">事業所</span></div>
+    <div class="meta">{f'<span>半年で <b>{delta(cur - pv)}</b></span>' if pv is not None else ''}{f'<span>1年で <b>{delta(cur - ya)}</b></span>' if ya is not None and year_ago != prev else ''}<span>全国 <b>{nat_rank}位</b> / 47</span></div></div>
+</div>"""
+            cur_offs, prev_offs = by_pref_cur[pi], by_pref_prev[pi]
+            cur_nos = {no for no, _ in cur_offs}
+            prev_nos = {no for no, _ in prev_offs}
+            new_here = sorted(((no, o) for no, o in cur_offs if no in new_nos[c]), key=lambda x: x[1]["name"])
+            gone_here = sorted(((no, o) for no, o in prev_offs if no not in cur_nos), key=lambda x: x[1]["name"])
+            corp_c = collections.Counter(o["corp_key"] for _, o in cur_offs)
+            corp_p = collections.Counter(o["corp_key"] for _, o in prev_offs)
+            cname = {o["corp_key"]: o["corp"] for _, o in prev_offs + cur_offs}
+            kpis = [("運営法人", len(corp_c), "法人"), ("半年の新規掲載", len(new_here), "件"), ("半年の掲載終了", len(gone_here), "件")]
+            if c == GH:
+                kpis.insert(0, ("住居数", sum(o["rows"] for _, o in cur_offs), "件"))
+            kpi_html = "".join(f'<div class="kpi"><span class="k">{k}</span><span class="v">{v:,}<small>{u}</small></span></div>' for k, v, u in kpis)
+
+            mks = sorted({mk for mk in L["muni"] if mk[0] == pi} | ({mk for mk in P_["muni"] if mk[0] == pi} if P_ else set()),
+                         key=lambda mk: (-L["muni"].get(mk, 0), mk[1]))
+            mmax = max([L["muni"].get(mk, 0) for mk in mks] or [1]) or 1
+            mrows = "".join(
+                f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href(rel, muni_path(*mk))}">{E(mk[1])}</a></td>'
+                f'<td class="n">{L["muni"].get(mk, 0):,}</td><td class="r">{delta(L["muni"].get(mk, 0) - (P_["muni"].get(mk, 0) if P_ else 0))}</td>'
+                f'<td class="bar-cell"><div class="bar"><i style="width:{L["muni"].get(mk, 0) / mmax * 100:.1f}%"></i></div></td></tr>'
+                for i, mk in enumerate(mks))
+            corps = sorted(set(corp_c) | set(corp_p), key=lambda k: (-corp_c.get(k, 0), cname[k]))[:20]
+            crows = "".join(
+                f'<tr><td class="r tnum">{i + 1}</td><td class="name">{E(cname[k])}{CORP_CHIP if not corp_p.get(k) and P_ else ""}</td>'
+                f'<td class="n">{corp_c.get(k, 0):,}</td><td class="r">{delta(corp_c.get(k, 0) - corp_p.get(k, 0))}</td></tr>'
+                for i, k in enumerate(corps) if corp_c.get(k, 0) >= 2 or corp_p.get(k, 0) >= 2)
+
+            def office_li(o, badge=""):
+                mk = next(iter(o["munis"]), None)
+                place = f'<a href="{href(rel, muni_path(*mk))}">{E(mk[1])}</a>' if mk else ""
+                return f'<li><b>{E(o["name"])}{badge}</b><span>{E(o["corp"])}{"｜" + place if place else ""}</span></li>'
+
+            new_html = "".join(office_li(o) for _, o in new_here)
+            gone_html = "".join(office_li(o) for _, o in gone_here)
+            others = "".join(
+                f'<a href="{href(rel, ps_path(i, c))}"><span>{PREFS[i]}</span><span class="c">{L["pref"].get(i, 0):,}</span></a>'
+                for i in range(47) if i != pi)
+            siblings = "".join(
+                f'<a href="{href(rel, ps_path(pi, x))}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["pref"].get(pi, 0):,}</span></a>'
+                for x in codes if x != c)
+            body = f"""
+<section><div class="kpis">{kpi_html}</div></section>
+<section><h2>市区町村別の{E(short)}</h2><p class="sec-sub">{E(pref)}内の事業所数の多い順です。増減は{E(label(prev))}との比較です。市区町村名から、その地域の事業所の一覧が見られます。</p>
+{f'<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th><th></th></tr></thead><tbody>{mrows}</tbody></table></div>' if mrows else '<p class="note">この都道府県には、市区町村が特定できる事業所の掲載がありません。</p>'}</section>
+{f'<section><h2>{E(pref)}で{E(short)}を多く運営する法人</h2><p class="sec-sub">2事業所以上を運営する法人の上位です。</p><div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>法人</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{crows}</tbody></table></div></section>' if crows else ''}
+<section><h2>この半年の新規掲載と掲載終了</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までの変化です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
+<div class="dir">
+  <details{" open" if 0 < len(new_here) <= 30 else ""}><summary>新規掲載<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>
+  <details><summary>掲載終了<span class="c">{len(gone_here):,}件</span></summary>{f"<ul>{gone_html}</ul>" if gone_html else ""}</details>
+</div></section>
+<section><h2>{E(pref)}の{E(short)}の推移</h2>{trend_chart(periods, ser)}</section>
+<section><h2>ほかの都道府県の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, f"s/{slug}/")}">全国のランキングを見る</a></p><div class="pref-grid">{others}</div></section>
+<section><h2>{E(pref)}のほかのサービス</h2><div class="pref-grid">{siblings}</div></section>"""
+            page(path, f"{pref}の{name}の事業所数（市区町村別・法人別）",
+                 f"{pref}の{name}の事業所は{cur:,}件（{LATEST_LABEL}時点、全国{nat_rank}位）。市区町村別・運営法人別の事業所数と、半年間の新規掲載・掲載終了の事業所。",
+                 hero, body)
 
     # ---------- 市区町村
     order = {c: i for i, c in enumerate(codes)}
@@ -536,7 +627,7 @@ def build():
             v, v0 = ser[-1], ser[-2]
             within = sorted(siblings, key=lambda m: -S[c][latest]["muni"].get(m, 0))
             r_in = within.index(mk) + 1 if v else None
-            rows.append(f'<tr><td class="name"><a href="{href(rel, "s/" + SERVICES[c][2] + "/")}">{E(SERVICES[c][1])}</a></td>'
+            rows.append(f'<tr><td class="name"><a href="{href(rel, ps_path(pi, c))}">{E(SERVICES[c][1])}</a></td>'
                         f'<td class="n">{v:,}</td><td class="r">{delta(v - v0) if v0 is not None else ""}</td>'
                         f'<td class="r tnum">{f"{r_in}位" if r_in else "－"}</td><td>{spark(ser, 64, 22)}</td></tr>')
             offs = [(no, o) for no, o in S[c][latest]["offices"].items() if mk in o["munis"]]
@@ -550,7 +641,7 @@ def build():
         near = "".join(f'<a href="{href(rel, muni_path(*m))}"><span>{E(m[1])}</span><span class="c">{muni_total[latest][m]:,}</span></a>'
                        for m in sorted(siblings, key=lambda m: -muni_total[latest][m]) if m != mk)
         body = f"""
-<section><h2>サービス別の事業所数</h2><p class="sec-sub">増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
+<section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
 <section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">サービス名を押すと、その事業所の一覧が開きます。グループホームは住居ごとではなく事業所ごとに載せています。</p>
 <div class="dir">{"".join(dirs)}</div></section>
