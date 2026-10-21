@@ -1,31 +1,40 @@
-# グループホーム数ランキング
+# 障害福祉事業所ランキング
 
-全国の障害者グループホーム（共同生活援助）の事業所数を、都道府県・市区町村・運営法人別に並べるサイトです。
+全国の障害福祉サービス事業所の数と推移を、サービス別・都道府県別・市区町村別に並べるサイトです。
 国（WAM NET）のオープンデータを自動で取得して、ページを作り直します。
 
 公開ページ：https://kaigoapp.github.io/gh-ranking/
 
+## ページの構成
+
+| URL | 内容 |
+| --- | --- |
+| `/` | 全サービスの概要、都道府県のタイル地図、伸びている市区町村 |
+| `/s/<サービス>/` | サービス別ランキング（都道府県・市区町村・運営法人・新規掲載・掲載終了） |
+| `/p/<都道府県>/` | 都道府県のサービス別・市区町村別の事業所数 |
+| `/p/<都道府県>/<市区町村>/` | 市区町村のサービス別の事業所数と、事業所の一覧 |
+
 ## 仕組み
 
-1. `scripts/fetch.py` が WAM NET の公開ページを見て、まだ持っていない時点の ZIP を `data/raw/` に保存します。
-2. `scripts/build.py` が `data/raw/` の全時点を集計し、`templates/index.html` にデータを入れて `public/index.html` を作ります。
-3. GitHub Actions（`.github/workflows/build.yml`）が、毎月1日と15日、または main への push のたびに 1→2 を実行し、GitHub Pages に公開します。
+1. `scripts/fetch.py` が WAM NET の公開ページを見て、まだ持っていない時点・サービスの ZIP を取得し、
+   必要な列だけを抜き出した gzip CSV（`data/slim/<サービスコード>/<YYYYMM>.csv.gz`）にして保存します。
+2. `scripts/build.py` が `data/slim/` の全時点を集計し、`public/` にサイト一式を書き出します。
+   デザインは `site/assets/`（CSS と、サービス別ページのランキング用 JS）にあります。
+3. GitHub Actions（`.github/workflows/build.yml`）が、毎月1日と15日、または main への push のたびに 1→2 を実行し、
+   GitHub Pages に公開します。
 
 WAM NET のデータは毎年3月末時点と9月末時点の年2回公開されます。
-
-## 手動でデータを足すとき
-
-自動取得がうまくいかない場合は、WAM NET から「共同生活援助」の ZIP をダウンロードし、
-`data/raw/YYYYMM_33.zip`（例：`202603_33.zip`）の名前で置いて push してください。
+サービスの名前と URL に使う名前は `scripts/services.py` で決めています。
 
 ## 手元で作るとき
 
 ```
 python scripts/fetch.py
-python scripts/build.py
+SITE_URL=https://kaigoapp.github.io/gh-ranking python scripts/build.py
 ```
 
-Python 3.10 以上の標準ライブラリだけで動きます。
+Python 3.10 以上の標準ライブラリだけで動きます。自動取得がうまくいかない場合は、
+WAM NET からダウンロードした ZIP を `python scripts/fetch.py --zip sfkopendata_202603_33.zip` のように取り込めます。
 
 ## 出典
 
