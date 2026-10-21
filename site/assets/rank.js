@@ -26,7 +26,7 @@
     if (tab === 'corp') return D.corp.map(r => ({ name: r[0], n: r[1], d: r[1] - r[2], fresh: r[2] === 0 }));
     const src = tab === 'new' ? D.new : D.gone;
     return src.filter(r => pref < 0 || r[3] === pref)
-      .map(r => ({ list: true, name: r[0], sub: r[1], place: D.P[r[3]] + ' ' + r[2], url: r[4] }));
+      .map(r => ({ list: true, name: r[0], sub: r[1], place: D.P[r[3]] + ' ' + r[2], url: r[4], fac: r[5] }));
   }
 
   const NOTES = {
@@ -53,7 +53,7 @@
     const max = isList ? 1 : Math.max(1, ...r.map(x => x.n));
     const slice = r.slice(0, shown);
     list.innerHTML = slice.length ? slice.map((x, i) => isList
-      ? `<li><span class="no">${i + 1}</span><span class="nm"><b>${esc(x.name)}</b><span class="sub">${esc(x.sub)}｜${link(x.place, x.url)}</span></span><span></span></li>`
+      ? `<li><span class="no">${i + 1}</span><span class="nm"><b>${link(x.name, x.fac)}</b><span class="sub">${esc(x.sub)}｜${link(x.place, x.url)}</span></span><span></span></li>`
       : `<li class="${i < 3 && sort !== 'dec' ? 'top' : ''}"><span class="no">${i + 1}</span><span class="nm"><b>${link(x.name, x.url)}${x.fresh ? '<span class="chip hot">新規参入</span>' : ''}</b><span class="bar"><i style="width:${(x.n / max * 100).toFixed(1)}%"></i></span></span><span class="val"><span class="n">${fmt(x.n)}</span>${delta(x.d)}</span></li>`
     ).join('') : '<li style="display:block;text-align:center;color:var(--muted)">該当する事業所はありません。</li>';
     more.hidden = r.length <= shown;

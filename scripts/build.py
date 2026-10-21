@@ -112,16 +112,21 @@ def summarize(path: pathlib.Path, keep: bool):
         o = offices.get(r["no"])
         if o is None:
             o = offices[r["no"]] = dict(p=pi, corp_key=r["corp_key"], corp=r["corp"], name=r["name"],
-                                        rows=0, munis={})
+                                        rows=0, munis={}, houses=[], tel="", url="")
         o["rows"] += 1
         if mname:
             mk = (pi, mname)
             if mk not in o["munis"]:
                 o["munis"][mk] = (r["name"], r["addr"])
+        if keep:
+            o["houses"].append((r["name"], r["muni"], r["addr"], r.get("lat", ""), r.get("lng", "")))
+            o["tel"] = o["tel"] or r.get("tel", "")
+            o["url"] = o["url"] or r.get("url", "")
     pref = collections.Counter(o["p"] for o in offices.values())
     muni = collections.Counter(mk for o in offices.values() for mk in o["munis"])
     rows = sum(o["rows"] for o in offices.values())
-    return dict(n=len(offices), rows=rows, pref=pref, muni=muni, offices=offices if keep else None)
+    return dict(n=len(offices), rows=rows, pref=pref, muni=muni, offices=offices if keep else None,
+                nos=set(offices) if path.parent.name == GH else None)
 
 
 def load():
@@ -288,6 +293,17 @@ def muni_path(pi, name):
     return f"p/{PREF_SLUGS[pi]}/{name}/"
 
 
+def fac_path(no):
+    """グループホームの施設ページ。事業所番号は英数字だけのはずだが、念のため確かめる。"""
+    return f"f/{no}/" if re.fullmatch(r"[0-9A-Za-z]{1,20}", no) else None
+
+
+def display_name(o):
+    """グループホームは住居ごとに名前が違うことがあるので、いちばん多い名前を事業所名にする。"""
+    names = [h[0] for h in o["houses"]] or [o["name"]]
+    return collections.Counter(names).most_common(1)[0][0]
+
+
 def ps_path(pi, code):
     """都道府県 × サービスのページ。市区町村名は「市区町村」で終わるので s とは重ならない。"""
     return f"p/{PREF_SLUGS[pi]}/s/{SERVICES[code][2]}/"
@@ -420,11 +436,13 @@ def build():
                       key=lambda x: -max(x[1], x[2]))
         corp = [x for x in corp if x[1] >= 5 or x[2] >= 5 or abs(x[1] - x[2]) >= 2][:300]
 
-        def office_row(o):
+        def office_row(o, no=None):
             mk = next(iter(o["munis"]), None)
-            return [o["name"], o["corp"], mk[1] if mk else "", o["p"], href(rel, muni_path(*mk)) if mk else ""]
+            fac = href(rel, fac_path(no)) if no and c == GH and fac_path(no) else ""
+            return [display_name(o) if o["houses"] else o["name"], o["corp"], mk[1] if mk else "",
+                    o["p"], href(rel, muni_path(*mk)) if mk else "", fac]
 
-        newl = [office_row(L["offices"][k]) for k in sorted(new_nos[c])]
+        newl = [office_row(L["offices"][k], k) for k in sorted(new_nos[c])]
         gone = [office_row(P_["offices"][k]) for k in sorted(set(P_["offices"]) - set(L["offices"]))] if P_ else []
         munis = [[mk[1], mk[0], L["muni"].get(mk, 0), P_["muni"].get(mk, 0) if P_ else 0, href(rel, muni_path(*mk))]
                  for mk in set(L["muni"]) | (set(P_["muni"]) if P_ else set())]
@@ -571,12 +589,13 @@ def build():
                 f'<td class="n">{corp_c.get(k, 0):,}</td><td class="r">{delta(corp_c.get(k, 0) - corp_p.get(k, 0))}</td></tr>'
                 for i, k in enumerate(corps) if corp_c.get(k, 0) >= 2 or corp_p.get(k, 0) >= 2)
 
-            def office_li(o, badge=""):
+            def office_li(o, fac=None):
                 mk = next(iter(o["munis"]), None)
                 place = f'<a href="{href(rel, muni_path(*mk))}">{E(mk[1])}</a>' if mk else ""
-                return f'<li><b>{E(o["name"])}{badge}</b><span>{E(o["corp"])}{"｜" + place if place else ""}</span></li>'
+                nm = f'<a href="{fac}">{E(display_name(o))}</a>' if fac else E(o["name"])
+                return f'<li><b>{nm}</b><span>{E(o["corp"])}{"｜" + place if place else ""}</span></li>'
 
-            new_html = "".join(office_li(o) for _, o in new_here)
+            new_html = "".join(office_li(o, href(rel, fac_path(no)) if c == GH and fac_path(no) else None) for no, o in new_here)
             gone_html = "".join(office_li(o) for _, o in gone_here)
             others = "".join(
                 f'<a href="{href(rel, ps_path(i, c))}"><span>{PREFS[i]}</span><span class="c">{L["pref"].get(i, 0):,}</span></a>'
@@ -633,8 +652,12 @@ def build():
             offs = [(no, o) for no, o in S[c][latest]["offices"].items() if mk in o["munis"]]
             if offs:
                 offs.sort(key=lambda x: x[1]["munis"][mk][0])
+                def nm(no, o):
+                    fp = fac_path(no) if c == GH else None
+                    t = E(o["munis"][mk][0])
+                    return f'<a href="{href(rel, fp)}">{t}</a>' if fp else t
                 lis = "".join(
-                    f'<li><b>{E(o["munis"][mk][0])}{NEW_CHIP if no in new_nos[c] else ""}</b>'
+                    f'<li><b>{nm(no, o)}{NEW_CHIP if no in new_nos[c] else ""}</b>'
                     f'<span>{E(o["corp"])}</span><span>{E(mname + o["munis"][mk][1])}</span></li>'
                     for no, o in offs)
                 dirs.append(f'<details><summary>{E(SERVICES[c][1])}<span class="c">{len(offs):,}件</span></summary><ul>{lis}</ul></details>')
@@ -643,7 +666,7 @@ def build():
         body = f"""
 <section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
-<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">サービス名を押すと、その事業所の一覧が開きます。グループホームは住居ごとではなく事業所ごとに載せています。</p>
+<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">サービス名を押すと、その事業所の一覧が開きます。グループホームは住居ごとではなく事業所ごとに載せており、名前から施設の詳しいページへ移れます。</p>
 <div class="dir">{"".join(dirs)}</div></section>
 <section><h2>{E(pref)}のほかの市区町村</h2><div class="pref-grid">{near}</div></section>"""
         top = sorted(((S[c][latest]["muni"].get(mk, 0), c) for c in codes), reverse=True)[:3]
@@ -651,6 +674,10 @@ def build():
         page(path, f"{mname}（{pref}）の障害福祉事業所一覧と数の推移",
              f"{pref}{mname}の障害福祉サービス事業所は{cur:,}件（{LATEST_LABEL}時点、延べ）。{tops}など。サービス別の事業所数・増減と事業所の一覧。",
              hero, body)
+
+    # ---------- グループホームの施設ページ
+    if GH in S:
+        build_facilities(S, codes, periods, latest, new_nos)
 
     # ---------- 404・sitemap・robots
     nf = (OUT / "index.html").read_text(encoding="utf-8")
@@ -662,6 +689,93 @@ def build():
     (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n", encoding="utf-8")
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     print(f"ページ数: {len(PAGES):,}")
+
+
+def build_facilities(S, codes, periods, latest, new_nos):
+    L = S[GH][latest]
+    first_seen = {}
+    for p in periods:
+        nos = S[GH][p].get("nos") if p in S[GH] else None
+        for no in nos or ():
+            first_seen.setdefault(no, p)
+    by_corp = collections.defaultdict(list)
+    by_muni = collections.defaultdict(list)
+    for no, o in L["offices"].items():
+        by_corp[o["corp_key"]].append(no)
+        for mk in o["munis"]:
+            by_muni[mk].append(no)
+    names = {no: display_name(o) for no, o in L["offices"].items()}
+    rel = "../../"
+    count = 0
+    for no, o in L["offices"].items():
+        path = fac_path(no)
+        if not path:
+            continue
+        pi = o["p"]
+        pref = PREFS[pi]
+        mk = next(iter(o["munis"]), None)
+        name = names[no]
+        place = pref + (mk[1] if mk else "")
+        items = [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/"))]
+        if mk:
+            items.append((mk[1], href(rel, muni_path(*mk))))
+        items.append((name, None))
+        fs = first_seen.get(no)
+        since = (f"{label(periods[0])}以前から" if fs == periods[0] else f"{label(fs)}から") if fs else ""
+        hero = f"""<div>
+  {crumbs(rel, items)}
+  <div class="eyebrow" style="margin-top:12px">グループホーム（共同生活援助）{NEW_CHIP if no in new_nos[GH] else ""}</div>
+  <h1>{E(name)}</h1>
+  <p class="lede">{E(o["corp"])}が運営する、{E(place)}のグループホームです。</p>
+  <div class="big"><div><span class="n">{len(o["houses"])}</span><span class="u">住居</span></div>
+    <div class="meta"><span>公表データへの掲載 <b>{E(since)}</b></span></div></div>
+</div>"""
+        h0 = o["houses"][0] if o["houses"] else (name, "", "", "", "")
+        def maplink(lat, lng):
+            if lat and lng:
+                q = urllib.parse.quote(f"{lat},{lng}")
+                return f' <a href="https://www.google.com/maps/search/?api=1&amp;query={q}" rel="noopener" target="_blank">地図</a>'
+            return ""
+        info = [
+            ("事業所名", E(name)),
+            ("サービス", f'<a href="{href(rel, ps_path(pi, GH))}">共同生活援助（グループホーム）</a>'),
+            ("運営法人", E(o["corp"]) + (f'<br><span class="note">法人番号 {E(o["corp_key"])}</span>' if o["corp_key"].isdigit() else "")),
+            ("所在地", E(h0[1] + h0[2]) + maplink(h0[3], h0[4])),
+        ]
+        if o["tel"]:
+            info.append(("電話番号", f'<span class="tnum">{E(o["tel"])}</span>'))
+        if o["url"].startswith(("http://", "https://")):
+            info.append(("ホームページ", f'<a href="{E(o["url"])}" rel="nofollow noopener" target="_blank">{E(o["url"])}</a>'))
+        info.append(("事業所番号", f'<span class="tnum">{E(no)}</span>'))
+        info_html = "".join(f'<tr><th scope="row">{k}</th><td class="name">{v}</td></tr>' for k, v in info)
+        houses = "".join(
+            f'<li><b>{E(h[0])}</b><span>{E(h[1] + h[2])}{maplink(h[3], h[4])}</span></li>' for h in o["houses"])
+        other_svcs = "".join(
+            f'<a href="{href(rel, ps_path(pi, c))}"><span>{E(SERVICES[c][1])}</span><span class="c">{E(pref)}</span></a>'
+            for c in codes if c != GH and no in S[c][latest]["offices"])
+        def fac_links(nos, limit=30):
+            nos = sorted((x for x in nos if x != no and fac_path(x)), key=lambda x: names[x])
+            more = len(nos) - limit
+            out = "".join(
+                f'<li><b><a href="{href(rel, fac_path(x))}">{E(names[x])}</a></b><span>{E(L["offices"][x]["corp"])}｜{E(PREFS[L["offices"][x]["p"]] + (next(iter(L["offices"][x]["munis"]))[1] if L["offices"][x]["munis"] else ""))}</span></li>'
+                for x in nos[:limit])
+            return out, more
+        corp_html, corp_more = fac_links(by_corp[o["corp_key"]])
+        muni_html, muni_more = fac_links(by_muni[mk]) if mk else ("", 0)
+        body = f"""
+<section><h2>基本情報</h2>
+<div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
+<p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p></section>
+<section><h2>住居の一覧</h2><p class="sec-sub">この事業所が運営する住居です（{len(o["houses"])}か所）。</p>
+<div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>
+{f'<section><h2>この事業所が行うほかのサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。</p><div class="pref-grid">{other_svcs}</div></section>' if other_svcs else ''}
+{f'<section><h2>{E(o["corp"])}のほかのグループホーム</h2><div class="dir"><details open><summary>同じ法人<span class="c">{len(by_corp[o["corp_key"]]) - 1}件</span></summary><ul>{corp_html}</ul></details></div>{f"<p class=note>ほか{corp_more}件。</p>" if corp_more > 0 else ""}</section>' if corp_html else ''}
+{f'<section><h2>{E(mk[1])}のほかのグループホーム</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{len(by_muni[mk]) - 1}件</span></summary><ul>{muni_html}</ul></details></div>{f"<p class=note>ほか{muni_more}件は<a href={chr(34)}{href(rel, muni_path(*mk))}{chr(34)}>{E(mk[1])}のページ</a>へ。</p>" if muni_more > 0 else ""}</section>' if muni_html else ''}"""
+        page(path, f"{name}（{place}）のグループホーム情報",
+             f"{name}は{o['corp']}が運営する{place}のグループホーム（共同生活援助）。住居{len(o['houses'])}か所の所在地、電話番号、同じ法人や同じ地域のグループホーム。",
+             hero, body)
+        count += 1
+    print(f"施設ページ: {count:,}")
 
 
 if __name__ == "__main__":

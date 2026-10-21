@@ -24,7 +24,7 @@ BASE = "https://www.wam.go.jp"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SLIM = ROOT / "data" / "slim"
 UA = "shofuku-ranking (+https://github.com/kaigoApp/gh-ranking)"
-FIELDS = ["no", "pref", "muni", "corp_key", "corp", "name", "addr", "lat", "lng"]
+FIELDS = ["no", "pref", "muni", "corp_key", "corp", "name", "addr", "lat", "lng", "tel", "url"]
 
 
 def norm(s: str) -> str:
@@ -66,6 +66,7 @@ def slim(zip_bytes: bytes) -> list[dict]:
         code=col(h, "都道府県コード"), no=col(h, "事業所番号"),
         muni=col(h, "事業所住所", "市区町村"), addr=col(h, "事業所住所", "番地"),
         corpno=col(h, "法人番号"), lat=col(h, "緯度"), lng=col(h, "経度"),
+        tel=col(h, "事業所電話番号"), url=col(h, "事業所URL"),
         corp=next((x for x in h if x.startswith("法人の名称") and "かな" not in x), None),
         name=next((x for x in h if x.startswith("事業所の名称") and "かな" not in x), None),
     )
@@ -87,6 +88,7 @@ def slim(zip_bytes: bytes) -> list[dict]:
             corp_key=g(r, "corpno").strip() or corp, corp=corp,
             name=norm(g(r, "name")), addr=norm(g(r, "addr")),
             lat=g(r, "lat").strip()[:10], lng=g(r, "lng").strip()[:11],
+            tel=norm(g(r, "tel"))[:20], url=g(r, "url").strip()[:200],
         ))
     out.sort(key=lambda r: (r["no"], r["muni"], r["addr"], r["name"]))
     return out
@@ -104,6 +106,11 @@ def save(code: str, period: str, rows: list[dict]) -> pathlib.Path:
     return dest
 
 
+def has_all_fields(path: pathlib.Path) -> bool:
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        return f.readline().strip().split(",") == FIELDS
+
+
 def from_page() -> int:
     try:
         html = get(PAGE).decode("utf-8", "replace")
@@ -115,8 +122,11 @@ def from_page() -> int:
         links[(period, code)] = href if href.startswith("http") else BASE + href
     print(f"一覧ページの ZIP: {len(links)} 件、時点 {sorted({p for p, _ in links})}")
     got = failed = 0
+    latest = max(p for p, _ in links) if links else ""
     for (period, code), url in sorted(links.items()):
-        if (SLIM / code / f"{period}.csv.gz").exists():
+        dest = SLIM / code / f"{period}.csv.gz"
+        # 最新時点は、列が足りない古い形式なら取り直す（電話番号・URL は最新時点だけ使う）
+        if dest.exists() and not (period == latest and not has_all_fields(dest)):
             continue
         try:
             data = get(url)

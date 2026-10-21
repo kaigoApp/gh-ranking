@@ -139,6 +139,9 @@ thead th { border-top: 0; font-size: 12px; color: var(--muted); font-weight: 700
 td.r, th.r { text-align: right; }
 td.n { font-family: var(--f-num); font-weight: 600; font-size: 16px; text-align: right; font-variant-numeric: tabular-nums; }
 td.name { white-space: normal; min-width: 8em; }
+table.info th { width: 7.5em; white-space: nowrap; color: var(--muted); font-size: 13px; font-weight: 700; background: color-mix(in oklab, var(--bg) 60%, var(--surface)); vertical-align: top; }
+table.info td { white-space: normal; overflow-wrap: anywhere; }
+table.info tr:first-child th, table.info tr:first-child td { border-top: 0; }
 tr.grp td { background: color-mix(in oklab, var(--bg) 70%, var(--surface)); font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .06em; padding-block: 6px; }
 td svg { width: 64px; height: 22px; display: block; margin-left: auto; }
 .bar-cell { min-width: 90px; }
