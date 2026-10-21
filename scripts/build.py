@@ -228,6 +228,15 @@ def tilemap(values: dict, links: dict, titles: dict, caption: str, legend_lo: st
             f'<figcaption class="cap">{E(caption)}</figcaption></figure>')
 
 
+SEARCH_FORM = """<form class="search" id="search" role="search">
+  <label for="q">施設名・法人名・市区町村名でさがす</label>
+  <div class="field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <input id="q" type="search" placeholder="例：フレンド、江別市、社会福祉法人〇〇" autocomplete="off" enterkeyhint="search"></div>
+  <p class="status" aria-live="polite"></p>
+  <ul class="results"></ul>
+</form>"""
+
+
 LOGO = ('<svg viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="14" width="7" height="11" rx="1.5" fill="var(--accent-on-ink)" opacity=".45"/>'
         '<rect x="9.5" y="8" width="7" height="17" rx="1.5" fill="var(--accent-on-ink)" opacity=".7"/>'
         '<rect x="18" y="1" width="7" height="24" rx="1.5" fill="var(--accent-on-ink)"/></svg>')
@@ -261,7 +270,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <div class="band">
   <header class="site-head"><div class="container">
     <a class="brand" href="{rel or './'}">{LOGO}<span>{SITE_NAME}</span></a>
-    <nav class="site-nav" aria-label="サイト内"><a href="{rel}#services">サービス別</a><a href="{rel}#prefs">都道府県別</a></nav>
+    <nav class="site-nav" aria-label="サイト内"><a class="find" href="{rel or './'}#search">施設をさがす</a><a href="{rel}#services">サービス別</a><a href="{rel}#prefs">都道府県別</a></nav>
   </div></header>
   <div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div>
 </div>
@@ -366,6 +375,7 @@ def build():
   <div class="eyebrow">最新データ　{E(LATEST_LABEL)}時点</div>
   <h1>全国の障害福祉事業所を、地域とサービスで比べる</h1>
   <p class="lede">グループホーム、就労支援、放課後等デイサービスなど{len(codes)}種類のサービスについて、国の公表データから事業所の数と増減を集計しています。データは半年ごとに自動で更新されます。</p>
+  {SEARCH_FORM}
   <div class="big"><div><span class="n">{tot:,}</span><span class="u">事業所</span></div>
     <div class="meta"><span>半年で <b>{delta(tot - tot0)}</b></span><span>{label(periods[first_i])}の <b>{ratio:.2f}倍</b></span></div></div>
 </div>
@@ -399,7 +409,7 @@ def build():
 <section id="prefs"><h2>都道府県から探す</h2><p class="sec-sub">数字は全サービスの延べ事業所数です。</p><div class="pref-grid">{prefs_html}</div></section>
 <section><h2>全国の事業所数の推移</h2><p class="sec-sub">全サービスの延べ事業所数。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p>{trend_chart(periods, total_series)}</section>"""
     page("", SITE_NAME, f"全国の障害福祉サービス事業所数（{LATEST_LABEL}時点 {tot:,}件）を、グループホーム・就労支援・放課後等デイなどサービス別、都道府県・市区町村別にランキング。国の公表データから自動更新。",
-         hero, body, split=True)
+         hero, body, '<script src="assets/search.js" defer></script>', split=True)
 
     # ---------- サービス別
     for c in codes:
@@ -579,7 +589,7 @@ def build():
                          key=lambda mk: (-L["muni"].get(mk, 0), mk[1]))
             mmax = max([L["muni"].get(mk, 0) for mk in mks] or [1]) or 1
             mrows = "".join(
-                f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href(rel, muni_path(*mk))}">{E(mk[1])}</a></td>'
+                f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href(rel, muni_path(*mk))}{"#group-home" if c == GH else ""}">{E(mk[1])}</a></td>'
                 f'<td class="n">{L["muni"].get(mk, 0):,}</td><td class="r">{delta(L["muni"].get(mk, 0) - (P_["muni"].get(mk, 0) if P_ else 0))}</td>'
                 f'<td class="bar-cell"><div class="bar"><i style="width:{L["muni"].get(mk, 0) / mmax * 100:.1f}%"></i></div></td></tr>'
                 for i, mk in enumerate(mks))
@@ -605,7 +615,7 @@ def build():
                 for x in codes if x != c)
             body = f"""
 <section><div class="kpis">{kpi_html}</div></section>
-<section><h2>市区町村別の{E(short)}</h2><p class="sec-sub">{E(pref)}内の事業所数の多い順です。増減は{E(label(prev))}との比較です。市区町村名から、その地域の事業所の一覧が見られます。</p>
+<section><h2>市区町村別の{E(short)}</h2><p class="sec-sub">{E(pref)}内の事業所数の多い順です。増減は{E(label(prev))}との比較です。市区町村名から、その地域の{"グループホームの施設一覧" if c == GH else "事業所の一覧"}が見られます。</p>
 {f'<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th><th></th></tr></thead><tbody>{mrows}</tbody></table></div>' if mrows else '<p class="note">この都道府県には、市区町村が特定できる事業所の掲載がありません。</p>'}</section>
 {f'<section><h2>{E(pref)}で{E(short)}を多く運営する法人</h2><p class="sec-sub">2事業所以上を運営する法人の上位です。</p><div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>法人</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{crows}</tbody></table></div></section>' if crows else ''}
 <section><h2>この半年の新規掲載と掲載終了</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までの変化です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
@@ -660,13 +670,16 @@ def build():
                     f'<li><b>{nm(no, o)}{NEW_CHIP if no in new_nos[c] else ""}</b>'
                     f'<span>{E(o["corp"])}</span><span>{E(mname + o["munis"][mk][1])}</span></li>'
                     for no, o in offs)
-                dirs.append(f'<details><summary>{E(SERVICES[c][1])}<span class="c">{len(offs):,}件</span></summary><ul>{lis}</ul></details>')
+                if c == GH:
+                    dirs.insert(0, f'<details id="group-home" open><summary>{E(SERVICES[c][1])}<span class="c">{len(offs):,}件</span></summary><ul>{lis}</ul></details>')
+                else:
+                    dirs.append(f'<details><summary>{E(SERVICES[c][1])}<span class="c">{len(offs):,}件</span></summary><ul>{lis}</ul></details>')
         near = "".join(f'<a href="{href(rel, muni_path(*m))}"><span>{E(m[1])}</span><span class="c">{muni_total[latest][m]:,}</span></a>'
                        for m in sorted(siblings, key=lambda m: -muni_total[latest][m]) if m != mk)
         body = f"""
 <section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
-<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">サービス名を押すと、その事業所の一覧が開きます。グループホームは住居ごとではなく事業所ごとに載せており、名前から施設の詳しいページへ移れます。</p>
+<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">グループホームの施設名を押すと、施設の詳しいページへ移れます。ほかのサービスは、サービス名を押すと一覧が開きます。</p>
 <div class="dir">{"".join(dirs)}</div></section>
 <section><h2>{E(pref)}のほかの市区町村</h2><div class="pref-grid">{near}</div></section>"""
         top = sorted(((S[c][latest]["muni"].get(mk, 0), c) for c in codes), reverse=True)[:3]
@@ -776,6 +789,14 @@ def build_facilities(S, codes, periods, latest, new_nos):
              hero, body)
         count += 1
     print(f"施設ページ: {count:,}")
+    muni_list = sorted({mk for c in codes for mk in S[c][latest]["muni"]})
+    index = dict(
+        P=PREFS, S=PREF_SLUGS,
+        m=[[mk[1], mk[0]] for mk in muni_list],
+        f=[[no, names[no], o["corp"], o["p"], next(iter(o["munis"]))[1] if o["munis"] else ""]
+           for no, o in sorted(L["offices"].items(), key=lambda x: (x[1]["p"], names[x[0]])) if fac_path(no)],
+    )
+    (OUT / "assets" / "search.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
 if __name__ == "__main__":
