@@ -126,7 +126,7 @@ def summarize(path: pathlib.Path, keep: bool):
     muni = collections.Counter(mk for o in offices.values() for mk in o["munis"])
     rows = sum(o["rows"] for o in offices.values())
     return dict(n=len(offices), rows=rows, pref=pref, muni=muni, offices=offices if keep else None,
-                nos=set(offices) if path.parent.name == GH else None)
+                nos={no: o["rows"] for no, o in offices.items()} if path.parent.name == GH else None)
 
 
 def load():
@@ -325,6 +325,19 @@ def href(rel, path):
 # ---------------------------------------------------------------- ページ
 
 PAGES: list[str] = []
+FRESH: dict = {}          # グループホームの事業所番号 → 初掲載の時点（直近1年のもの）
+FRESH_LATEST = [""]
+
+
+def fresh_chip(no):
+    p = FRESH.get(no)
+    if not p:
+        return ""
+    if p == FRESH_LATEST[0]:
+        return '<span class="chip hot">半年以内に新規掲載</span>'
+    return '<span class="chip">1年以内に新規掲載</span>'
+
+
 LATEST_LABEL = ""
 
 
@@ -359,6 +372,18 @@ def build():
 
     # 新規掲載の事業所（サービスごと）
     new_nos = {c: set(S[c][latest]["offices"]) - set(S[c][prev]["offices"]) if prev in S[c] else set() for c in codes}
+    # グループホームが初めて公表データに載った時点。直近1年（2時点）に初掲載なら「最近できた」とみなす。
+    # 開設したばかりの事業所は入居者を募集していることが多いので、探す人の目に入る場所に出す。
+    first_seen = {}
+    if GH in S:
+        for p in periods:
+            for no in (S[GH][p].get("nos") or ()) if p in S[GH] else ():
+                first_seen.setdefault(no, p)
+    recent = {latest, prev} - {periods[0]}
+    FRESH.clear()
+    FRESH.update({no: p for no, p in first_seen.items() if p in recent and GH in S and no in S[GH][latest]["offices"]})
+    FRESH_LATEST[0] = latest
+    print(f"グループホーム 1年以内に初掲載: {len(FRESH):,}")
 
     OUT.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ASSETS, OUT / "assets", dirs_exist_ok=True)
@@ -395,6 +420,13 @@ def build():
         if items:
             cards.append(f'<div class="group"><h3>{E(gname)}</h3><div class="cards">{"".join(items)}</div></div>')
 
+    fresh_top = ""
+    if GH in S and FRESH:
+        fc = collections.Counter(S[GH][latest]["offices"][no]["p"] for no in FRESH)
+        grid = "".join(f'<a href="{href("", ps_path(pi, GH))}#fresh"><span>{PREFS[pi]}</span><span class="c">{fc.get(pi, 0):,}</span></a>' for pi in range(47))
+        fresh_top = (f'<section id="fresh"><h2>最近できたグループホーム</h2>'
+                     f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームは全国に{len(FRESH):,}件あります。できたばかりの事業所は入居者を募集していることが多く、入居先を探す手がかりになります。都道府県を選ぶと一覧が見られます。</p>'
+                     f'<div class="pref-grid">{grid}</div></section>')
     inc = sorted(all_munis, key=lambda mk: (-(muni_total[latest][mk] - muni_total[prev][mk]), -muni_total[latest][mk]))[:15]
     inc_rows = "".join(
         f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href("", muni_path(*mk))}">{E(PREFS[mk[0]] + " " + mk[1])}</a></td>'
@@ -404,6 +436,7 @@ def build():
     body = f"""
 <section id="services"><h2>サービス別の事業所数</h2><p class="sec-sub">カードを開くと、都道府県・市区町村・運営法人のランキングが見られます。数字は{E(LATEST_LABEL)}時点、増減は{E(label(prev))}との比較です。</p>
 <div class="groups">{"".join(cards)}</div></section>
+{fresh_top}
 <section><h2>この半年で事業所が増えた市区町村</h2><p class="sec-sub">全サービスの延べ事業所数の増加数です。</p>
 <div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{inc_rows}</tbody></table></div></section>
 <section id="prefs"><h2>都道府県から探す</h2><p class="sec-sub">数字は全サービスの延べ事業所数です。</p><div class="pref-grid">{prefs_html}</div></section>
@@ -461,8 +494,6 @@ def build():
                     muni=munis, corp=corp, new=newl, gone=gone)
         blob = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
         kpis = [("運営法人", len(corp_cur), "法人"), ("半年の新規掲載", len(newl), "件"), ("半年の掲載終了", len(gone), "件")]
-        if c == GH:
-            kpis.insert(0, ("住居数", L["rows"], "件"))
         kpi_html = "".join(f'<div class="kpi"><span class="k">{k}</span><span class="v">{v:,}<small>{u}</small></span></div>' for k, v, u in kpis)
         siblings = [x for g, cs in GROUPS if c in cs for x in cs if x in S and x != c]
         sib = "".join(f'<a href="{href(rel, "s/" + SERVICES[x][2] + "/")}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["n"]:,}</span></a>' for x in siblings)
@@ -581,8 +612,6 @@ def build():
             corp_p = collections.Counter(o["corp_key"] for _, o in prev_offs)
             cname = {o["corp_key"]: o["corp"] for _, o in prev_offs + cur_offs}
             kpis = [("運営法人", len(corp_c), "法人"), ("半年の新規掲載", len(new_here), "件"), ("半年の掲載終了", len(gone_here), "件")]
-            if c == GH:
-                kpis.insert(0, ("住居数", sum(o["rows"] for _, o in cur_offs), "件"))
             kpi_html = "".join(f'<div class="kpi"><span class="k">{k}</span><span class="v">{v:,}<small>{u}</small></span></div>' for k, v, u in kpis)
 
             mks = sorted({mk for mk in L["muni"] if mk[0] == pi} | ({mk for mk in P_["muni"] if mk[0] == pi} if P_ else set()),
@@ -606,6 +635,21 @@ def build():
                 return f'<li><b>{nm}</b><span>{E(o["corp"])}{"｜" + place if place else ""}</span></li>'
 
             new_html = "".join(office_li(o, href(rel, fac_path(no)) if c == GH and fac_path(no) else None) for no, o in new_here)
+            fresh_sec = ""
+            if c == GH:
+                fr = sorted(((no, o) for no, o in cur_offs if no in FRESH),
+                            key=lambda x: (FRESH[x[0]] != latest, next(iter(x[1]["munis"]), (0, ""))[1], display_name(x[1])))
+                def fresh_li(no, o):
+                    mk = next(iter(o["munis"]), None)
+                    place = f'<a href="{href(rel, muni_path(*mk))}">{E(mk[1])}</a>' if mk else ""
+                    fp = fac_path(no)
+                    nm = f'<a href="{href(rel, fp)}">{E(display_name(o))}</a>' if fp else E(display_name(o))
+                    return f'<li><b>{nm}{fresh_chip(no)}</b><span>{E(o["corp"])}{"｜" + place if place else ""}</span></li>'
+                items = "".join(fresh_li(no, o) for no, o in fr)
+                fresh_sec = (f'<section id="fresh"><h2>最近できた{E(pref)}のグループホーム</h2>'
+                             f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームです（{len(fr):,}件）。できたばかりの事業所は入居者を募集していることが多いため、入居先を探す手がかりになります。空き状況は各事業所にお問い合わせください。</p>'
+                             + (f'<div class="dir"><details open><summary>1年以内に新規掲載<span class="c">{len(fr):,}件</span></summary><ul>{items}</ul></details></div>' if fr else '<p class="note">この1年で新しく載ったグループホームはありません。</p>')
+                             + '</section>')
             gone_html = "".join(office_li(o) for _, o in gone_here)
             others = "".join(
                 f'<a href="{href(rel, ps_path(i, c))}"><span>{PREFS[i]}</span><span class="c">{L["pref"].get(i, 0):,}</span></a>'
@@ -615,12 +659,13 @@ def build():
                 for x in codes if x != c)
             body = f"""
 <section><div class="kpis">{kpi_html}</div></section>
+{fresh_sec}
 <section><h2>市区町村別の{E(short)}</h2><p class="sec-sub">{E(pref)}内の事業所数の多い順です。増減は{E(label(prev))}との比較です。市区町村名から、その地域の{"グループホームの施設一覧" if c == GH else "事業所の一覧"}が見られます。</p>
 {f'<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th><th></th></tr></thead><tbody>{mrows}</tbody></table></div>' if mrows else '<p class="note">この都道府県には、市区町村が特定できる事業所の掲載がありません。</p>'}</section>
 {f'<section><h2>{E(pref)}で{E(short)}を多く運営する法人</h2><p class="sec-sub">2事業所以上を運営する法人の上位です。</p><div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>法人</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{crows}</tbody></table></div></section>' if crows else ''}
-<section><h2>この半年の新規掲載と掲載終了</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までの変化です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
+<section><h2>{"この半年の掲載終了" if c == GH else "この半年の新規掲載と掲載終了"}</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までの変化です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
 <div class="dir">
-  <details{" open" if 0 < len(new_here) <= 30 else ""}><summary>新規掲載<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>
+  {"" if c == GH else f'<details{" open" if 0 < len(new_here) <= 30 else ""}><summary>新規掲載<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>'}
   <details><summary>掲載終了<span class="c">{len(gone_here):,}件</span></summary>{f"<ul>{gone_html}</ul>" if gone_html else ""}</details>
 </div></section>
 <section><h2>{E(pref)}の{E(short)}の推移</h2>{trend_chart(periods, ser)}</section>
@@ -661,13 +706,13 @@ def build():
                         f'<td class="r tnum">{f"{r_in}位" if r_in else "－"}</td><td>{spark(ser, 64, 22)}</td></tr>')
             offs = [(no, o) for no, o in S[c][latest]["offices"].items() if mk in o["munis"]]
             if offs:
-                offs.sort(key=lambda x: x[1]["munis"][mk][0])
+                offs.sort(key=lambda x: (0 if c == GH and x[0] in FRESH else 1, x[1]["munis"][mk][0]))
                 def nm(no, o):
                     fp = fac_path(no) if c == GH else None
                     t = E(o["munis"][mk][0])
                     return f'<a href="{href(rel, fp)}">{t}</a>' if fp else t
                 lis = "".join(
-                    f'<li><b>{nm(no, o)}{NEW_CHIP if no in new_nos[c] else ""}</b>'
+                    f'<li><b>{nm(no, o)}{fresh_chip(no) if c == GH else (NEW_CHIP if no in new_nos[c] else "")}</b>'
                     f'<span>{E(o["corp"])}</span><span>{E(mname + o["munis"][mk][1])}</span></li>'
                     for no, o in offs)
                 if c == GH:
@@ -679,7 +724,7 @@ def build():
         body = f"""
 <section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
-<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">グループホームの施設名を押すと、施設の詳しいページへ移れます。ほかのサービスは、サービス名を押すと一覧が開きます。</p>
+<section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">グループホームの施設名を押すと、施設の詳しいページへ移れます。「新規掲載」の印があるグループホームは最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。ほかのサービスは、サービス名を押すと一覧が開きます。</p>
 <div class="dir">{"".join(dirs)}</div></section>
 <section><h2>{E(pref)}のほかの市区町村</h2><div class="pref-grid">{near}</div></section>"""
         top = sorted(((S[c][latest]["muni"].get(mk, 0), c) for c in codes), reverse=True)[:3]
@@ -737,11 +782,10 @@ def build_facilities(S, codes, periods, latest, new_nos):
         since = (f"{label(periods[0])}以前から" if fs == periods[0] else f"{label(fs)}から") if fs else ""
         hero = f"""<div>
   {crumbs(rel, items)}
-  <div class="eyebrow" style="margin-top:12px">グループホーム（共同生活援助）{NEW_CHIP if no in new_nos[GH] else ""}</div>
+  <div class="eyebrow" style="margin-top:12px">グループホーム（共同生活援助）{fresh_chip(no)}</div>
   <h1>{E(name)}</h1>
-  <p class="lede">{E(o["corp"])}が運営する、{E(place)}のグループホームです。</p>
-  <div class="big"><div><span class="n">{len(o["houses"])}</span><span class="u">住居</span></div>
-    <div class="meta"><span>公表データへの掲載 <b>{E(since)}</b></span></div></div>
+  <p class="lede">{E(o["corp"])}が運営する、{E(place)}のグループホームです。{"この1年で新しく公表データに載った事業所で、入居者を募集している可能性があります。" if no in FRESH else ""}</p>
+  <div class="big"><div class="meta"><span>公表データへの掲載 <b>{E(since)}</b></span></div></div>
 </div>"""
         h0 = o["houses"][0] if o["houses"] else (name, "", "", "", "")
         def maplink(lat, lng):
@@ -779,13 +823,12 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <section><h2>基本情報</h2>
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p></section>
-<section><h2>住居の一覧</h2><p class="sec-sub">この事業所が運営する住居です（{len(o["houses"])}か所）。</p>
-<div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>
+{f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if len(o["houses"]) > 1 else ''}
 {f'<section><h2>この事業所が行うほかのサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。</p><div class="pref-grid">{other_svcs}</div></section>' if other_svcs else ''}
 {f'<section><h2>{E(o["corp"])}のほかのグループホーム</h2><div class="dir"><details open><summary>同じ法人<span class="c">{len(by_corp[o["corp_key"]]) - 1}件</span></summary><ul>{corp_html}</ul></details></div>{f"<p class=note>ほか{corp_more}件。</p>" if corp_more > 0 else ""}</section>' if corp_html else ''}
 {f'<section><h2>{E(mk[1])}のほかのグループホーム</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{len(by_muni[mk]) - 1}件</span></summary><ul>{muni_html}</ul></details></div>{f"<p class=note>ほか{muni_more}件は<a href={chr(34)}{href(rel, muni_path(*mk))}{chr(34)}>{E(mk[1])}のページ</a>へ。</p>" if muni_more > 0 else ""}</section>' if muni_html else ''}"""
         page(path, f"{name}（{place}）のグループホーム情報",
-             f"{name}は{o['corp']}が運営する{place}のグループホーム（共同生活援助）。住居{len(o['houses'])}か所の所在地、電話番号、同じ法人や同じ地域のグループホーム。",
+             f"{name}は{o['corp']}が運営する{place}のグループホーム（共同生活援助）。所在地、電話番号、同じ法人や同じ地域のグループホーム。",
              hero, body)
         count += 1
     print(f"施設ページ: {count:,}")
