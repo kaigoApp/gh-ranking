@@ -46,7 +46,8 @@ WAM NET からダウンロードした ZIP を `python scripts/fetch.py --zip sf
 
 ## 出典
 
-総務省「住民基本台帳に基づく人口、人口動態及び世帯数」（人口あたりの数）
-
 独立行政法人福祉医療機構 WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」
 https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/
+
+総務省「住民基本台帳に基づく人口、人口動態及び世帯数」（人口あたりの数）
+https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000428.html
