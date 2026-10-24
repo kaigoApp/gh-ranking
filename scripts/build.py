@@ -747,10 +747,10 @@ def build():
         near = "".join(f'<a href="{href(rel, muni_path(*m))}"><span>{E(m[1])}</span><span class="c">{muni_total[latest][m]:,}</span></a>'
                        for m in sorted(siblings, key=lambda m: -muni_total[latest][m]) if m != mk)
         body = f"""
-<section><h2>サービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
-<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
 <section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">グループホームの施設名を押すと、施設の詳しいページへ移れます。「新規掲載」の印があるグループホームは最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。ほかのサービスは、サービス名を押すと一覧が開きます。</p>
 <div class="dir">{"".join(dirs)}</div></section>
+<section><h2>{E(mname)}のサービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(pref)}全体の内訳が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
+<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
 <section><h2>{E(pref)}のほかの市区町村</h2><div class="pref-grid">{near}</div></section>"""
         top = sorted(((S[c][latest]["muni"].get(mk, 0), c) for c in codes), reverse=True)[:3]
         tops = "・".join(f"{SERVICES[c][1]}{n}件" for n, c in top if n)
