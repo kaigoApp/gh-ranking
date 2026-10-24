@@ -4,6 +4,7 @@
   /s/<サービス>/            サービス別ランキング
   /p/<都道府県>/            都道府県ページ
   /p/<都道府県>/<市区町村>/ 市区町村ページ（事業所の一覧つき）
+  /data/                    お仕事で使う方へ（地域のくらべ表・半年の動き・CSV ダウンロード）
 
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
 """
@@ -11,6 +12,7 @@ import collections
 import csv
 import gzip
 import html
+import io
 import json
 import os
 import pathlib
@@ -281,7 +283,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <body>
 <header class="site-head"><div class="container">
   <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
-  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
+  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
 </div></header>
 <div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
@@ -458,6 +460,7 @@ def build():
 {stats}
 <section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選んでください。数字は全国の事業所数です。</p>
 <div class="purposes">{"".join(purpose_html)}</div></section>
+<a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
 <section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
 <section class="data-zone"><div class="data-h"><span class="eyebrow">データで見る</span><h2>障害福祉の事業所は、いまも増えています</h2>
@@ -758,6 +761,9 @@ def build():
              f"{pref}{mname}の障害福祉サービス事業所は{cur:,}件（{LATEST_LABEL}時点、延べ）。{tops}など。サービス別の事業所数・増減と事業所の一覧。",
              hero, body)
 
+    # ---------- お仕事で使う方へ（データ）
+    build_data(S, codes, periods, latest, prev, year_ago, new_nos)
+
     # ---------- グループホームの施設ページ
     if GH in S:
         build_facilities(S, codes, periods, latest, new_nos)
@@ -874,6 +880,207 @@ def build_facilities(S, codes, periods, latest, new_nos):
            for no, o in sorted(L["offices"].items(), key=lambda x: (x[1]["p"], names[x[0]])) if fac_path(no)],
     )
     (OUT / "assets" / "search.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+CSV_SOURCE = "出典：独立行政法人福祉医療機構 WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」をもとに ジモふく（https://jimofuku.jp/）が集計"
+
+
+def write_csv(path: pathlib.Path, note: str, header, rows) -> int:
+    """Excel でそのまま開けるよう、BOM つき UTF-8・CRLF で書く。先頭2行は出典と注記。"""
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\r\n")
+    w.writerow([CSV_SOURCE])
+    w.writerow([note])
+    w.writerow(header)
+    w.writerows(rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8"))
+    return path.stat().st_size
+
+
+def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
+    """お仕事で使う方へのページ。くらべ表のもとデータ、半年の動き、CSV を書き出す。"""
+    path = "data/"
+    rel = "../"
+    dd = OUT / "data"
+    ya = year_ago if year_ago != prev else None
+
+    def counts(c, p, key, k):
+        return S[c][p][key].get(k, 0) if p and p in S[c] else None
+
+    # 運営法人の数（最新時点だけ。事業所の一覧を持っているのは最新と前回だけなので）
+    corp_pref = {c: collections.defaultdict(set) for c in codes}
+    corp_muni = {c: collections.defaultdict(set) for c in codes}
+    for c in codes:
+        for o in S[c][latest]["offices"].values():
+            corp_pref[c][o["p"]].add(o["corp_key"])
+            for mk in o["munis"]:
+                corp_muni[c][mk].add(o["corp_key"])
+
+    def all_corps(table, k):
+        return len(set().union(*(table[c].get(k, set()) for c in codes)))
+
+    def sum4(vals):
+        out = []
+        for i in range(3):
+            v = [x[i] for x in vals if x[i] is not None]
+            out.append(sum(v) if v else None)
+        return out
+
+    # 都道府県のくらべ表：サービスごとに [最新, 半年前, 1年前, 運営法人数]
+    T = {}
+    for c in codes:
+        T[c] = [[counts(c, latest, "pref", pi), counts(c, prev, "pref", pi), counts(c, ya, "pref", pi), len(corp_pref[c].get(pi, ()))]
+                for pi in range(47)]
+    T["all"] = [sum4([T[c][pi] for c in codes]) + [all_corps(corp_pref, pi)] for pi in range(47)]
+
+    # 市区町村のくらべ表は都道府県ごとのファイルにして、選んだときだけ読み込む
+    munis_by_pref = collections.defaultdict(set)
+    for c in codes:
+        for p in (latest, prev):
+            if p in S[c]:
+                for mk in S[c][p]["muni"]:
+                    munis_by_pref[mk[0]].add(mk)
+    for pi in range(47):
+        rows = []
+        for mk in sorted(munis_by_pref[pi], key=lambda m: m[1]):
+            sv = {}
+            for c in codes:
+                v = [counts(c, latest, "muni", mk), counts(c, prev, "muni", mk), counts(c, ya, "muni", mk), len(corp_muni[c].get(mk, ()))]
+                if v[0] or v[1] or v[2]:
+                    sv[c] = v
+            allv = sum4(list(sv.values())) + [all_corps(corp_muni, mk)]
+            rows.append([mk[1], href(rel, muni_path(*mk)), allv, sv])
+        f = dd / "m" / f"{PREF_SLUGS[pi]}.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(rows, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+    # 半年の動き：新しく載った事業所・載らなくなった事業所。都道府県ごとのファイルにする。
+    corps_prev = {c: {o["corp_key"] for o in S[c][prev]["offices"].values()} if prev in S[c] else None for c in codes}
+    corps_cur = {c: {o["corp_key"] for o in S[c][latest]["offices"].values()} for c in codes}
+    moves = collections.defaultdict(dict)
+    move_rows = []
+    for c in codes:
+        if prev not in S[c]:
+            continue
+        L, P_ = S[c][latest]["offices"], S[c][prev]["offices"]
+        for kind, nos, src in ((1, sorted(new_nos[c]), L), (0, sorted(set(P_) - set(L)), P_)):
+            for no in nos:
+                o = src[no]
+                mk = next(iter(o["munis"]), None)
+                name = display_name(o) if o["houses"] else o["name"]
+                # 新規：そのサービスを全国でまだしていなかった法人 / 終了：そのサービスを全国でしなくなった法人
+                first = int(o["corp_key"] not in (corps_prev[c] if kind else corps_cur[c]))
+                fac = href(rel, fac_path(no)) if kind and c == GH and fac_path(no) else ""
+                # 1つの事業所が複数のサービスを始めたときは、画面では1行にまとめる
+                r = moves[o["p"]].setdefault((kind, no), [kind, [], mk[1] if mk else "", name, o["corp"], [], ""])
+                r[1].append(c)
+                if first:
+                    r[5].append(c)
+                r[6] = r[6] or fac
+                move_rows.append([("新規掲載" if kind else "掲載終了"), SERVICES[c][0], PREFS[o["p"]], mk[1] if mk else "", no, name, o["corp"],
+                                  o["corp_key"] if o["corp_key"].isdigit() else "",
+                                  ("この法人が初めて行うサービス" if kind else "この法人がこのサービスをすべてやめた") if first else ""])
+    for pi in range(47):
+        rows = sorted(moves[pi].values(), key=lambda r: (-r[0], r[2], r[3]))
+        (dd / "mv" / f"{PREF_SLUGS[pi]}.json").parent.mkdir(parents=True, exist_ok=True)
+        (dd / "mv" / f"{PREF_SLUGS[pi]}.json").write_text(json.dumps(rows, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    move_rows.sort(key=lambda r: (r[0] != "新規掲載", PREFS.index(r[2]), r[3], r[1], r[5]))
+
+    # CSV
+    plabels = [label(p) for p in periods]
+    cnote = "事業所数は事業所番号の数（1つの事業所が複数のサービスを行う場合はサービスごとに数える）。空欄はその時点のデータがないもの。"
+    pref_rows = [[PREFS[pi], SERVICES[c][0]] + [("" if p not in S[c] else S[c][p]["pref"].get(pi, 0)) for p in periods]
+                 for pi in range(47) for c in codes]
+    muni_keys = sorted({mk for c in codes for p in S[c] for mk in S[c][p]["muni"]})
+    muni_rows = []
+    for mk in muni_keys:
+        for c in codes:
+            vals = [("" if p not in S[c] else S[c][p]["muni"].get(mk, 0)) for p in periods]
+            if any(vals):
+                muni_rows.append([PREFS[mk[0]], mk[1], SERVICES[c][0]] + vals)
+    span = f"{prev}-{latest}"
+    files = [
+        ("todofuken.csv", f"都道府県別・サービス別の事業所数（{plabels[0]}〜{plabels[-1]}）", "都道府県ごと・サービスごとに、各時点の事業所数を並べた表です。",
+         write_csv(dd / "todofuken.csv", cnote, ["都道府県", "サービス"] + plabels, pref_rows), len(pref_rows)),
+        ("shikuchoson.csv", f"市区町村別・サービス別の事業所数（{plabels[0]}〜{plabels[-1]}）", "市区町村ごと・サービスごとに、各時点の事業所数を並べた表です。事業所が1か所もない組み合わせは省いています。",
+         write_csv(dd / "shikuchoson.csv", cnote + "市区町村は事業所の所在地。", ["都道府県", "市区町村", "サービス"] + plabels, muni_rows), len(muni_rows)),
+        (f"ugoki-{span}.csv", f"半年間に新しく載った事業所・載らなくなった事業所（{label(prev)}→{label(latest)}）", "事業所名・運営法人・所在地の一覧です。その法人が初めて行うサービスかどうかの印もつけています。",
+         write_csv(dd / f"ugoki-{span}.csv", f"{label(prev)}と{label(latest)}の公表データをくらべ、掲載の有無で判定。実際の開設・廃止日とは一致しない場合がある。掲載終了には休止や番号の変更も含む。",
+                   ["区分", "サービス", "都道府県", "市区町村", "事業所番号", "事業所名", "運営法人", "法人番号", "法人のようす"], move_rows), len(move_rows)),
+    ]
+    dl_names = {"todofuken.csv": f"ジモふく_都道府県別事業所数_{latest}.csv", "shikuchoson.csv": f"ジモふく_市区町村別事業所数_{latest}.csv",
+                f"ugoki-{span}.csv": f"ジモふく_新規掲載と掲載終了_{span}.csv"}
+    def size_label(b):
+        return f"{b / 1024 / 1024:.1f}MB" if b >= 1024 * 1024 else f"{max(1, b // 1024):,}KB"
+    dl_html = "".join(
+        f'<li><a class="dl" href="{E(fn)}" download="{E(dl_names[fn])}"><b>{E(t)}</b><span>{E(d)}</span>'
+        f'<span class="meta">CSV（Excel で開けます）・{n:,}行・{size_label(size)}</span></a></li>'
+        for fn, t, d, size, n in files)
+
+    svc_opts = "".join(f'<optgroup label="{E(g)}">' + "".join(f'<option value="{c}">{E(SERVICES[c][1])}</option>' for c in cs if c in S) + "</optgroup>"
+                       for g, cs in GROUPS)
+    pref_opts = "".join(f'<option value="{pi}">{PREFS[pi]}</option>' for pi in range(47))
+    blob = json.dumps(dict(P=PREFS, S=PREF_SLUGS, T=T, N={c: SERVICES[c][1] for c in codes},
+                           pl=[href(rel, f"p/{PREF_SLUGS[pi]}/") for pi in range(47)],
+                           cur=LATEST_LABEL, prev=label(prev), ya=label(ya) if ya else ""),
+                      ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    n_new = sum(1 for r in move_rows if r[0] == "新規掲載")
+    n_first = sum(1 for r in move_rows if r[0] == "新規掲載" and r[8])
+    hero = f"""<div>
+  {crumbs(rel, [("お仕事で使う方へ", None)])}
+  <div class="eyebrow" style="margin-top:12px">データ　{E(LATEST_LABEL)}時点</div>
+  <h1>お仕事で使う方へ</h1>
+  <p class="lede">事業所の運営、相談支援、自治体の計画づくりなどに使えるよう、地域ごとの事業所の数と増え方、半年間の動きをまとめました。表はそのままダウンロードできます。</p>
+  <div class="big"><div><span class="n">{n_new:,}</span><span class="u">件</span></div>
+    <div class="meta"><span>この半年に新しく載った事業所</span><span>うち <b>{n_first:,}件</b> は、その法人が初めて行うサービス</span></div></div>
+</div>"""
+    body = f"""
+<section id="compare"><h2>地域のくらべ表</h2>
+<p class="sec-sub">地域とサービスを選ぶと、事業所の数と、半年前・1年前からの増え方を一覧にします。表の見出しを押すと並べ替えられます。</p>
+<div class="controls">
+  <select id="cp-area" aria-label="地域"><option value="-1">全国（都道府県ごと）</option>{pref_opts}</select>
+  <select id="cp-svc" aria-label="サービス"><option value="all">全サービス（延べ）</option>{svc_opts}</select>
+</div>
+<p class="note" id="cp-note"></p>
+<div class="table-wrap"><table class="sortable" id="cp-table"><thead><tr>
+  <th><button data-k="name">地域</button></th>
+  <th class="r"><button data-k="n">事業所数</button></th>
+  <th class="r"><button data-k="d6">半年の増減</button></th>
+  <th class="r"><button data-k="d12">1年の増減</button></th>
+  <th class="r"><button data-k="r12">1年の増え方</button></th>
+  <th class="r"><button data-k="corp">運営法人</button></th>
+</tr></thead><tbody id="cp-body"></tbody></table></div>
+<p class="note">運営法人は、その地域でそのサービスを行う法人の数です（{E(LATEST_LABEL)}時点）。市区町村は事業所の所在地で数えています。</p>
+</section>
+<section id="moves"><h2>半年の動き</h2>
+<p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに載った事業所と、載らなくなった事業所です。「初めて」の印は、その法人がそのサービスを全国でまだ行っていなかった（新しく始めた）ことを示します。</p>
+<div class="controls">
+  <select id="mv-pref" aria-label="都道府県"><option value="">都道府県を選んでください</option>{pref_opts}</select>
+  <select id="mv-svc" aria-label="サービス"><option value="all">全サービス</option>{svc_opts}</select>
+  <div class="seg" id="mv-kind" role="group" aria-label="区分">
+    <button data-kind="1" aria-pressed="true">新しく載った</button>
+    <button data-kind="0" aria-pressed="false">載らなくなった</button>
+  </div>
+  <label class="check"><input type="checkbox" id="mv-first"> 初めての法人だけ</label>
+</div>
+<p class="note" id="mv-note">都道府県を選ぶと一覧が出ます。</p>
+<div class="dir"><ul id="mv-list" class="mv-list"></ul></div>
+<button class="more" id="mv-more" hidden>さらに表示</button>
+<p class="note">掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。「載らなくなった」には、廃止のほか休止や事業所番号の変更も含みます。</p>
+</section>
+<section id="download"><h2>データのダウンロード</h2>
+<p class="sec-sub">どれも CSV という形式で、Excel でそのまま開けます。データが新しくなるたびに作り直しています（年2回、3月末と9月末の時点）。</p>
+<ul class="dl-list">{dl_html}</ul>
+<div class="howto"><h3>使うときのお願い</h3>
+<p>資料や会議などで使うときは、出典として次のように書いてください。ファイルの1行目にも同じ文が入っています。</p>
+<p class="cite">{E(CSV_SOURCE)}</p>
+<p>事業所ごとの住所・電話番号などすべての項目が必要な場合は、国のもとのデータ（<a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>）を使ってください。</p></div>
+</section>"""
+    scripts = f'<script id="data-data" type="application/json">{blob}</script>\n<script src="{rel}assets/data.js" defer></script>'
+    page(path, "お仕事で使う方へ｜障害福祉の事業所データ（地域のくらべ表・ダウンロード）",
+         f"障害福祉サービス事業所の数を、都道府県・市区町村・サービスごとにくらべられる表と、半年間に新しく載った事業所の一覧。CSV でダウンロードできます（{LATEST_LABEL}時点）。",
+         hero, body, scripts)
+    print(f"データページ: 動き {len(move_rows):,}件、市区町村CSV {len(muni_rows):,}行")
 
 
 if __name__ == "__main__":

@@ -316,3 +316,32 @@ footer.site-foot a { color: var(--on-ink); }
 .act.main b { font-family: var(--f-num); font-size: 22px; letter-spacing: .02em; }
 .act:hover { filter: brightness(1.08); }
 .since { font-size: 12px; color: var(--on-ink-muted); margin: 14px 0 0; }
+
+/* お仕事で使う方へ（トップの入口と /data/） */
+.pro-link { position: relative; display: grid; gap: 4px; padding: 20px 56px 20px clamp(16px, 3vw, 24px); background: var(--accent-soft); border-radius: var(--radius); text-decoration: none; color: var(--fg); }
+.pro-link .eyebrow { color: var(--accent); }
+.pro-link b { font-family: var(--f-display); font-weight: 900; font-size: clamp(17px, 4vw, 20px); }
+.pro-link span:last-of-type { color: var(--muted); font-size: 14px; max-width: 46em; }
+.pro-link i { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 22px; color: var(--accent); }
+.pro-link:hover { background: color-mix(in oklab, var(--accent-soft) 80%, var(--brand)); }
+table.sortable th { padding: 0; }
+table.sortable th button { font: inherit; color: inherit; background: none; border: 0; padding: 9px 12px; width: 100%; text-align: inherit; cursor: pointer; white-space: nowrap; }
+table.sortable th[aria-sort="descending"] button::after { content: " ▼"; color: var(--accent); }
+table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color: var(--accent); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.dir ul.mv-list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding-bottom: 0; }
+.dir ul.mv-list li:first-child { border-top: 0; }
+.mv-list:empty { display: none; }
+.mv-list .chip { margin-left: 6px; }
+.dl-list { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+.dl { display: grid; gap: 2px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; color: var(--fg); box-shadow: var(--shadow); }
+.dl:hover { border-color: var(--accent); }
+.dl b { color: var(--accent); }
+.dl span { font-size: 14px; color: var(--muted); }
+.dl .meta { font-size: 12px; }
+.howto { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; font-size: 14px; }
+.howto h3 { margin: 0 0 6px; font-size: 15px; }
+.howto p { margin: 0 0 8px; }
+.howto .cite { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; overflow-wrap: anywhere; }
+#cp-table td.r { font-family: var(--f-num); }
