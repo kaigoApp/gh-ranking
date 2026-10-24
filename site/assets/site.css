@@ -375,3 +375,16 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
 .list-tools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
 .filter { flex: 1 1 260px; max-width: 420px; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); }
 .near-link { font-weight: 700; font-size: 14px; }
+
+/* レポート */
+.report-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.report-list a { display: grid; gap: 2px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; color: var(--fg); }
+.report-list a:hover { border-color: var(--brand); }
+.report-list span { font-size: 13px; color: var(--muted); }
+.points { padding-left: 1.2em; display: grid; gap: 6px; }
+.report-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.report-cols > div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; }
+.report-cols h3 { margin: 0 0 6px; font-size: 14px; }
+.report-cols ol { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
+.report-cols .num { color: var(--muted); margin-left: 4px; }
+.pro-link + .pro-link { margin-top: 10px; }
