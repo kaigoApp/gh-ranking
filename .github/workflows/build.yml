@@ -45,6 +45,27 @@ jobs:
 
       - name: ページを作成
         run: python scripts/build.py
+        env:
+          SITE_URL: https://jimofuku.jp
+
+      - name: エックスサーバーへアップロード
+        env:
+          SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+          HOST: ${{ secrets.XSERVER_HOST }}
+          USER: ${{ secrets.XSERVER_USER }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "鍵が登録されていないので、アップロードは飛ばします"
+            exit 0
+          fi
+          install -m 600 /dev/null ~/xserver_key
+          printf '%s\n' "$SSH_KEY" > ~/xserver_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 10022 "$HOST" >> ~/.ssh/known_hosts
+          # 変わったファイルだけ送り、無くなったページはサーバーからも消す（サーバーの設定ファイルは残す）
+          rsync -rlz --checksum --delete --exclude .htaccess --exclude .user.ini \
+            -e "ssh -p 10022 -i ~/xserver_key" \
+            public/ "$USER@$HOST:jimofuku.jp/public_html/"
 
       - uses: actions/configure-pages@v5
 
