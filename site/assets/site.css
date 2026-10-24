@@ -345,3 +345,26 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
 .howto p { margin: 0 0 8px; }
 .howto .cite { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; overflow-wrap: anywhere; }
 #cp-table td.r { font-family: var(--f-num); }
+.gp-list { display: grid; gap: 10px; }
+.gp { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; }
+.gp h3 { margin: 0 0 4px; font-size: 15px; display: flex; justify-content: space-between; gap: 10px; }
+.gp h3 .c { font-family: var(--f-num); color: var(--muted); font-weight: 600; }
+.gp p { margin: 0; font-size: 14px; line-height: 1.9; }
+.near-how { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.near-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.near-row label { font-weight: 700; font-size: 14px; min-width: 6em; }
+.near-row input { flex: 1; min-width: 12em; font: inherit; font-size: 15px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); }
+.near-row button, button.print { font: inherit; font-size: 14px; font-weight: 700; padding: 7px 16px; border: 0; border-radius: 999px; background: var(--brand); color: var(--on-brand); cursor: pointer; }
+.mv-list li span a { color: var(--accent); }
+@media print {
+  .site-head, .site-foot, .noprint, .more { display: none !important; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .band { background: #fff !important; color: #000; }
+  .band a, .hero .lede, .big .meta, .big .meta b, .big .n, .big .u, .eyebrow, .crumbs, .crumbs a, .band .d { color: #000 !important; }
+  .hero .container { padding-block: 0 8px; }
+  .big .n { font-size: 40pt; }
+  section { break-inside: auto; }
+  .table-wrap, .dir details { box-shadow: none; border-color: #999; }
+  .dir details:not([open]) { display: none; }
+  a { color: #000; text-decoration: none; }
+}

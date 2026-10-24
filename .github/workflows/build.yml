@@ -31,17 +31,32 @@ jobs:
         run: python scripts/fetch.py
         timeout-minutes: 60
 
+      - name: 市区町村別の人口を取得（総務省、未取得のときだけ）
+        run: python scripts/fetch_pop.py
+        timeout-minutes: 10
+
       - name: 新しく取得したデータを保存
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/slim
+          git add data/pop.csv 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "新しいデータはありません"
           else
             git commit -m "データ追加: $(git diff --cached --name-only | wc -l | tr -d ' ') ファイル"
             git push
           fi
+
+      - name: シェア用画像の道具とフォントを用意
+        run: |
+          pip install pillow==12.3.0
+          mkdir -p .fonts
+          base=https://raw.githubusercontent.com/google/fonts/main/ofl
+          curl -fsSL -o .fonts/ZenMaruGothic-Black.ttf $base/zenmarugothic/ZenMaruGothic-Black.ttf
+          curl -fsSL -o .fonts/ZenMaruGothic-Bold.ttf $base/zenmarugothic/ZenMaruGothic-Bold.ttf
+          curl -fsSL -o .fonts/BarlowSemiCondensed-Bold.ttf $base/barlowsemicondensed/BarlowSemiCondensed-Bold.ttf
+        continue-on-error: true
 
       - name: ページを作成
         run: python scripts/build.py

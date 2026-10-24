@@ -23,7 +23,7 @@
     if (tab === 'pref') return D.pref.map(r => ({ name: r[0], n: r[1], d: r[1] - r[2], url: r[3] }));
     if (tab === 'muni') return D.muni.filter(r => pref < 0 || r[1] === pref)
       .map(r => ({ name: D.P[r[1]] + ' ' + r[0], n: r[2], d: r[2] - r[3], url: r[4] }));
-    if (tab === 'corp') return D.corp.map(r => ({ name: r[0], n: r[1], d: r[1] - r[2], fresh: r[2] === 0 }));
+    if (tab === 'corp') return D.corp.map(r => ({ name: r[0], n: r[1], d: r[1] - r[2], fresh: r[2] === 0, url: r[3] }));
     const src = tab === 'new' ? D.new : D.gone;
     return src.filter(r => pref < 0 || r[3] === pref)
       .map(r => ({ list: true, name: r[0], sub: r[1], place: D.P[r[3]] + ' ' + r[2], url: r[4], fac: r[5] }));
