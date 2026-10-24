@@ -1,0 +1,637 @@
+"""地域別レポート（有料版）を市区町村ごとに HTML で書き出す。PDF にするのは scripts/report_pdf.js。
+
+  python scripts/regional_report.py <出力フォルダ> <境界データのフォルダ> [都道府県:市区町村 ...]
+
+境界データは国土数値情報の行政区域（N03）を GeoJSON にしたもの
+（https://github.com/smartnews-smri/japan-topography の N03-21_<都道府県番号>_210101.json）。
+市区町村を指定しなければ TARGETS の全部を作る。サイト（public/）には出さない。
+"""
+import collections
+import csv
+import gzip
+import html
+import json
+import math
+import pathlib
+import re
+import statistics
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import build as B  # noqa: E402
+from services import PREFS, SERVICES  # noqa: E402
+
+# 人口の多い20市区（2026年1月1日）＋見本の船橋市
+TARGETS = [
+    ("神奈川県", "横浜市"), ("大阪府", "大阪市"), ("愛知県", "名古屋市"), ("北海道", "札幌市"), ("福岡県", "福岡市"),
+    ("神奈川県", "川崎市"), ("兵庫県", "神戸市"), ("京都府", "京都市"), ("埼玉県", "さいたま市"), ("広島県", "広島市"),
+    ("宮城県", "仙台市"), ("千葉県", "千葉市"), ("東京都", "世田谷区"), ("福岡県", "北九州市"), ("大阪府", "堺市"),
+    ("静岡県", "浜松市"), ("新潟県", "新潟市"), ("東京都", "練馬区"), ("東京都", "大田区"), ("熊本県", "熊本市"),
+    ("千葉県", "船橋市"),
+]
+MAIN = ["65", "63", "46", "33", "22", "52", "60", "45", "11", "24"]  # くわしく見るサービス
+MAPS = ["65", "63", "46"]  # 近くにない地域の地図を作るサービス
+CAP = ["65", "63", "46", "22", "45", "60"]  # 定員を足すサービス（グループホームは定員のデータがない）
+E = html.escape
+
+
+def short(c):
+    return SERVICES[c][1]
+
+
+def in_city(mk, pi, city):
+    """政令市は区ごとに数えているので、区もまとめて市に入れる。"""
+    return mk[0] == pi and (mk[1] == city or (city.endswith("市") and mk[1].startswith(city) and mk[1].endswith("区")))
+
+
+def unit_of(mk):
+    """近くの市と比べるときの単位。政令市の区は市にまとめる。"""
+    m = re.match(r"(.+?市)(.+区)$", mk[1])
+    return (mk[0], m.group(1)) if m and mk[0] != PREFS.index("東京都") else mk
+
+
+# ---------------------------------------------------------------- 地図
+
+def load_rings(geo_dir, pi, city):
+    f = pathlib.Path(geo_dir) / f"N03_{pi + 1:02d}.json"
+    g = json.loads(f.read_text(encoding="utf-8"))
+    rings = []
+    for ft in g["features"]:
+        pr = ft["properties"]
+        if pr["N03_004"] != city and pr["N03_003"] != city:
+            continue
+        gm = ft["geometry"]
+        for poly in (gm["coordinates"] if gm["type"] == "MultiPolygon" else [gm["coordinates"]]):
+            r = poly[0]
+            xs, ys = [p[0] for p in r], [p[1] for p in r]
+            rings.append((r, (min(xs), min(ys), max(xs), max(ys))))
+    if not rings:
+        raise SystemExit(f"{city} の境界が {f.name} にありません")
+    return rings
+
+
+def inside(rings, x, y):
+    c = False
+    for r, bb in rings:
+        if not (bb[0] <= x <= bb[2] and bb[1] <= y <= bb[3]):
+            continue
+        j = len(r) - 1
+        for i in range(len(r)):
+            xi, yi = r[i]
+            xj, yj = r[j]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                c = not c
+            j = i
+    return c
+
+
+class Grid:
+    """近い点をすばやく探すためのます目（1ます約0.5km）。"""
+
+    def __init__(self, pts, kx, ky, size=0.5):
+        self.kx, self.ky, self.s = kx, ky, size
+        self.b = collections.defaultdict(list)
+        for p in pts:
+            self.b[self.key(p[0], p[1])].append(p)
+
+    def key(self, x, y):
+        return int(math.floor(x * self.kx / self.s)), int(math.floor(y * self.ky / self.s))
+
+    def nearest(self, x, y, limit=8.0):
+        kx0, ky0 = self.key(x, y)
+        best = None
+        for rad in range(0, int(limit / self.s) + 1):
+            for i in range(-rad, rad + 1):
+                for j in range(-rad, rad + 1):
+                    if max(abs(i), abs(j)) != rad:
+                        continue
+                    for p in self.b.get((kx0 + i, ky0 + j), ()):
+                        d = math.hypot((p[0] - x) * self.kx, (p[1] - y) * self.ky)
+                        if best is None or d < best:
+                            best = d
+            if best is not None and best <= rad * self.s:
+                return best
+        return best if best is not None else limit
+
+    def any_within(self, x, y, d):
+        kx0, ky0 = self.key(x, y)
+        r = int(d / self.s) + 1
+        for i in range(-r, r + 1):
+            for j in range(-r, r + 1):
+                for p in self.b.get((kx0 + i, ky0 + j), ()):
+                    if math.hypot((p[0] - x) * self.kx, (p[1] - y) * self.ky) < d:
+                        return True
+        return False
+
+
+def town_of(addr_muni, addr, city):
+    """「大阪府大阪市北区」「梅田1丁目…」→「北区梅田」。"""
+    if city not in addr_muni:
+        return ""
+    ward = ""
+    m = re.search(re.escape(city) + r"(.+区)$", addr_muni)
+    if m:
+        ward = m.group(1)
+    a = addr.replace("大字", "").strip()
+    a = a[len(city):] if a.startswith(city) else a
+    a = a[len(ward):] if ward and a.startswith(ward) else a
+    t = re.split(r"[0-9０-９\-－ー−]|[一二三四五六七八九十]+丁|[一二三四五六七八九十]+条|番地|字", a)[0]
+    t = t.strip()
+    return (ward + t) if t else ""
+
+
+def gap_map(rows, rings, code, city):
+    """サービスの事業所から遠い場所を、0.25〜0.5km のます目で調べる。"""
+    xs = [p[0] for r, _ in rings for p in r]
+    ys = [p[1] for r, _ in rings for p in r]
+    bb = (min(xs), min(ys), max(xs), max(ys))
+    lat0 = (bb[1] + bb[3]) / 2
+    kx, ky = 111.32 * math.cos(math.radians(lat0)), 110.95
+    area_bb = (bb[2] - bb[0]) * kx * (bb[3] - bb[1]) * ky
+    step = max(0.25, math.sqrt(area_bb / 9000))
+    pad = 0.06
+
+    def near(r):
+        return bb[0] - pad < r[0] < bb[2] + pad and bb[1] - pad < r[1] < bb[3] + pad
+
+    svc = [r for r in rows[code] if near(r)]
+    others = [r for c, rs in rows.items() for r in rs if near(r)]
+    gs, go = Grid(svc, kx, ky), Grid(others, kx, ky)
+    dx, dy = step / kx, step / ky
+    cells = []
+    y = bb[1] + dy / 2
+    while y < bb[3]:
+        x = bb[0] + dx / 2
+        while x < bb[2]:
+            if inside(rings, x, y):
+                cells.append((x, y, gs.nearest(x, y), go.any_within(x, y, 0.5)))
+            x += dx
+        y += dy
+    n = len(cells)
+    far = [c for c in cells if c[2] > 1.0]
+    live = [c for c in cells if c[3]]
+    live_far = [c for c in far if c[3]]
+    # 住宅地の空白をまとまりに分ける
+    idx = {(int((c[0] - bb[0]) / dx), int((c[1] - bb[1]) / dy)): c for c in live_far}
+    seen, groups = set(), []
+    for k in idx:
+        if k in seen:
+            continue
+        st, mem = [k], []
+        seen.add(k)
+        while st:
+            u = st.pop()
+            mem.append(idx[u])
+            for d in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)]:
+                v = (u[0] + d[0], u[1] + d[1])
+                if v in idx and v not in seen:
+                    seen.add(v)
+                    st.append(v)
+        groups.append(mem)
+    groups.sort(key=len, reverse=True)
+    clusters = []
+    city_others = [r for r in others if inside(rings, r[0], r[1])]
+    for m in groups[:5]:
+        a = len(m) * step * step
+        if a < 0.5:
+            break
+        cx = sum(c[0] for c in m) / len(m)
+        cy = sum(c[1] for c in m) / len(m)
+        towns = collections.Counter()
+        for r in city_others:
+            if any(math.hypot((r[0] - c[0]) * kx, (r[1] - c[1]) * ky) < step for c in m):
+                t = town_of(r[2], r[3], city)
+                if t:
+                    towns[t] += 1
+        if not towns:
+            for r in sorted(city_others, key=lambda r: math.hypot((r[0] - cx) * kx, (r[1] - cy) * ky))[:5]:
+                t = town_of(r[2], r[3], city)
+                if t:
+                    towns[t] += 1
+        clusters.append(dict(a=a, x=cx, y=cy, towns=[t for t, _ in towns.most_common(3)], md=max(c[2] for c in m)))
+    svg = map_svg(rings, bb, kx, ky, step, cells, [r for r in svc], clusters)
+    return dict(n=n, area=n * step * step, far=len(far) / n * 100 if n else 0,
+                live_far=len(live_far) / len(live) * 100 if live else 0, clusters=clusters, svg=svg,
+                inside=sum(1 for r in svc if inside(rings, r[0], r[1])))
+
+
+BANDS = [(0.5, "#cfe9d3", "0.5km以内"), (1.0, "#8fcf9c", "0.5〜1km"), (2.0, "#f6c36b", "1〜2km"), (99, "#d9792b", "2km より遠い")]
+
+
+def map_svg(rings, bb, kx, ky, step, cells, svc, clusters):
+    W = 640
+    w_km, h_km = (bb[2] - bb[0]) * kx, (bb[3] - bb[1]) * ky
+    sc = W / w_km
+    H = h_km * sc
+    if H > 760:
+        sc = 760 / h_km
+        H = 760
+        W = w_km * sc
+
+    def P(x, y):
+        return (x - bb[0]) * kx * sc, (bb[3] - y) * ky * sc
+
+    cs = step * sc + 0.35
+    out = []
+    for x, y, d, _ in cells:
+        col = next(c for t, c, _ in BANDS if d <= t)
+        px, py = P(x, y)
+        out.append(f'<rect x="{px - cs / 2:.1f}" y="{py - cs / 2:.1f}" width="{cs:.1f}" height="{cs:.1f}" fill="{col}"/>')
+    for r, _ in rings:
+        pts = " ".join(f"{a:.1f},{b:.1f}" for a, b in (P(x, y) for x, y in r))
+        out.append(f'<polygon points="{pts}" fill="none" stroke="#1f4d3a" stroke-width="1.2"/>')
+    for r in svc:
+        px, py = P(r[0], r[1])
+        if -4 < px < W + 4 and -4 < py < H + 4:
+            out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="2.6" fill="#1f4d3a" stroke="#fff" stroke-width=".8"/>')
+    for i, c in enumerate(clusters, 1):
+        px, py = P(c["x"], c["y"])
+        out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="10" fill="#fff" stroke="#b3392c" stroke-width="2"/>'
+                   f'<text x="{px:.1f}" y="{py + 4.5:.1f}" text-anchor="middle" font-size="13" font-weight="700" fill="#b3392c">{i}</text>')
+    return f'<svg viewBox="0 0 {W:.0f} {H:.0f}" width="{W:.0f}" height="{H:.0f}" class="map">{"".join(out)}</svg>'
+
+
+# ---------------------------------------------------------------- グラフ
+
+def bars_h(items, unit="", max_v=None, fmt="{:,.1f}"):
+    """横棒。items = [(ラベル, 値, 強調するか)]"""
+    W, rh, lw = 520, 22, 150
+    mx = max_v or max([v for _, v, _ in items] + [0.0001])
+    out = []
+    for i, (lab, v, hi) in enumerate(items):
+        y = i * rh
+        bw = (W - lw - 70) * (v / mx)
+        out.append(f'<text x="{lw - 8}" y="{y + 15}" text-anchor="end" class="lab">{E(lab)}</text>'
+                   f'<rect x="{lw}" y="{y + 4}" width="{bw:.1f}" height="{rh - 8}" rx="2" fill="{"#2d7a45" if hi else "#b2dbb9"}"/>'
+                   f'<text x="{lw + bw + 6:.1f}" y="{y + 15}" class="val">{fmt.format(v)}{unit}</text>')
+    return f'<svg viewBox="0 0 {W} {len(items) * rh}" class="chart">{"".join(out)}</svg>'
+
+
+def line_chart(periods, series, W=250, H=120):
+    """小さな折れ線。series = [値, ...]（None は線を切る）"""
+    v = [x for x in series if x is not None]
+    if not v:
+        return ""
+    lo, hi = 0, max(v) * 1.15 or 1
+    pl, pr, pt, pb = 6, 34, 8, 20
+    n = len(periods)
+
+    def P(i, x):
+        return pl + i / (n - 1) * (W - pl - pr), H - pb - (x - lo) / (hi - lo) * (H - pt - pb)
+
+    pts = [P(i, x) for i, x in enumerate(series) if x is not None]
+    line = " ".join(f"{a:.1f},{b:.1f}" for a, b in pts)
+    lx, ly = pts[-1]
+    fx, fy = pts[0]
+    return (f'<svg viewBox="0 0 {W} {H}" class="chart">'
+            f'<line x1="{pl}" x2="{W - pr}" y1="{H - pb}" y2="{H - pb}" stroke="#dfe8db"/>'
+            f'<polyline points="{line}" fill="none" stroke="#2d7a45" stroke-width="2"/>'
+            f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="3" fill="#2d7a45"/>'
+            f'<text x="{lx + 5:.1f}" y="{ly + 4:.1f}" class="val">{v[-1]:,}</text>'
+            f'<text x="{fx:.1f}" y="{fy - 6:.1f}" class="ax">{v[0]:,}</text>'
+            f'<text x="{pl}" y="{H - 5}" class="ax">{B.label(periods[0], True)}</text>'
+            f'<text x="{W - pr}" y="{H - 5}" class="ax" text-anchor="end">{B.label(periods[-1], True)}</text></svg>')
+
+
+def stack_bar(parts):
+    """100%の横帯。parts = [(ラベル, 数)]"""
+    tot = sum(v for _, v in parts) or 1
+    cols = ["#1f4d3a", "#2d7a45", "#3d9a58", "#8fcf9c", "#cfe9d3", "#f6c36b", "#d9792b", "#c9d3cc"]
+    x, out, leg = 0.0, [], []
+    for (lab, v), col in zip(parts, cols):
+        w = v / tot * 600
+        out.append(f'<rect x="{x:.1f}" y="0" width="{w:.1f}" height="28" fill="{col}"/>')
+        x += w
+        leg.append(f'<span class="lg"><i style="background:{col}"></i>{E(lab)} {v / tot * 100:.0f}%</span>')
+    return f'<svg viewBox="0 0 600 28" class="chart">{"".join(out)}</svg><p class="legend">{"".join(leg)}</p>'
+
+
+# ---------------------------------------------------------------- 本体
+
+def collect():
+    periods, latest, prev, _, S = B.load()
+    B.load_pop()
+    codes = [c for c in SERVICES if c in S]
+    # 地図用：最新時点の位置（経度, 緯度, 住所の市区町村, 住所の続き, 定員）
+    rows = {}
+    for c in codes:
+        seen, rs = set(), []
+        for r in B.read_slim(B.SLIM / c / f"{latest}.csv.gz"):
+            if r["lat"] and r["lng"] and (r["no"], r["addr"]) not in seen:
+                seen.add((r["no"], r["addr"]))
+                rs.append((float(r["lng"]), float(r["lat"]), r["muni"], r["addr"], r["no"]))
+        rows[c] = rs
+    return periods, latest, prev, S, codes, rows
+
+
+def city_counts(S, c, p, pi, city):
+    if p not in S[c]:
+        return None
+    return sum(v for mk, v in S[c][p]["muni"].items() if in_city(mk, pi, city))
+
+
+def build_one(ctx, pi, city, geo_dir, ranks):
+    periods, latest, prev, S, codes, rows = ctx
+    pref = PREFS[pi]
+    pop = B.POP_MUNI[pi].get(city)
+    ppop = B.POP_PREF[pi]
+    npop = sum(B.POP_PREF.values())
+    lp, lq, l0 = B.label(latest), B.label(prev), B.label(periods[0])
+
+    ser = {c: [city_counts(S, c, p, pi, city) for p in periods] for c in codes}
+    now = {c: ser[c][-1] for c in codes}
+    total = [sum((ser[c][i] or 0) for c in codes) for i in range(len(periods))]
+
+    def rate(n, base):
+        return n / base * 1e4 if base else 0
+
+    comp = {}
+    for c in codes:
+        comp[c] = (rate(now[c], pop), rate(S[c][latest]["pref"].get(pi, 0), ppop), rate(S[c][latest]["n"], npop))
+
+    # 新しく開いた・なくなった（前の時点とくらべて）
+    newl, gone = collections.defaultdict(list), collections.defaultdict(list)
+    for c in codes:
+        L, Pv = S[c][latest]["offices"], S[c][prev]["offices"]
+        for no in set(L) - set(Pv):
+            if any(in_city(mk, pi, city) for mk in L[no]["munis"]):
+                newl[c].append(L[no])
+        for no in set(Pv) - set(L):
+            if any(in_city(mk, pi, city) for mk in Pv[no]["munis"]):
+                gone[c].append(Pv[no])
+    n_new, n_gone = sum(map(len, newl.values())), sum(map(len, gone.values()))
+
+    # 運営する法人
+    offs = [o for c in codes for o in S[c][latest]["offices"].values() if any(in_city(mk, pi, city) for mk in o["munis"])]
+    ctype = collections.Counter(B.corp_form(o["corp"]) for o in offs)
+    corps = collections.Counter(o["corp_key"] or o["corp"] for o in offs)
+    corp_name = {o["corp_key"] or o["corp"]: o["corp"] for o in offs}
+    corp_svc = collections.defaultdict(set)
+    for c in codes:
+        for o in S[c][latest]["offices"].values():
+            if any(in_city(mk, pi, city) for mk in o["munis"]):
+                corp_svc[o["corp_key"] or o["corp"]].add(short(c))
+    n_corp = len(corps)
+
+    # 定員
+    caps = {}
+    for c in CAP:
+        v = [int(o["cap"]) for o in S[c][latest]["offices"].values()
+             if any(in_city(mk, pi, city) for mk in o["munis"]) and str(o["cap"]).isdigit() and int(o["cap"]) > 0]
+        if now[c]:
+            caps[c] = (now[c], len(v), sum(v), statistics.median(v) if v else 0)
+
+    # 区ごと（政令市）／近くの市区町村
+    wards = sorted({mk[1] for c in codes for mk in S[c][latest]["muni"] if in_city(mk, pi, city) and mk[1] != city})
+    cent = collections.defaultdict(list)
+    for c in codes:
+        for o in S[c][latest]["offices"].values():
+            for (_, _, _, lat, lng) in o["houses"][:1]:
+                if lat and lng:
+                    for mk in o["munis"]:
+                        cent[unit_of(mk)].append((float(lat), float(lng)))
+    C = {k: (sum(a for a, _ in v) / len(v), sum(b for _, b in v) / len(v)) for k, v in cent.items()}
+    me = C.get((pi, city))
+    near = []
+    if me:
+        near = [k for _, k in sorted(
+            (math.hypot(C[k][0] - me[0], (C[k][1] - me[1]) * math.cos(math.radians(me[0]))), k)
+            for k in C if k != (pi, city) and k[0] == pi)[:6]]
+
+    def unit_count(c, k):
+        return sum(v for mk, v in S[c][latest]["muni"].items() if unit_of(mk) == k)
+
+    # 地図
+    rings = load_rings(geo_dir, pi, city)
+    maps = {c: gap_map(rows, rings, c, city) for c in MAPS}
+
+    # ---- 要点
+    grow = sorted([c for c in MAIN if ser[c][0]], key=lambda c: -(now[c] - ser[c][0]))
+    over = sorted([c for c in MAIN if comp[c][1]], key=lambda c: -(comp[c][0] / comp[c][1]))
+    zero = [short(c) for c in codes if not now[c]]
+    pts = [
+        f"{lp}の時点で、{city}にある障害福祉の事業所はあわせて<b>{total[-1]:,}件</b>です。{l0}の{total[0]:,}件から"
+        f"<b>{(total[-1] - total[0]) / total[0] * 100:+.0f}%</b>{'増えました' if total[-1] >= total[0] else 'へりました'}。",
+        f"いちばん増えたのは<b>{short(grow[0])}</b>（{ser[grow[0]][0]:,}件→{now[grow[0]]:,}件）、"
+        f"次が{short(grow[1])}（{ser[grow[1]][0]:,}件→{now[grow[1]]:,}件）です。",
+        f"人口1万人あたりで{pref}の平均より多いのは<b>{short(over[0])}</b>（県の{comp[over[0]][0] / comp[over[0]][1]:.1f}倍）、"
+        f"少ないのは<b>{short(over[-1])}</b>（県の{comp[over[-1]][0] / comp[over[-1]][1]:.1f}倍）です。",
+        f"放課後等デイから1km以上はなれている場所は、市の面積の<b>約{maps['65']['far']:.0f}%</b>、"
+        f"住宅地の目安とした場所にかぎると<b>約{maps['65']['live_far']:.0f}%</b>です。",
+        f"{lq}から{lp}までの半年で、新しく<b>{n_new:,}件</b>が載り、<b>{n_gone:,}件</b>が見えなくなりました。",
+    ]
+    if zero:
+        pts.append("まだ1件もないサービス：" + "、".join(zero[:8]) + ("ほか" if len(zero) > 8 else "") + "。")
+
+    # ---- HTML
+    h = []
+    h.append(f'''<section class="cover">
+<p class="eyebrow">ジモふく 地域レポート</p>
+<h1>{E(city)}の障害福祉<br>事業所レポート</h1>
+<p class="sub">{E(pref)}{E(city)}／データの時点：{lp}</p>
+<ul class="toc">
+<li>1. 要点</li><li>2. 事業所の数の移り変わり</li><li>3. 人口あたりでくらべる</li>
+<li>4. {"区ごとの数" if wards else "近くの市区町村とくらべる"}</li><li>5. 半年で新しく載った事業所</li><li>6. 運営している法人</li>
+<li>7. 定員（受け入れられる人数）</li><li>8. 近くにない地域の地図</li><li>9. 出典と注意</li></ul>
+<p class="by">ジモふく（https://jimofuku.jp/）</p>
+</section>''')
+
+    h.append('<section class="pb"><h2>1. 要点</h2><ol class="points">' + "".join(f"<li>{x}</li>" for x in pts) + "</ol>")
+    h.append(f'<h3>主なサービスの数</h3><table><tr><th>サービス</th><th>{E(l0)}</th><th>{E(lp)}</th><th>増えた数</th>'
+             f'<th>人口1万人あたり</th><th>主要{len(TARGETS)}市区の中で</th></tr>')
+    for c in MAIN:
+        a, f = now[c], ser[c][0]
+        h.append(f'<tr><th>{E(short(c))}</th><td>{f if f is not None else "—"}</td><td>{a:,}</td>'
+                 f'<td>{(a - f) if f is not None else "—":+}</td><td>{comp[c][0]:.2f}</td><td>{ranks[c].get((pi, city), "—")}位</td></tr>'
+                 if f is not None else
+                 f'<tr><th>{E(short(c))}</th><td>—</td><td>{a:,}</td><td>—</td><td>{comp[c][0]:.2f}</td><td>{ranks[c].get((pi, city), "—")}位</td></tr>')
+    h.append(f'</table><p class="note">「主要{len(TARGETS)}市区の中で」は、人口1万人あたりの数が多い順の順位です（1位がいちばん多い）。</p></section>')
+
+    # 2. 推移
+    h.append(f'<section class="pb"><h2>2. 事業所の数の移り変わり</h2><p>{l0}から{lp}まで、半年ごとの数です。</p>')
+    h.append(B.trend_chart(periods, total).replace('class="chart"', 'class="chart big"'))
+    h.append('<div class="grid3">')
+    for c in MAIN[:9]:
+        h.append(f'<figure><figcaption>{E(short(c))}</figcaption>{line_chart(periods, ser[c])}</figure>')
+    h.append('</div><p class="note">WAM NET に事業所の情報が載った数です。グラフの左はしと右はしの数字は、最初と最新の件数です。</p></section>')
+
+    # 3. 人口あたり
+    h.append(f'<section class="pb"><h2>3. 人口あたりでくらべる</h2><p>人口1万人あたりの事業所の数を、{E(pref)}の平均・全国の平均とくらべました。'
+             '人口の多い市と少ない市を同じものさしでくらべるための数です。</p>')
+    h.append('<table><tr><th>サービス</th><th>' + E(city) + '</th><th>' + E(pref) + '</th><th>全国</th><th>県とくらべて</th></tr>')
+    for c in MAIN:
+        a, b, n = comp[c]
+        h.append(f'<tr><th>{E(short(c))}</th><td>{a:.2f}</td><td>{b:.2f}</td><td>{n:.2f}</td><td>{a / b:.1f}倍</td></tr>' if b else "")
+    h.append('</table><div class="grid2">')
+    for c in MAIN[:4]:
+        a, b, n = comp[c]
+        h.append(f'<figure><figcaption>{E(short(c))}（人口1万人あたり）</figcaption>'
+                 + bars_h([(city, a, True), (pref, b, False), ("全国", n, False)], fmt="{:.2f}") + '</figure>')
+    h.append('</div></section>')
+
+    # 4. 区ごと／近く
+    if wards:
+        h.append(f'<section class="pb"><h2>4. 区ごとの数</h2><p>主なサービスの区ごとの数です。かっこの中は人口1万人あたりの数です。</p><table class="small"><tr><th>区</th><th>人口</th>'
+                 + "".join(f"<th>{E(short(c))}</th>" for c in MAIN[:6]) + "</tr>")
+        for wd in wards:
+            wp = B.POP_MUNI[pi].get(wd)
+            cells = "".join(
+                f'<td>{S[c][latest]["muni"].get((pi, wd), 0)}<small>（{rate(S[c][latest]["muni"].get((pi, wd), 0), wp):.1f}）</small></td>'
+                for c in MAIN[:6])
+            h.append(f'<tr><th>{E(wd[len(city):])}</th><td>{wp:,}</td>{cells}</tr>' if wp else "")
+        h.append('</table>')
+        wv = [(wd[len(city):], rate(S["65"][latest]["muni"].get((pi, wd), 0), B.POP_MUNI[pi].get(wd)), False)
+              for wd in wards if B.POP_MUNI[pi].get(wd)]
+        h.append('<figure><figcaption>放課後等デイ（区ごと、人口1万人あたり）</figcaption>'
+                 + bars_h(sorted(wv, key=lambda x: -x[1]), fmt="{:.2f}") + '</figure></section>')
+    else:
+        h.append(f'<section class="pb"><h2>4. 近くの市区町村とくらべる</h2><p>{E(pref)}の中で、事業所の場所から見て近い市区町村です。かっこの中は人口1万人あたりの数です。</p>'
+                 '<table class="small"><tr><th>市区町村</th><th>人口</th>' + "".join(f"<th>{E(short(c))}</th>" for c in MAIN[:6]) + "</tr>")
+        for k in [(pi, city)] + near:
+            kp = B.POP_MUNI[pi].get(k[1])
+            cells = "".join(f'<td>{unit_count(c, k)}<small>（{rate(unit_count(c, k), kp):.1f}）</small></td>' for c in MAIN[:6])
+            h.append(f'<tr{" class=me" if k == (pi, city) else ""}><th>{E(k[1])}</th><td>{kp:,}</td>{cells}</tr>' if kp else "")
+        h.append('</table></section>')
+
+    # 5. 新しく載った
+    h.append(f'<section class="pb"><h2>5. 半年で新しく載った事業所</h2><p>{lq}には載っていなくて、{lp}に載った事業所です（主なサービスのみ）。'
+             '開いたばかりの事業所のほか、届け出の出し直しで番号が変わった事業所もふくみます。</p>')
+    h.append('<table class="small"><tr><th>サービス</th><th>新しく載った</th><th>見えなくなった</th></tr>'
+             + "".join(f"<tr><th>{E(short(c))}</th><td>{len(newl[c])}</td><td>{len(gone[c])}</td></tr>" for c in MAIN)
+             + f"<tr><th>全サービス</th><td>{n_new}</td><td>{n_gone}</td></tr></table>")
+    for c in MAIN[:6]:
+        if not newl[c]:
+            continue
+        h.append(f'<h3>{E(short(c))}（{len(newl[c])}件）</h3><table class="list"><tr><th>事業所</th><th>運営する法人</th><th>場所</th><th>定員</th></tr>')
+        for o in sorted(newl[c], key=lambda o: o["name"]):
+            place = next((v[1] for mk, v in o["munis"].items() if in_city(mk, pi, city)), "")
+            ward = next((mk[1][len(city):] for mk in o["munis"] if in_city(mk, pi, city) and mk[1] != city), "")
+            h.append(f'<tr><td>{E(o["name"])}</td><td>{E(o["corp"])}</td><td>{E(ward + re.split(r"[0-9０-９]", place)[0])}</td><td>{E(o["cap"] or "—")}</td></tr>')
+        h.append("</table>")
+    h.append('</section>')
+
+    # 6. 法人
+    h.append(f'<section class="pb"><h2>6. 運営している法人</h2><p>{E(city)}で事業所を運営している法人は<b>{n_corp:,}</b>あります。'
+             '1つの法人がいくつものサービスを運営していることがあるので、事業所の数で数えています。</p>')
+    h.append('<h3>法人の種類（事業所の数の割合）</h3>' + stack_bar(ctype.most_common()))
+    h.append('<h3>事業所の多い法人（上位10）</h3><table class="small txt"><tr><th>法人</th><th>事業所の数</th><th>運営しているサービス</th></tr>')
+    for k, v in corps.most_common(10):
+        h.append(f'<tr><td>{E(corp_name[k])}</td><td>{v}</td><td>{E("、".join(sorted(corp_svc[k])))}</td></tr>')
+    top10 = sum(v for _, v in corps.most_common(10)) / max(len(offs), 1) * 100
+    h.append(f'</table><p class="note">上位10法人で、全体の事業所の約{top10:.0f}%を運営しています。</p></section>')
+
+    # 7. 定員
+    h.append('<section class="pb"><h2>7. 定員（受け入れられる人数）</h2><p>定員は、1日に受け入れられる人数として事業所が届け出ている数です。'
+             '定員が書かれている事業所だけで足しています。</p><table><tr><th>サービス</th><th>事業所</th><th>定員が書かれている</th>'
+             '<th>定員の合計</th><th>1事業所の定員（真ん中の値）</th><th>人口1万人あたりの定員</th></tr>')
+    for c, (n, nc, sm, md) in caps.items():
+        h.append(f'<tr><th>{E(short(c))}</th><td>{n}</td><td>{nc}</td><td>{sm:,}人</td><td>{md:g}人</td><td>{rate(sm, pop):.1f}人</td></tr>')
+    h.append('</table><p class="note">利用している人の数や、どれくらい埋まっているか（利用率）は、このデータからはわかりません。'
+             '市の障害福祉計画の実績と合わせて見ると、足りているかどうかの目安になります（個別調査で対応できます）。</p></section>')
+
+    # 8. 地図
+    for i, c in enumerate(MAPS):
+        m = maps[c]
+        h.append(f'<section class="pb"><h2>{"8. 近くにない地域の地図" if i == 0 else "8. 近くにない地域の地図（つづき）"}</h2>'
+                 f'<h3>{E(SERVICES[c][0])}</h3>'
+                 f'<p>色は、いちばん近い{E(short(c))}までのまっすぐの距離です。点は{E(short(c))}の事業所（市の外の近くの事業所もふくむ）。'
+                 f'数字の丸は、住宅地なのに1km以上はなれている場所のまとまりです。</p>'
+                 f'<div class="mapbox">{m["svg"]}</div><p class="legend">'
+                 + "".join(f'<span class="lg"><i style="background:{col}"></i>{lab}</span>' for _, col, lab in BANDS)
+                 + '</p>')
+        h.append(f'<p>1km以上はなれている場所は市の面積の<b>約{m["far"]:.0f}%</b>、住宅地の目安とした場所の<b>約{m["live_far"]:.0f}%</b>です。</p>')
+        if m["clusters"]:
+            h.append('<table class="small cl"><tr><th></th><th>だいたいの場所</th><th>広さ</th><th>いちばん遠いところ</th></tr>'
+                     + "".join(f'<tr><th>{j}</th><td>{E("・".join(cl["towns"]) or "—")}のあたり</td><td>約{cl["a"]:.1f}km²</td><td>約{cl["md"]:.1f}km</td></tr>'
+                               for j, cl in enumerate(m["clusters"], 1)) + '</table>')
+        else:
+            h.append('<p>住宅地で1km以上はなれている大きなまとまりは見つかりませんでした。</p>')
+        h.append('</section>')
+
+    # 9. 出典
+    h.append(f'''<section class="pb"><h2>9. 出典と注意</h2><ul class="src">
+<li>事業所：独立行政法人福祉医療機構 WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」（{l0}〜{lp}、半年ごと）をもとに ジモふくが集計。</li>
+<li>{E(B.POP_SOURCE)}（{E(B.POP_ASOF[0])}）。</li>
+<li>地図の境界：国土交通省「国土数値情報（行政区域データ）」をもとに作成。</li>
+<li>事業所の数は、WAM NET に情報が載っている数です。休んでいる事業所や、届け出がまだの事業所があると、実際の数とずれることがあります。</li>
+<li>1つの事業所が、いくつかの場所でサービスをしているときは、それぞれの市区町村で1件と数えています。</li>
+<li>地図の距離はまっすぐの距離で、道のりではありません。「住宅地の目安」は、ほかのサービスの事業所が500m以内にある場所としています。</li>
+<li>法人の種類は、法人名にふくまれる言葉（株式会社・社会福祉法人など）で分けたおおよその数です。</li>
+</ul><p class="contact">このレポートの数字は自由に引用できます（「ジモふく調べ」と書いてください）。もっとくわしい調査（利用率・開業の収支の試算など）のご相談は https://jimofuku.jp/ から。</p></section>''')
+    return "\n".join(h)
+
+
+CSS = """
+@page { size: A4; margin: 16mm 14mm; }
+* { box-sizing: border-box; }
+body { font-family: "BIZ UDPGothic", "IPAGothic", sans-serif; color: #1c2a21; font-size: 10.5pt; line-height: 1.7; margin: 0; }
+h1, h2, h3 { font-family: "Zen Maru Gothic", "BIZ UDPGothic", sans-serif; color: #1f4d3a; line-height: 1.35; }
+h2 { font-size: 17pt; border-bottom: 3px solid #3d9a58; padding-bottom: 4px; margin: 0 0 10px; }
+h3 { font-size: 12pt; margin: 16px 0 6px; }
+section.pb { break-before: page; }
+.cover { height: 255mm; display: flex; flex-direction: column; justify-content: center; padding: 0 8mm;
+  background: #1f4d3a; color: #f4faf5; margin: -16mm -14mm 0; padding: 0 22mm; }
+.cover h1 { color: #fff; font-size: 34pt; margin: 6px 0 14px; }
+.cover .eyebrow { color: #a6e8b4; font-weight: 700; letter-spacing: .1em; margin: 0; }
+.cover .sub { color: #b9d6c4; font-size: 13pt; margin: 0 0 30px; }
+.cover .toc { list-style: none; padding: 0; columns: 2; font-size: 11pt; color: #e5ede7; }
+.cover .by { margin-top: 40px; color: #b9d6c4; }
+.points li { margin-bottom: 6px; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 9.5pt; }
+th, td { border-bottom: 1px solid #dfe8db; padding: 4px 6px; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+table.txt td { text-align: left; }
+table.txt td:nth-child(2) { text-align: right; }
+table.cl td:nth-child(2) { text-align: left; }
+table.list td { text-align: left; font-size: 8.5pt; }
+table.list td:last-child { text-align: right; }
+tr:first-child th { background: #e2f2e2; color: #1f4d3a; font-size: 8.5pt; }
+tr.me th, tr.me td { background: #fff2d6; font-weight: 700; }
+table.small { font-size: 8.5pt; } small { color: #5b6c60; }
+.note { font-size: 8.5pt; color: #5b6c60; }
+.chart { width: 100%; height: auto; display: block; }
+.chart .lab, .chart .val { font-size: 11px; fill: #1c2a21; } .chart .ax { font-size: 10px; fill: #5b6c60; }
+.chart.big { max-width: 560px; }
+.chart.big svg .b { fill: #b2dbb9; } .chart.big svg .b.last { fill: #2d7a45; }
+.chart.big svg text { font-size: 12px; fill: #1c2a21; } .chart.big svg .base { stroke: #dfe8db; }
+div.chart svg .b { fill: #b2dbb9; } div.chart svg .b.last { fill: #2d7a45; } div.chart svg text { font-size: 12px; fill: #1c2a21; } div.chart svg .base { stroke: #dfe8db; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 18px; }
+figure { margin: 6px 0; break-inside: avoid; } figcaption { font-weight: 700; font-size: 9.5pt; color: #1f4d3a; }
+.legend { font-size: 8.5pt; } .lg { display: inline-block; margin-right: 12px; }
+.lg i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border-radius: 2px; }
+.mapbox { text-align: center; } .mapbox svg { max-width: 100%; max-height: 150mm; height: auto; width: auto; }
+.src li { margin-bottom: 4px; font-size: 9.5pt; }
+.contact { margin-top: 20px; padding: 10px 14px; background: #e2f2e2; border-radius: 8px; }
+"""
+
+FONTS = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700'
+         '&family=Zen+Maru+Gothic:wght@700&display=block">')
+
+
+def main():
+    out, geo = pathlib.Path(sys.argv[1]), sys.argv[2]
+    want = [tuple(a.split(":")) for a in sys.argv[3:]] or TARGETS
+    out.mkdir(parents=True, exist_ok=True)
+    ctx = collect()
+    periods, latest, prev, S, codes, rows = ctx
+    # 主要都市の中での順位（人口1万人あたり）
+    ranks = {}
+    for c in MAIN:
+        v = []
+        for pref, city in TARGETS:
+            pi = PREFS.index(pref)
+            pop = B.POP_MUNI[pi].get(city)
+            v.append(((city_counts(S, c, latest, pi, city) or 0) / pop, (pi, city)))
+        ranks[c] = {k: i for i, (_, k) in enumerate(sorted(v, reverse=True), 1)}
+    for pref, city in want:
+        pi = PREFS.index(pref)
+        body = build_one(ctx, pi, city, geo, ranks)
+        f = out / f"{latest}_{PREFS[pi]}_{city}.html"
+        f.write_text(f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>{E(city)}の障害福祉 事業所レポート（{B.label(latest)}）</title>'
+                     f'{FONTS}<style>{CSS}</style></head><body>{body}</body></html>', encoding="utf-8")
+        print("書き出し:", f.name)
+
+
+if __name__ == "__main__":
+    main()
