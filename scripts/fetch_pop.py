@@ -68,18 +68,17 @@ def parse(xlsx: bytes):
     # 見出しの行：「市区町村名」がある行。人口の「計」はその行か次の行にある
     hi = next(i for i, r in enumerate(rows[:20]) if any("市区町村名" in norm(x) for x in r))
     head = [norm(x) for x in rows[hi]]
-    sub = [norm(x) for x in rows[hi + 1]] if hi + 1 < len(rows) else []
-    c_code = next(i for i, h in enumerate(head) if "団体コード" in h)
-    c_pref = next(i for i, h in enumerate(head) if "都道府県名" in h)
-    c_muni = next(i for i, h in enumerate(head) if "市区町村名" in h)
+    c_code = next(i for i, h in enumerate(head) if h.startswith("団体コード"))
+    c_pref = next(i for i, h in enumerate(head) if h.startswith("都道府県名"))
+    c_muni = next(i for i, h in enumerate(head) if h.startswith("市区町村名"))
+    # 人口の「計」は見出しの数行上にある（「計ケイ」のように読みがなが付くことがある）。最初に出てくる「計」が人口の計
     c_pop = None
-    for i in range(len(head)):
-        h, s = head[i], sub[i] if i < len(sub) else ""
-        if s == "計" or h in ("計", "人口計", "総数") or (h.startswith("人口") and "計" in h):
-            c_pop = i
-            break
+    for r in rows[max(0, hi - 3):hi + 1]:
+        for i, h in enumerate(r[:10]):
+            if norm(h).startswith("計") and c_pop is None:
+                c_pop = i
     if c_pop is None:
-        raise SystemExit(f"人口の列が見つかりません: {head} / {sub}")
+        raise ValueError(f"人口の列が見つかりません: {head}")
     print(f"列: コード={c_code} 都道府県={c_pref} 市区町村={c_muni} 人口={c_pop}")
     out = []
     for r in rows[hi + 1:]:
