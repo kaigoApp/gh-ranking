@@ -1,0 +1,294 @@
+{
+ "_note": "地域別レポート（有料版）用に手で調べた数字。scripts/regional_report.py が読む。",
+ "unit_price": {
+  "1": 11.2,
+  "2": 10.96,
+  "3": 10.9,
+  "4": 10.72,
+  "5": 10.6,
+  "6": 10.36,
+  "7": 10.18,
+  "0": 10.0
+ },
+ "unit_price_source": "児童発達支援・放課後等デイサービスの1単位の単価（令和6年度報酬改定）",
+ "grade_source": "厚生労働省「令和6～8年度における地域区分の適用地域（障害者サービス）」",
+ "pref": {
+  "北海道": {
+   "wage": 1131,
+   "wage_from": "2026年10月1日",
+   "hoiku": 2.23,
+   "all": 0.91
+  },
+  "宮城県": {
+   "wage": 1098,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.94,
+   "all": 1.11
+  },
+  "埼玉県": {
+   "wage": 1196,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.64,
+   "all": 0.99
+  },
+  "千葉県": {
+   "wage": 1195,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.26,
+   "all": 0.99
+  },
+  "東京都": {
+   "wage": 1280,
+   "wage_from": "2026年10月1日",
+   "hoiku": 4.68,
+   "all": 1.7
+  },
+  "神奈川県": {
+   "wage": 1279,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.57,
+   "all": 0.83
+  },
+  "新潟県": {
+   "wage": 1108,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.94,
+   "all": 1.36
+  },
+  "静岡県": {
+   "wage": 1154,
+   "wage_from": "2026年10月15日",
+   "hoiku": 4.11,
+   "all": 1.08
+  },
+  "愛知県": {
+   "wage": 1195,
+   "wage_from": "2026年10月1日",
+   "hoiku": 3.66,
+   "all": 1.2
+  },
+  "京都府": {
+   "wage": 1180,
+   "wage_from": "2026年11月16日",
+   "hoiku": 4.3,
+   "all": 1.21
+  },
+  "大阪府": {
+   "wage": 1231,
+   "wage_from": "2026年10月1日",
+   "hoiku": 4.27,
+   "all": 1.11
+  },
+  "兵庫県": {
+   "wage": 1172,
+   "wage_from": "2026年10月1日",
+   "hoiku": 2.72,
+   "all": 0.92
+  },
+  "広島県": {
+   "wage": 1141,
+   "wage_from": "2026年10月11日",
+   "hoiku": 8.19,
+   "all": 1.32
+  },
+  "福岡県": {
+   "wage": 1114,
+   "wage_from": "2026年10月4日",
+   "hoiku": 3.38,
+   "all": 1.06
+  },
+  "熊本県": {
+   "wage": 1092,
+   "wage_from": "2026年12月1日",
+   "hoiku": 2.57,
+   "all": 1.17
+  }
+ },
+ "national": {
+  "wage": 1177,
+  "hoiku": 3.88,
+  "all": 1.27
+ },
+ "wage_source": "厚生労働省 2026年度の地域別最低賃金（時間額）",
+ "hoiku_source": "こども家庭庁「保育士の有効求人倍率」（厚生労働省 職業安定業務統計、2026年1月）",
+ "all_source": "厚生労働省 一般職業紹介状況（2026年8月、季節調整値）",
+ "city": {
+  "横浜市": {
+   "grade": "2"
+  },
+  "大阪市": {
+   "grade": "2",
+   "houday": {
+    "fy": 2025,
+    "nd": 163663,
+    "users": 12880,
+    "kind": "実績",
+    "src": "大阪市 障がい福祉計画・障がい児福祉計画の進捗（2026年7月）",
+    "url": "https://www.city.osaka.lg.jp/fukushi/cmsfiles/contents/0000065/65628/20260730shiryo4.pdf"
+   }
+  },
+  "名古屋市": {
+   "grade": "3"
+  },
+  "札幌市": {
+   "grade": "7",
+   "houday": {
+    "fy": 2024,
+    "nd": 111125,
+    "users": 9559,
+    "kind": "計画の見込み",
+    "src": "さっぽろ障がい者プラン2024 第5章",
+    "url": "https://www.city.sapporo.jp/shogaifukushi/keikaku/documents/4_5_syougaiplanpc2024.pdf"
+   }
+  },
+  "福岡市": {
+   "grade": "5",
+   "houday": {
+    "fy": 2022,
+    "nd": 65200,
+    "users": 4250,
+    "kind": "実績",
+    "src": "第7期福岡市障がい福祉計画・第3期障がい児福祉計画（答申案）",
+    "url": "http://www.city.fukuoka.lg.jp/fukushi/zaitakushien/shisei/documents/119417/siryou2.pdf"
+   }
+  },
+  "川崎市": {
+   "grade": "2"
+  },
+  "神戸市": {
+   "grade": "4",
+   "houday": {
+    "fy": 2022,
+    "nd": 49633,
+    "users": 3889,
+    "kind": "実績",
+    "src": "第7期神戸市障がい福祉計画・第3期障がい児福祉計画 資料",
+    "url": "https://www.city.kobe.lg.jp/documents/58907/73honpenshiryou.pdf"
+   }
+  },
+  "京都市": {
+   "grade": "5",
+   "houday": {
+    "fy": 2024,
+    "nd": 43969,
+    "users": 4139,
+    "kind": "実績（3月）",
+    "src": "京都市 第7・8期障害福祉計画等の令和6年度進捗",
+    "url": "https://www.city.kyoto.lg.jp/templates/shingikai_kekka/cmsfiles/contents/0000346/346034/02_siryou1.pdf"
+   }
+  },
+  "さいたま市": {
+   "grade": "3",
+   "houday": {
+    "fy": 2023,
+    "nd": 34133,
+    "users": 2692,
+    "kind": "実績",
+    "src": "さいたま市障害者総合支援計画2024～2026 第3章",
+    "url": "https://www.city.saitama.lg.jp/002/003/004/001/005/p113957_d/fil/03_3syou-text.txt"
+   }
+  },
+  "広島市": {
+   "grade": "5",
+   "houday": {
+    "fy": 2023,
+    "nd": 53640,
+    "users": 4470,
+    "kind": "実績の見込み",
+    "src": "第7期広島市障害福祉計画・第3期障害児福祉計画",
+    "url": "https://www.city.hiroshima.lg.jp/_res/projects/default_project/_page_/001/022/229/395256_884778_misc.pdf"
+   }
+  },
+  "仙台市": {
+   "grade": "6",
+   "houday": {
+    "fy": 2025,
+    "nd": 42342,
+    "users": null,
+    "kind": "実績",
+    "src": "仙台市障害者施策推進協議会 資料（2026年9月）",
+    "url": "https://www.city.sendai.jp/kenko-kikaku/shise/security/kokai/fuzoku/fuzokukikan/kenko/documents/r8_0902_02-3_shisakukyogikai.pdf"
+   }
+  },
+  "千葉市": {
+   "grade": "3",
+   "houday": {
+    "fy": 2022,
+    "nd": 26123,
+    "users": 2222,
+    "kind": "実績",
+    "src": "第3期千葉市障害児福祉計画 第2章",
+    "url": "https://www.city.chiba.jp/hokenfukushi/koreishogai/jiritsu/keikaku/documents/yonnbunishou.pdf"
+   }
+  },
+  "世田谷区": {
+   "grade": "1"
+  },
+  "北九州市": {
+   "grade": "7",
+   "houday": {
+    "fy": 2023,
+    "nd": 44282,
+    "users": 2882,
+    "kind": "実績（推計）",
+    "src": "第7期北九州市障害福祉計画・第3期障害児福祉計画",
+    "url": "https://www.city.kitakyushu.lg.jp/files/001084608.pdf"
+   }
+  },
+  "堺市": {
+   "grade": "5",
+   "houday": {
+    "fy": 2025,
+    "nd": 33891,
+    "users": 4894,
+    "kind": "実績",
+    "src": "堺市 障害福祉サービス等の利用状況",
+    "url": "https://www.city.sakai.lg.jp/kenko/fukushikaigo/shogaifukushi/toukei/service.html"
+   }
+  },
+  "浜松市": {
+   "grade": "7",
+   "houday": {
+    "fy": 2023,
+    "nd": 27821,
+    "users": 2152,
+    "kind": "実績の見込み",
+    "src": "浜松市障がい者計画 8-3",
+    "url": "https://www.city.hamamatsu.shizuoka.jp/syoghuku/welfare/obstacle/plan/r6-11/8-3.html"
+   }
+  },
+  "新潟市": {
+   "grade": "7",
+   "houday": {
+    "fy": 2023,
+    "nd": 21944,
+    "users": 1688,
+    "kind": "実績の見込み",
+    "src": "第7期新潟市障がい福祉計画・第3期障がい児福祉計画（案）",
+    "url": "https://www.city.niigata.lg.jp/shisei/kocho/public/publiccomment/fukushi/shogai/shogai_wl20240228.files/dai7kidai3kikeikaku.pdf"
+   }
+  },
+  "練馬区": {
+   "grade": "1"
+  },
+  "大田区": {
+   "grade": "1"
+  },
+  "熊本市": {
+   "grade": "0",
+   "note": "熊本市は、放課後等デイサービスと児童発達支援の新しい指定を、区ごとに決めた必要量の範囲でしか行っていません（総量規制）。開く前に市の募集要項を必ず確認してください。",
+   "note_url": "https://www.city.kumamoto.jp/kiji00354487/index.html"
+  },
+  "船橋市": {
+   "grade": "4",
+   "houday": {
+    "fy": 2024,
+    "nd": 17584,
+    "users": 1538,
+    "kind": "実績",
+    "src": "船橋市 障害福祉計画の令和6年度実績",
+    "url": "https://www.city.funabashi.lg.jp/kenkou/shougaisha/010/p124345.html"
+   }
+  }
+ }
+}
