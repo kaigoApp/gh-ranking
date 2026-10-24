@@ -1,0 +1,22 @@
+# 一時的：人口データを取得してブランチに保存する（PR 前に消す）
+name: 人口データの試し取得
+on:
+  push:
+    branches: [data-more]
+    paths: [scripts/fetch_pop.py, .github/workflows/pop-once.yml]
+permissions:
+  contents: write
+jobs:
+  pop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/fetch_pop.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/pop.csv || true
+          git diff --cached --quiet || (git commit -m "人口データを追加" && git push)

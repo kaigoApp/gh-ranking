@@ -95,7 +95,7 @@
     mnote.textContent = `${D.P[+mp.value]}で${kind ? '新しく載った' : '載らなくなった'}事業所：${fmt(r.length)}件`;
     const tag = kind ? '初めて' : 'すべてやめた';
     list.innerHTML = r.slice(0, shown).map(x => `<li><b>${link(x[3], x[6])}${x[5].length ? `<span class="chip${kind ? ' hot' : ''}">${tag}</span>` : ''}</b>`
-      + `<span>${esc(x[1].map(k => D.N[k]).join('・'))}｜${esc(x[4])}${x[2] ? '｜' + esc(x[2]) : ''}</span></li>`).join('')
+      + `<span>${esc(x[1].map(k => D.N[k]).join('・'))}｜${link(x[4], x[7])}${x[2] ? '｜' + esc(x[2]) : ''}</span></li>`).join('')
       || '<li><span>該当する事業所はありません。</span></li>';
     more.hidden = r.length <= shown;
     more.textContent = `さらに表示（残り ${fmt(r.length - shown)}件）`;
@@ -118,4 +118,29 @@
     kind = +b.dataset.kind; shown = 50; drawMoves();
   });
   more.addEventListener('click', () => { shown += 100; drawMoves(); });
+
+  // ---------- そのサービスが1か所もない市区町村
+  const gs = $('gp-svc'), gpref = $('gp-pref'), glist = $('gp-list'), gnote = $('gp-note');
+  function gaps() {
+    const c = gs.value, pi = +gpref.value;
+    if (!c) { glist.innerHTML = ''; gnote.textContent = 'サービスを選ぶと一覧が出ます。'; return; }
+    const ps = pi < 0 ? D.P.map((_, i) => i) : [pi];
+    gnote.textContent = '読み込んでいます…';
+    Promise.all(ps.map(i => load('m', i))).then(all => {
+      if (gs.value !== c || +gpref.value !== pi) return;
+      let total = 0, have = 0;
+      const html = all.map((ms, k) => {
+        const live = ms.filter(m => m[1]);
+        const none = live.filter(m => !m[3][c] || !m[3][c][0]);
+        total += live.length; have += live.length - none.length;
+        if (!none.length) return '';
+        return `<div class="gp"><h3>${esc(D.P[ps[k]])}<span class="c">${fmt(none.length)} / ${fmt(live.length)}</span></h3>`
+          + `<p>${none.map(m => link(m[0], m[1])).join('、')}</p></div>`;
+      }).join('');
+      gnote.textContent = `${D.N[c]}の事業所がない市区町村：${fmt(total - have)}（${pi < 0 ? '全国' : D.P[pi]}の${fmt(total)}市区町村のうち）`;
+      glist.innerHTML = html || '<p class="note">すべての市区町村に事業所があります。</p>';
+    }).catch(() => { gnote.textContent = '読み込めませんでした。時間をおいてもう一度お試しください。'; });
+  }
+  gs.addEventListener('change', gaps);
+  gpref.addEventListener('change', gaps);
 })();
