@@ -6,6 +6,7 @@
   /p/<都道府県>/<市区町村>/ 市区町村ページ（事業所の一覧つき）
   /p/<都道府県>/<市区町村>/<サービス>/  市区町村 × サービスの事業所一覧
   /f/<事業所番号>/          事業所ページ（全サービス）
+  /report/<時点>/           レポート（データの時点ごとに1本）
   /data/                    お仕事で使う方へ（地域のくらべ表・半年の動き・CSV ダウンロード）
 
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
@@ -35,6 +36,7 @@ OUT = ROOT / "public"
 SITE_URL = os.environ.get("SITE_URL", "https://kaigoapp.github.io/gh-ranking").rstrip("/")
 SITE_NAME = "ジモふく"
 TAGLINE = "地元の障害福祉が見つかる"
+WATCH_GAPS = ["33", "46", "65", "63", "22", "52"]  # レポートで「ない市区町村」を数えるサービス
 GH = "33"  # 住居数を出すのはグループホームだけ
 GA_ID = "G-1DLDV43DSJ"  # Google アナリティクスの測定 ID（G-…）。空ならアクセス解析のタグを入れない
 
@@ -126,6 +128,14 @@ def read_slim(path: pathlib.Path):
         yield from csv.DictReader(f)
 
 
+CORP_FORMS = ["株式会社", "社会福祉法人", "合同会社", "特定非営利活動法人", "一般社団法人", "医療法人", "有限会社"]
+
+
+def corp_form(name: str) -> str:
+    """運営法人の種類を法人名に含まれる言葉で分ける（おおよそ）。"""
+    return next((k for k in CORP_FORMS if k in name), "その他")
+
+
 def summarize(path: pathlib.Path, keep: bool):
     """1サービス・1時点のファイルを読み、事業所単位にまとめる。"""
     offices = {}
@@ -149,7 +159,8 @@ def summarize(path: pathlib.Path, keep: bool):
     pref = collections.Counter(o["p"] for o in offices.values())
     muni = collections.Counter(mk for o in offices.values() for mk in o["munis"])
     rows = sum(o["rows"] for o in offices.values())
-    return dict(n=len(offices), rows=rows, pref=pref, muni=muni, offices=offices if keep else None,
+    ctype = collections.Counter(corp_form(o["corp"]) for o in offices.values())
+    return dict(n=len(offices), rows=rows, pref=pref, muni=muni, ctype=ctype, offices=offices if keep else None,
                 nos={no: o["rows"] for no, o in offices.items()})
 
 
@@ -336,14 +347,14 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <body>
 <header class="site-head"><div class="container">
   <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
-  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
+  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a href="{rel}report/">レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
 </div></header>
 <div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
 <footer class="site-foot"><div class="container">
   <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
   <div>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>を加工して作成。最新データ：{E(LATEST_LABEL)}時点。</div>
-  <div><a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
+  <div><a href="{rel}report/">レポート</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
 {scripts}
@@ -584,6 +595,7 @@ def build():
 <section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
 <div class="purposes">{"".join(purpose_html)}</div></section>
 <a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
+<a class="pro-link" href="report/{latest}/"><span class="eyebrow">レポート</span><b>障害福祉の事業所はどう変わったか（{E(LATEST_LABEL)}）</b><span>増え方、地域の差、入れ替わり、運営法人の変化を、国の公表データからまとめました。データが新しくなるたびに更新します。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
 <section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
 <section class="data-zone"><div class="data-h"><span class="eyebrow">データで見る</span><h2>障害福祉の事業所は、いまも増えています</h2>
@@ -916,6 +928,7 @@ def build():
     build_corps(S, codes, periods, latest, prev, new_nos)
     build_near(S, codes, latest)
     build_privacy()
+    build_reports(S, codes, periods)
 
     # ---------- 事業所ページ
     build_facilities(S, codes, periods, latest, new_nos)
@@ -1581,6 +1594,153 @@ def build_privacy():
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",
          f"{SITE_NAME}のアクセス解析（Google アナリティクス）で送る情報と、位置情報の扱いについて。", hero, body)
+
+
+def report_path(p):
+    return f"report/{p}/"
+
+
+def build_reports(S, codes, periods):
+    """データが新しくなるたびに1本ずつ増える「レポート」。各時点を前の時点・最初の時点とくらべる。"""
+    start = periods[0]
+    made = []
+    for i in range(1, len(periods)):
+        p, q = periods[i], periods[i - 1]
+        cs = [c for c in codes if p in S[c]]
+        made.append((p, build_report(S, cs, periods[: i + 1], p, q, start)))
+    made.reverse()
+    rel = "../"
+    items = "".join(f'<li><a href="{href("", f"{p}/")}"><b>{E(t)}</b><span>{E(label(p))}時点のデータ</span></a></li>'
+                    for p, t in made)
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", None)])}
+  <h1>レポート</h1>
+  <p class="lede">国の公表データから、障害福祉の事業所がどう変わっているかをまとめています。データが新しくなるたびに1本ずつ増えます。引用・転載は出典（{SITE_NAME}、WAM NET）を書いていただければ自由です。</p>
+</div>"""
+    page("report/", "レポート｜障害福祉の事業所はどう変わったか",
+         "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
+         hero, f'<section><ul class="report-list">{items}</ul></section>')
+
+
+def build_report(S, codes, ps, p, q, start):
+    path = report_path(p)
+    rel = "../../"
+    lp, lq, ls = label(p), label(q), label(start)
+
+    def tot(per, cs=codes):
+        v = [S[c][per]["n"] for c in cs if per in S[c]]
+        return sum(v) if v else None
+
+    series = [tot(x) for x in ps]
+    n_p, n_q = series[-1], series[-2]
+    first_i = next(i for i, v in enumerate(series) if v)
+    n_s = series[first_i]
+
+    # サービス別：最初の時点からの増え方（最初の時点にないサービスは前回から）
+    svc = []
+    for c in codes:
+        a = S[c][p]["n"]
+        b = S[c][q]["n"] if q in S[c] else None
+        f = S[c][start]["n"] if start in S[c] else None
+        svc.append((c, a, b, f))
+    grow = sorted([x for x in svc if x[3]], key=lambda x: -(x[1] - x[3]))
+    svc_rows = "".join(
+        f'<tr><th scope="row"><a href="{href(rel, "s/" + SERVICES[c][2] + "/")}">{E(SERVICES[c][1])}</a></th><td class="num">{a:,}</td>'
+        f'<td class="num">{delta(a - b) if b is not None else "—"}</td>'
+        f'<td class="num">{delta(a - f) if f is not None else "—"}</td>'
+        f'<td class="num">{f"{a / f:.2f}倍" if f else "—"}</td></tr>'
+        for c, a, b, f in sorted(svc, key=lambda x: -x[1]))
+
+    # 地域：人口1万人あたり
+    pref = collections.Counter()
+    pref_s = collections.Counter()
+    for c in codes:
+        pref.update(S[c][p]["pref"])
+        if start in S[c]:
+            pref_s.update(S[c][start]["pref"])
+    dens = sorted(((pref[pi] / POP_PREF[pi] * 10000, pi) for pi in range(47) if POP_PREF.get(pi)), reverse=True)
+    rate = sorted(((pref[pi] / pref_s[pi], pi) for pi in range(47) if pref_s[pi]), reverse=True)
+
+    def plist(items, fmt_):
+        return "".join(f'<li><a href="{href(rel, f"p/{PREF_SLUGS[pi]}/")}">{PREFS[pi]}</a> <span class="num">{fmt_(v)}</span></li>' for v, pi in items)
+
+    region_html = ""
+    if dens:
+        region_html = f"""<section><h2>地域の差</h2>
+<p>人口1万人あたりの事業所数（全サービスの延べ）で、多い県と少ない県を並べました。人口は{E(POP_ASOF[0] or "最新")}時点の住民基本台帳人口です。</p>
+<div class="report-cols"><div><h3>多い</h3><ol>{plist(dens[:5], lambda v: f"{v:.1f}")}</ol></div>
+<div><h3>少ない</h3><ol>{plist(dens[-5:][::-1], lambda v: f"{v:.1f}")}</ol></div>
+<div><h3>{E(ls)}から増えた割合が大きい</h3><ol>{plist(rate[:5], lambda v: f"{v:.2f}倍")}</ol></div></div>
+<p class="note">いちばん多い{PREFS[dens[0][1]]}と少ない{PREFS[dens[-1][1]]}では、約{dens[0][0] / dens[-1][0]:.1f}倍の差があります。</p></section>"""
+
+    # 入れ替わり：事業所番号で重ねずに数える
+    def nos(per):
+        out = set()
+        for c in codes:
+            if per in S[c]:
+                out.update(S[c][per]["nos"] or ())
+        return out
+
+    now, before = nos(p), nos(q)
+    n_new, n_gone = len(now - before), len(before - now)
+
+    # 運営法人の種類
+    ct_p, ct_s = collections.Counter(), collections.Counter()
+    for c in codes:
+        ct_p.update(S[c][p].get("ctype") or {})
+        if start in S[c]:
+            ct_s.update(S[c][start].get("ctype") or {})
+    ct_rows = "".join(
+        f'<tr><th scope="row">{E(k.replace("特定非営利活動法人", "NPO法人"))}</th><td class="num">{ct_s[k]:,}</td><td class="num">{ct_p[k]:,}</td><td class="num">{delta(ct_p[k] - ct_s[k])}</td></tr>'
+        for k in CORP_FORMS + ["その他"] if ct_p[k] or ct_s[k])
+    kk = sum(ct_p.values()) or 1
+    top_form = max(CORP_FORMS, key=lambda k: ct_p[k])
+
+    # サービスがない市区町村（その時点のデータに出てくる市区町村のうち）
+    munis = set()
+    for c in codes:
+        munis.update(S[c][p]["muni"])
+    gaps = sorted(((sum(1 for mk in munis if not S[c][p]["muni"].get(mk)), c) for c in codes if c in WATCH_GAPS), reverse=True)
+    gap_rows = "".join(f'<tr><th scope="row">{E(SERVICES[c][1])}</th><td class="num">{n:,}</td><td class="num">{n / len(munis) * 100:.0f}%</td></tr>' for n, c in gaps)
+
+    g1 = grow[0] if grow else None
+    points = [f"全国の事業所（全サービスの延べ）は<b>{n_p:,}か所</b>。前回（{E(lq)}）から{delta(n_p - n_q)}、{E(label(ps[first_i]))}の{n_s:,}か所から<b>{n_p / n_s:.2f}倍</b>になりました。"]
+    if g1:
+        points.append(f"いちばん増えたのは<b>{E(SERVICES[g1[0]][1])}</b>で、{E(ls)}から{g1[1] - g1[3]:+,}か所（{g1[1] / g1[3]:.2f}倍）。")
+    points.append(f"前回から新しく載った事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は約{n_gone:,}か所（事業所番号で重ねずに数えた数）。")
+    points.append(f"運営法人の種類では<b>{E(top_form)}</b>がいちばん多く、全体の{ct_p[top_form] / kk * 100:.0f}%です。")
+    if gaps:
+        n, c = gaps[0]
+        points.append(f"{E(SERVICES[c][1])}は、{len(munis):,}の市区町村のうち<b>{n:,}</b>（{n / len(munis) * 100:.0f}%）で事業所が1か所もありません。")
+    title = f"障害福祉の事業所はどう変わったか（{lp}）"
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", href(rel, "report/")), (lp, None)])}
+  <div class="eyebrow" style="margin-top:12px">レポート　{E(lp)}時点のデータ</div>
+  <h1>{E(title)}</h1>
+  <p class="lede">国の公表データ（WAM NET）から、全国の障害福祉サービスの事業所の増え方、地域の差、入れ替わり、運営法人の変化をまとめました。</p>
+</div>"""
+    body = f"""
+<section><h2>要点</h2><ul class="points">{"".join(f"<li>{x}</li>" for x in points)}</ul></section>
+<section><h2>全国の推移</h2><p>全サービスの延べ事業所数です。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p>
+{trend_chart(ps, series, "か所")}</section>
+<section><h2>サービス別</h2><p>事業所の多い順です。サービス名を押すと、そのサービスの事業所をさがせます。</p>
+<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="num">{E(lp)}</th><th class="num">前回から</th><th class="num">{E(ls)}から</th><th class="num">何倍</th></tr></thead><tbody>{svc_rows}</tbody></table></div></section>
+{region_html}
+<section><h2>入れ替わり</h2><p>前回（{E(lq)}）から今回までに、新しく載った事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は<b>約{n_gone:,}か所</b>でした。差し引き{delta(n_new - n_gone)}です。新しく載った事業所の一覧は<a href="{href(rel, "data/")}#moves">お仕事で使う方へ</a>で見られます（最新の時点だけ）。</p></section>
+<section><h2>運営法人の種類</h2><p>法人名に含まれる言葉（「株式会社」など）で分けた、おおよその数です（延べ）。</p>
+<div class="table-wrap"><table><thead><tr><th>種類</th><th class="num">{E(ls)}</th><th class="num">{E(lp)}</th><th class="num">増減</th></tr></thead><tbody>{ct_rows}</tbody></table></div></section>
+<section><h2>サービスがない市区町村</h2><p>この時点のデータに出てくる{len(munis):,}の市区町村のうち、そのサービスの事業所が1か所もない市区町村の数です。データに出てこない市区町村は数えていないので、実際はもう少し多い可能性があります。</p>
+<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="num">ない市区町村</th><th class="num">割合</th></tr></thead><tbody>{gap_rows}</tbody></table></div></section>
+<section><h2>注意点・出典</h2><ul>
+<li>事業所数はサービスごとの延べ数です。1つの事業所が複数のサービスを行うと、それぞれで数えています。</li>
+<li>「新しく載った」「載らなくなった」は公表データに載ったかどうかで判断しています。実際の開所日・廃止日とはずれることがあります。</li>
+<li>運営法人の種類は法人名の言葉で分けたおおよその分類です。</li>
+<li>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>、{E(POP_SOURCE)}。集計は{SITE_NAME}。引用するときは「{SITE_NAME}（jimofuku.jp）調べ」と書いてください。</li>
+</ul></section>"""
+    page(path, title, f"{lp}時点の国の公表データから。全国{n_p:,}か所の障害福祉の事業所の増え方、地域の差、入れ替わり、運営法人の変化。",
+         hero, body, og=og_image(f"report-{p}", "レポート", "障害福祉の事業所はどう変わったか", n_p, "か所",
+                                 (f"{label(ps[first_i])}から{n_p / n_s:.2f}倍", f"前回から新しく約{n_new:,}か所")))
+    return title
 
 
 def build_near(S, codes, latest):
