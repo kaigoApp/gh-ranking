@@ -14,6 +14,7 @@ import gzip
 import html
 import io
 import json
+import multiprocessing
 import os
 import pathlib
 import re
@@ -23,6 +24,7 @@ import urllib.parse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from services import GROUPS, PREF_SLUGS, PREFS, SERVICES  # noqa: E402
+import ogp  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SLIM = ROOT / "data" / "slim"
@@ -143,6 +145,48 @@ def summarize(path: pathlib.Path, keep: bool):
                 nos={no: o["rows"] for no, o in offices.items()} if path.parent.name == GH else None)
 
 
+POP_PREF: dict = {}
+POP_MUNI: dict = collections.defaultdict(dict)
+POP_ASOF = [""]
+POP_SOURCE = "人口：総務省「住民基本台帳に基づく人口、人口動態及び世帯数」"
+
+
+def load_pop():
+    """data/pop.csv（scripts/fetch_pop.py が作る）を読む。無ければ人口あたりの数は出さない。"""
+    f = ROOT / "data" / "pop.csv"
+    if not f.exists():
+        return
+    lines = f.read_text(encoding="utf-8").splitlines()
+    if lines and lines[0].startswith("#"):
+        POP_ASOF[0] = lines[0].split()[-1]
+        lines = lines[1:]
+    for r in csv.DictReader(lines):
+        if r["pref"] not in PREFS:
+            continue
+        pi = PREFS.index(r["pref"])
+        if r["muni"]:
+            POP_MUNI[pi][r["muni"]] = int(r["pop"])
+        else:
+            POP_PREF[pi] = int(r["pop"])
+    if not POP_PREF:  # 都道府県の行がない古い形式。政令市の区を除いて足す
+        for pi, ms in POP_MUNI.items():
+            POP_PREF[pi] = sum(n for m, n in ms.items() if not re.search(r"市.+区$", m))
+    print(f"人口データ: {sum(len(v) for v in POP_MUNI.values()):,}市区町村（{POP_ASOF[0]}）")
+
+
+def pop_of(pi, mname):
+    """市区町村の人口。名前の書き方が少し違う（「八丈島八丈町」と「八丈町」など）ときは、末尾が一致する1つを使う。"""
+    ms = POP_MUNI.get(pi, {})
+    if mname in ms:
+        return ms[mname]
+    cand = [k for k in ms if mname.endswith(k) or k.endswith(mname)]
+    return ms[cand[0]] if len(cand) == 1 else None
+
+
+def per10k(n, pop):
+    return f"{n / pop * 10000:.1f}" if pop and n is not None else ""
+
+
 def load():
     files = {c: sorted((SLIM / c).glob("*.csv.gz")) for c in SERVICES if (SLIM / c).is_dir()}
     periods = sorted({f.name[:6] for fs in files.values() for f in fs})
@@ -256,8 +300,8 @@ LOGO = ('<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2C9.4 2 4 7.3 
         '<circle cx="23.5" cy="6.5" r="3.5" fill="var(--sun)"/></svg>')
 
 
-def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False) -> None:
-    """path は public/ からの相対パス（"s/group-home/" など、末尾スラッシュ）。"""
+def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False, og: str = "og/top.png") -> None:
+    """path は public/ からの相対パス（"s/group-home/" など、末尾スラッシュ）。og はシェア用画像の public/ からのパス。"""
     depth = path.count("/")
     rel = "../" * depth
     canonical = SITE_URL + "/" + urllib.parse.quote(path)
@@ -274,6 +318,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta property="og:description" content="{E(desc)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{SITE_NAME}">
+<meta property="og:url" content="{E(canonical)}">{OG_META.format(url=E(SITE_URL + "/" + urllib.parse.quote(og))) if ogp.ENABLED and og else ""}
 <meta name="theme-color" content="#1f4d3a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -337,6 +382,37 @@ def href(rel, path):
 # ---------------------------------------------------------------- ページ
 
 PAGES: list[str] = []
+OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
+OG_META = """
+<meta property="og:image" content="{url}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">"""
+
+
+def og_image(key: str, eyebrow: str, title: str, number=None, unit="", lines=()) -> str:
+    """シェア用画像を予約して、そのパスを返す。画像はページを全部作ったあとにまとめて描く。"""
+    path = f"og/{key}.png"
+    OG_JOBS[path] = (eyebrow, title, number, unit, tuple(lines), f"jimofuku.jp　{LATEST_LABEL}時点　国の公表データから")
+    return path
+
+
+def muni_og(pi, name):
+    return f"og/m/{PREF_SLUGS[pi]}/{name}.png"
+
+
+def _draw_og(job):
+    path, (eyebrow, title, number, unit, lines, foot) = job
+    ogp.make(OUT / path, eyebrow, title, number, unit, lines, foot)
+
+
+def draw_og_images():
+    if not ogp.ENABLED:
+        print("シェア用画像：Pillow かフォントがないので作りません")
+        return
+    with multiprocessing.Pool() as pool:
+        pool.map(_draw_og, sorted(OG_JOBS.items()), chunksize=32)
+    print(f"シェア用画像: {len(OG_JOBS):,}")
 CORP_PAGES: set = set()   # 法人ページを作る法人番号
 CORP_MIN = 3              # 最新時点でこの数以上の事業所を運営する法人だけページを作る
 
@@ -372,6 +448,7 @@ LATEST_LABEL = ""
 def build():
     global LATEST_LABEL
     periods, latest, prev, year_ago, S = load()
+    load_pop()
     LATEST_LABEL = label(latest)
     codes = [c for _, cs in GROUPS for c in cs if c in S]
 
@@ -494,7 +571,9 @@ def build():
 <div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{inc_rows}</tbody></table></div></div>
 </section>"""
     page("", f"{SITE_NAME}｜{TAGLINE}", f"全国の障害福祉サービス事業所（{LATEST_LABEL}時点 {tot:,}件）を、グループホーム・就労支援・放課後等デイなどサービス別、都道府県・市区町村別にさがせます。国の公表データから自動更新。",
-         hero, body, '<script src="assets/search.js" defer></script>', split=True)
+         hero, body, '<script src="assets/search.js" defer></script>', split=True,
+         og=og_image("top", "全国の障害福祉サービス", "地元の障害福祉を、ちゃんと見つける。", tot, "か所",
+                     [f"{len(codes)}種類のサービス", f"{len(all_munis):,}の市区町村", "地域と目的からさがせます"]))
 
     # ---------- サービス別
     for c in codes:
@@ -576,7 +655,9 @@ def build():
         scripts = f'<script id="rank-data" type="application/json">{blob}</script>\n<script src="{rel}assets/rank.js" defer></script>'
         page(path, f"{name}の事業所数ランキング（都道府県・市区町村・法人別）",
              f"{name}の事業所は全国に{cur:,}件（{LATEST_LABEL}時点）。都道府県・市区町村・運営法人別の事業所数と半年間の増減、新規掲載の事業所を毎回更新。",
-             hero, body, scripts, split=True)
+             hero, body, scripts, split=True,
+             og=og_image(f"s/{slug}", group, f"{name}の事業所", cur, "か所",
+                         [f"半年で{cur - pv:+,}" if pv is not None else "", f"いちばん多いのは{PREFS[max(range(47), key=lambda i: L['pref'].get(i, 0))]}", "都道府県・市区町村・法人別"]))
 
     # ---------- 都道府県
     for pi in range(47):
@@ -623,9 +704,12 @@ def build():
 <div class="table-wrap"><table><thead><tr><th>市区町村</th><th class="r">延べ</th><th class="r">半年</th><th class="r">GH</th><th class="r">就労B</th><th class="r">放デイ</th><th></th></tr></thead><tbody>{mrows}</tbody></table></div>
 <p class="note">GH＝グループホーム（共同生活援助）、就労B＝就労継続支援B型、放デイ＝放課後等デイサービス。</p></section>
 <section><h2>{E(pref)}の事業所数の推移</h2>{trend_chart(periods, ptot)}</section>"""
+        ptop = sorted(((S[c][latest]["pref"].get(pi, 0), c) for c in codes), reverse=True)[:3]
+        pref_og = og_image(f"p/{PREF_SLUGS[pi]}", "都道府県", f"{pref}の障害福祉", cur, "か所",
+                           [f"{SERVICES[c][1]} {n:,}か所" for n, c in ptop])
         page(path, f"{pref}の障害福祉事業所数（サービス別・市区町村別）",
              f"{pref}の障害福祉サービス事業所は{cur:,}件（{LATEST_LABEL}時点、延べ）。グループホーム・就労支援・放課後等デイなどサービス別、市区町村別の事業所数と増減。",
-             hero, body)
+             hero, body, og=pref_og)
 
     # ---------- 都道府県 × サービス
     for c in codes:
@@ -725,7 +809,7 @@ def build():
 <section><h2>{E(pref)}のほかのサービス</h2><div class="pref-grid">{siblings}</div></section>"""
             page(path, f"{pref}の{name}の事業所数（市区町村別・法人別）",
                  f"{pref}の{name}の事業所は{cur:,}件（{LATEST_LABEL}時点、全国{nat_rank}位）。市区町村別・運営法人別の事業所数と、半年間の新規掲載・掲載終了の事業所。",
-                 hero, body)
+                 hero, body, og=f"og/p/{PREF_SLUGS[pi]}.png")
 
     # ---------- 市区町村
     order = {c: i for i, c in enumerate(codes)}
@@ -784,7 +868,8 @@ def build():
         tops = "・".join(f"{SERVICES[c][1]}{n}件" for n, c in top if n)
         page(path, f"{mname}（{pref}）の障害福祉事業所一覧と数の推移",
              f"{pref}{mname}の障害福祉サービス事業所は{cur:,}件（{LATEST_LABEL}時点、延べ）。{tops}など。サービス別の事業所数・増減と事業所の一覧。",
-             hero, body)
+             hero, body, og=og_image(f"m/{PREF_SLUGS[pi]}/{mname}", pref, f"{mname}の障害福祉", cur, "か所",
+                                     [f"{SERVICES[c][1]} {n:,}か所" for n, c in top if n]))
 
     # ---------- お仕事で使う方へ（データ）
     build_data(S, codes, periods, latest, prev, year_ago, new_nos)
@@ -795,6 +880,8 @@ def build():
     # ---------- グループホームの施設ページ
     if GH in S:
         build_facilities(S, codes, periods, latest, new_nos)
+
+    draw_og_images()
 
     # ---------- 404・sitemap・robots
     nf = (OUT / "index.html").read_text(encoding="utf-8")
@@ -897,7 +984,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
 {f'<section><h2>{E(mk[1])}のほかのグループホーム</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{len(by_muni[mk]) - 1}件</span></summary><ul>{muni_html}</ul></details></div>{f"<p class=note>ほか{muni_more}件は<a href={chr(34)}{href(rel, muni_path(*mk))}{chr(34)}>{E(mk[1])}のページ</a>へ。</p>" if muni_more > 0 else ""}</section>' if muni_html else ''}"""
         page(path, f"{name}（{place}）のグループホーム情報",
              f"{name}は{o['corp']}が運営する{place}のグループホーム（共同生活援助）。所在地、電話番号、同じ法人や同じ地域のグループホーム。",
-             hero, body)
+             hero, body, og=muni_og(*mk) if mk else "og/top.png")
         count += 1
     print(f"施設ページ: {count:,}")
     muni_list = sorted({mk for c in codes for mk in S[c][latest]["muni"]})
@@ -978,7 +1065,7 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
                 if v[0] or v[1] or v[2]:
                     sv[c] = v
             allv = sum4(list(sv.values())) + [all_corps(corp_muni, mk)]
-            rows.append([mk[1], href(rel, matome_path(*mk)) if mk in latest_munis else "", allv, sv])
+            rows.append([mk[1], href(rel, matome_path(*mk)) if mk in latest_munis else "", allv, sv, pop_of(*mk)])
         f = dd / "m" / f"{PREF_SLUGS[pi]}.json"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(rows, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -1017,8 +1104,8 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
 
     # CSV
     plabels = [label(p) for p in periods]
-    cnote = "事業所数は事業所番号の数（1つの事業所が複数のサービスを行う場合はサービスごとに数える）。空欄はその時点のデータがないもの。"
-    pref_rows = [[PREFS[pi], SERVICES[c][0]] + [("" if p not in S[c] else S[c][p]["pref"].get(pi, 0)) for p in periods]
+    cnote = "事業所数は事業所番号の数（1つの事業所が複数のサービスを行う場合はサービスごとに数える）。空欄はその時点のデータがないもの。" + (POP_SOURCE + "。" if POP_PREF else "")
+    pref_rows = [[PREFS[pi], POP_PREF.get(pi, ""), SERVICES[c][0]] + [("" if p not in S[c] else S[c][p]["pref"].get(pi, 0)) for p in periods]
                  for pi in range(47) for c in codes]
     muni_keys = sorted({mk for c in codes for p in S[c] for mk in S[c][p]["muni"]})
     muni_rows = []
@@ -1026,14 +1113,14 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
         for c in codes:
             vals = [("" if p not in S[c] else S[c][p]["muni"].get(mk, 0)) for p in periods]
             if any(vals):
-                muni_rows.append([PREFS[mk[0]], mk[1], SERVICES[c][0]] + vals)
+                muni_rows.append([PREFS[mk[0]], mk[1], pop_of(*mk) or "", SERVICES[c][0]] + vals)
     gap_rows = [[SERVICES[c][0], PREFS[mk[0]], mk[1]] for c in codes for mk in sorted(latest_munis) if not S[c][latest]["muni"].get(mk)]
     span = f"{prev}-{latest}"
     files = [
         ("todofuken.csv", f"都道府県別・サービス別の事業所数（{plabels[0]}〜{plabels[-1]}）", "都道府県ごと・サービスごとに、各時点の事業所数を並べた表です。",
-         write_csv(dd / "todofuken.csv", cnote, ["都道府県", "サービス"] + plabels, pref_rows), len(pref_rows)),
+         write_csv(dd / "todofuken.csv", cnote, ["都道府県", f"人口（{POP_ASOF[0]}）", "サービス"] + plabels, pref_rows), len(pref_rows)),
         ("shikuchoson.csv", f"市区町村別・サービス別の事業所数（{plabels[0]}〜{plabels[-1]}）", "市区町村ごと・サービスごとに、各時点の事業所数を並べた表です。事業所が1か所もない組み合わせは省いています。",
-         write_csv(dd / "shikuchoson.csv", cnote + "市区町村は事業所の所在地。", ["都道府県", "市区町村", "サービス"] + plabels, muni_rows), len(muni_rows)),
+         write_csv(dd / "shikuchoson.csv", cnote + "市区町村は事業所の所在地。", ["都道府県", "市区町村", f"人口（{POP_ASOF[0]}）", "サービス"] + plabels, muni_rows), len(muni_rows)),
         (f"ugoki-{span}.csv", f"半年間に新しく載った事業所・載らなくなった事業所（{label(prev)}→{label(latest)}）", "事業所名・運営法人・所在地の一覧です。その法人が初めて行うサービスかどうかの印もつけています。",
          write_csv(dd / f"ugoki-{span}.csv", f"{label(prev)}と{label(latest)}の公表データをくらべ、掲載の有無で判定。実際の開設・廃止日とは一致しない場合がある。掲載終了には休止や番号の変更も含む。",
                    ["区分", "サービス", "都道府県", "市区町村", "事業所番号", "事業所名", "運営法人", "法人番号", "法人のようす"], move_rows), len(move_rows)),
@@ -1054,7 +1141,7 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
                        for g, cs in GROUPS)
     pref_opts = "".join(f'<option value="{pi}">{PREFS[pi]}</option>' for pi in range(47))
     blob = json.dumps(dict(P=PREFS, S=PREF_SLUGS, T=T, N={c: SERVICES[c][1] for c in codes},
-                           pl=[href(rel, f"p/{PREF_SLUGS[pi]}/") for pi in range(47)],
+                           pl=[href(rel, f"p/{PREF_SLUGS[pi]}/") for pi in range(47)], pp=[POP_PREF.get(pi) for pi in range(47)],
                            cur=LATEST_LABEL, prev=label(prev), ya=label(ya) if ya else ""),
                       ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     n_new = sum(1 for r in move_rows if r[0] == "新規掲載")
@@ -1081,9 +1168,9 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
   <th class="r"><button data-k="d6">半年の増減</button></th>
   <th class="r"><button data-k="d12">1年の増減</button></th>
   <th class="r"><button data-k="r12">1年の増え方</button></th>
-  <th class="r"><button data-k="corp">運営法人</button></th>
+  <th class="r"><button data-k="corp">運営法人</button></th>{'<th class="r"><button data-k="per">人口1万人あたり</button></th>' if POP_PREF else ''}
 </tr></thead><tbody id="cp-body"></tbody></table></div>
-<p class="note">運営法人は、その地域でそのサービスを行う法人の数です（{E(LATEST_LABEL)}時点）。市区町村は事業所の所在地で数えています。</p>
+<p class="note">運営法人は、その地域でそのサービスを行う法人の数です（{E(LATEST_LABEL)}時点）。市区町村は事業所の所在地で数えています。{f"人口1万人あたりは、{E(POP_ASOF[0])}の人口で割った数です（{POP_SOURCE}）。" if POP_PREF else ""}</p>
 </section>
 <section id="moves"><h2>半年の動き</h2>
 <p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに載った事業所と、載らなくなった事業所です。「初めて」の印は、その法人がそのサービスを全国でまだ行っていなかった（新しく始めた）ことを示します。</p>
@@ -1123,7 +1210,9 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
     scripts = f'<script id="data-data" type="application/json">{blob}</script>\n<script src="{rel}assets/data.js" defer></script>'
     page(path, "お仕事で使う方へ｜障害福祉の事業所データ（地域のくらべ表・ダウンロード）",
          f"障害福祉サービス事業所の数を、都道府県・市区町村・サービスごとにくらべられる表と、半年間に新しく載った事業所の一覧。CSV でダウンロードできます（{LATEST_LABEL}時点）。",
-         hero, body, scripts)
+         hero, body, scripts,
+         og=og_image("data", "お仕事で使う方へ", "障害福祉の事業所データ", n_new, "件",
+                     ["この半年に新しく載った事業所", "地域のくらべ表", "CSV でダウンロード"]))
     print(f"データページ: 動き {len(move_rows):,}件、市区町村CSV {len(muni_rows):,}行")
 
 
@@ -1173,6 +1262,7 @@ def build_matome(S, codes, periods, latest, prev, year_ago, new_nos):
         corps = collections.Counter(o["corp_key"] for _, _, o in offs)
         cname = {o["corp_key"]: o["corp"] for _, _, o in offs}
         new_here = [(c, no, o) for c, no, o in offs if no in new_nos[c]]
+        mpop = pop_of(pi, mname)
         rows = []
         missing = []
         for gname, cs in GROUPS:
@@ -1187,11 +1277,13 @@ def build_matome(S, codes, periods, latest, prev, year_ago, new_nos):
                     continue
                 ncorp = len({o["corp_key"] for cc, _, o in offs if cc == c})
                 r = rank.get((c, mk))
+                per = (f'<td class="r tnum">{per10k(v, mpop)}<span class="note">（県 {per10k(L[c]["pref"].get(pi, 0), POP_PREF.get(pi))}）</span></td>'
+                       if mpop else "")
                 gr.append(f'<tr><td class="name">{E(SERVICES[c][1])}</td><td class="n">{v:,}</td>'
                           f'<td class="r">{delta(v - v0) if v0 is not None else ""}</td><td class="r">{delta(v - v1) if v1 is not None else ""}</td>'
-                          f'<td class="r tnum">{ncorp:,}</td><td class="r tnum">{f"{r[0]}位 / {r[1]}" if r else "－"}</td></tr>')
+                          f'<td class="r tnum">{ncorp:,}</td><td class="r tnum">{f"{r[0]}位 / {r[1]}" if r else "－"}</td>{per}</tr>')
             if gr:
-                rows.append(f'<tr class="grp"><td colspan="6">{E(gname)}</td></tr>' + "".join(gr))
+                rows.append(f'<tr class="grp"><td colspan="{7 if mpop else 6}">{E(gname)}</td></tr>' + "".join(gr))
         top = corps.most_common(10)
         top_rows = "".join(f'<tr><td class="r tnum">{i + 1}</td><td class="name">{corp_link(rel, k, cname[k])}</td><td class="n">{n:,}</td></tr>'
                            for i, (k, n) in enumerate(top))
@@ -1208,22 +1300,22 @@ def build_matome(S, codes, periods, latest, prev, year_ago, new_nos):
   <div class="eyebrow" style="margin-top:12px">{E(pref)}　{E(LATEST_LABEL)}時点のまとめ</div>
   <h1>{E(mname)}の障害福祉のまとめ</h1>
   <div class="big"><div><span class="n">{tot:,}</span><span class="u">事業所（延べ）</span></div>
-    <div class="meta"><span>半年で <b>{delta(tot - tot0)}</b></span>{f'<span>1年で <b>{delta(tot - tot1)}</b></span>' if tot1 is not None else ''}<span>運営法人 <b>{len(corps):,}</b></span><span>半年の新規掲載 <b>{len(new_here):,}件</b></span></div></div>
+    <div class="meta"><span>半年で <b>{delta(tot - tot0)}</b></span>{f'<span>1年で <b>{delta(tot - tot1)}</b></span>' if tot1 is not None else ''}<span>運営法人 <b>{len(corps):,}</b></span><span>半年の新規掲載 <b>{len(new_here):,}件</b></span>{f'<span>人口 <b>{mpop:,}人</b>（{E(POP_ASOF[0])}）</span>' if mpop else ''}</div></div>
   <p class="since noprint"><button class="print" onclick="window.print()">このページを印刷する</button>　<a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の事業所の一覧へ</a></p>
 </div>"""
         body = f"""
 <section><h2>サービス別の事業所数</h2><p class="sec-sub">増減は{E(label(prev))}{f"・{E(label(ya))}" if ya else ""}との比較、順位は{E(pref)}の市区町村の中での順位です。運営法人は、{E(mname)}でそのサービスを行う法人の数です。</p>
-<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年</th><th class="r">1年</th><th class="r">法人</th><th class="r">県内順位</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年</th><th class="r">1年</th><th class="r">法人</th><th class="r">県内順位</th>{'<th class="r">人口1万人あたり</th>' if mpop else ''}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>
 {f'<p class="note"><b>{E(mname)}に事業所がないサービス：</b>{E("、".join(missing))}</p>' if missing else ''}</section>
 <section><h2>事業所の多い運営法人</h2><p class="sec-sub">{E(mname)}で運営している事業所の数（サービスごとに数えた延べ数）の多い順です。</p>
 <div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>法人</th><th class="r">事業所</th></tr></thead><tbody>{top_rows}</tbody></table></div></section>
 <section><h2>この半年の動き</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに載った事業所と、載らなくなった事業所です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
 <div class="dir"><details open><summary>新しく載った<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>
 <details{" open" if len(gone[mk]) <= 20 else ""}><summary>載らなくなった<span class="c">{len(gone[mk]):,}件</span></summary>{f"<ul>{gone_html}</ul>" if gone_html else ""}</details></div></section>
-<p class="note">{E(CSV_SOURCE)}（{E(LATEST_LABEL)}時点）</p>"""
+<p class="note">{E(CSV_SOURCE)}（{E(LATEST_LABEL)}時点）。{E(POP_SOURCE) + "（" + E(POP_ASOF[0]) + "）。" if mpop else ""}</p>"""
         page(matome_path(pi, mname), f"{pref}{mname}の障害福祉のまとめ（事業所数・増減・運営法人）",
              f"{pref}{mname}の障害福祉サービス事業所は延べ{tot:,}件（{LATEST_LABEL}時点）。サービス別の事業所数と増減、県内順位、事業所の多い運営法人、半年間に新しく載った事業所。",
-             hero, body)
+             hero, body, og=muni_og(pi, mname))
     print(f"まとめページ: {len(munis):,}")
 
 
@@ -1364,7 +1456,9 @@ def build_near(S, codes, latest):
 <p class="note">位置は国の公表データにある緯度・経度です。まれに位置がずれている事業所があります。おおよそ半径40km以内の事業所を出しています。</p></section>"""
     page("data/near/", "近くの障害福祉事業所を近い順にさがす（住所・市区町村・現在地から）",
          "住所や市区町村、現在地から、近くの障害福祉サービス事業所を距離の近い順に一覧にします。グループホーム、就労支援、放課後等デイサービスなどサービスで絞り込めます。",
-         hero, body, f'<script id="near-data" type="application/json">{blob}</script>\n<script src="{rel}assets/near.js" defer></script>')
+         hero, body, f'<script id="near-data" type="application/json">{blob}</script>\n<script src="{rel}assets/near.js" defer></script>',
+         og=og_image("near", "住所・市区町村・いまいる場所から", "近くの事業所を、近い順に", None, "",
+                     ["グループホーム、就労支援、放課後等デイサービスなど", "距離つきで一覧にします"]))
     print(f"近くの事業所: {len(offices):,}か所、区画 {len(tiles):,}")
 
 

@@ -22,10 +22,12 @@
   const area = $('cp-area'), svc = $('cp-svc'), body = $('cp-body'), note = $('cp-note'), table = $('cp-table');
   let key = 'n', desc = true, rows = [];
 
-  function toRow(name, url, v) {
+  const hasPop = !!(D.pp && D.pp.some(x => x));
+  function toRow(name, url, v, pop) {
     const [n, p6, p12, corp] = v || [0, 0, 0, 0];
     return {
       name, url, n: n || 0, corp: corp || 0,
+      per: pop ? (n || 0) / pop * 10000 : null,
       d6: p6 === null ? null : (n || 0) - p6,
       d12: p12 === null || !D.ya ? null : (n || 0) - p12,
       r12: p12 ? ((n || 0) - p12) / p12 * 100 : null,
@@ -48,8 +50,9 @@
     });
     body.innerHTML = r.length ? r.map(x => `<tr><td class="name">${link(x.name, x.url)}</td><td class="n">${fmt(x.n)}</td>`
       + `<td class="r">${delta(x.d6)}</td><td class="r">${delta(x.d12)}</td>`
-      + `<td class="r tnum">${x.r12 === null ? '—' : (x.r12 > 0 ? '+' : '') + x.r12.toFixed(1) + '%'}</td><td class="r tnum">${fmt(x.corp)}</td></tr>`).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">この地域には事業所がありません。</td></tr>';
+      + `<td class="r tnum">${x.r12 === null ? '—' : (x.r12 > 0 ? '+' : '') + x.r12.toFixed(1) + '%'}</td><td class="r tnum">${fmt(x.corp)}</td>`
+      + (hasPop ? `<td class="r tnum">${x.per === null ? '—' : x.per.toFixed(1)}</td>` : '') + '</tr>').join('')
+      : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">この地域には事業所がありません。</td></tr>';
   }
 
   function compare() {
@@ -57,7 +60,7 @@
     const sname = c === 'all' ? '全サービス（延べ）' : D.N[c];
     const span = `増減は${D.prev}・${D.ya || D.prev}との比較です。`;
     if (pi < 0) {
-      rows = D.T[c].map((v, i) => toRow(D.P[i], D.pl[i], v));
+      rows = D.T[c].map((v, i) => toRow(D.P[i], D.pl[i], v, D.pp && D.pp[i]));
       note.textContent = `全国の都道府県ごとの${sname}の事業所数です（${D.cur}時点）。${span}`;
       draw();
       return;
@@ -65,7 +68,7 @@
     note.textContent = '読み込んでいます…';
     load('m', pi).then(ms => {
       if (+area.value !== pi || svc.value !== c) return;
-      rows = ms.map(m => toRow(m[0], m[1], c === 'all' ? m[2] : m[3][c])).filter(x => x.n || x.d6 || x.d12);
+      rows = ms.map(m => toRow(m[0], m[1], c === 'all' ? m[2] : m[3][c], m[4])).filter(x => x.n || x.d6 || x.d12);
       const none = ms.length - rows.length;
       note.textContent = `${D.P[pi]}の市区町村ごとの${sname}の事業所数です（${D.cur}時点）。${span}`
         + (c !== 'all' && none > 0 ? `このサービスの事業所がない市区町村が${fmt(none)}あります（表には出していません）。` : '');
