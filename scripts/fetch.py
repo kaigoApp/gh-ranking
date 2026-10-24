@@ -24,7 +24,7 @@ BASE = "https://www.wam.go.jp"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SLIM = ROOT / "data" / "slim"
 UA = "shofuku-ranking (+https://github.com/kaigoApp/gh-ranking)"
-FIELDS = ["no", "pref", "muni", "corp_key", "corp", "name", "addr", "lat", "lng", "tel", "url"]
+FIELDS = ["no", "pref", "muni", "corp_key", "corp", "name", "addr", "lat", "lng", "tel", "url", "cap", "hours", "closed"]
 
 
 def norm(s: str) -> str:
@@ -67,9 +67,12 @@ def slim(zip_bytes: bytes) -> list[dict]:
         muni=col(h, "事業所住所", "市区町村"), addr=col(h, "事業所住所", "番地"),
         corpno=col(h, "法人番号"), lat=col(h, "緯度"), lng=col(h, "経度"),
         tel=col(h, "事業所電話番号"), url=col(h, "事業所URL"),
+        # 定員・利用できる時間・定休日。古い時点のファイルには無いことがあるので、無ければ空にする
+        cap=col(h, "定員"), hours=col(h, "時間", "平日"), closed=col(h, "定休日"),
         corp=next((x for x in h if x.startswith("法人の名称") and "かな" not in x), None),
         name=next((x for x in h if x.startswith("事業所の名称") and "かな" not in x), None),
     )
+    print("列:", "、".join(h))
     missing = [k for k in ("code", "no", "muni", "name") if not c[k]]
     if missing:
         raise ValueError(f"必要な列がありません: {missing}")
@@ -89,6 +92,7 @@ def slim(zip_bytes: bytes) -> list[dict]:
             name=norm(g(r, "name")), addr=norm(g(r, "addr")),
             lat=g(r, "lat").strip()[:10], lng=g(r, "lng").strip()[:11],
             tel=norm(g(r, "tel"))[:20], url=g(r, "url").strip()[:200],
+            cap=norm(g(r, "cap"))[:20], hours=norm(g(r, "hours"))[:60], closed=norm(g(r, "closed"))[:60],
         ))
     out.sort(key=lambda r: (r["no"], r["muni"], r["addr"], r["name"]))
     return out

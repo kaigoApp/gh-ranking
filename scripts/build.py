@@ -99,6 +99,9 @@ TILE = {
 }
 assert len(TILE) == 47
 
+REGIONS = [("北海道・東北", range(0, 7)), ("関東", range(7, 14)), ("中部", range(14, 23)), ("近畿", range(23, 30)),
+           ("中国", range(30, 35)), ("四国", range(35, 39)), ("九州・沖縄", range(39, 47))]
+
 MUNI_RE = re.compile(r"[^\s/\\?#%]{1,20}?[市区町村]")
 
 
@@ -131,7 +134,7 @@ def summarize(path: pathlib.Path, keep: bool):
         o = offices.get(r["no"])
         if o is None:
             o = offices[r["no"]] = dict(p=pi, corp_key=r["corp_key"], corp=r["corp"], name=r["name"],
-                                        rows=0, munis={}, houses=[], tel="", url="")
+                                        rows=0, munis={}, houses=[], tel="", url="", cap="", hours="", closed="")
         o["rows"] += 1
         if mname:
             mk = (pi, mname)
@@ -141,6 +144,8 @@ def summarize(path: pathlib.Path, keep: bool):
             o["houses"].append((r["name"], r["muni"], r["addr"], r.get("lat", ""), r.get("lng", "")))
             o["tel"] = o["tel"] or r.get("tel", "")
             o["url"] = o["url"] or r.get("url", "")
+            for k in ("cap", "hours", "closed"):
+                o[k] = o[k] or (r.get(k) or "")
     pref = collections.Counter(o["p"] for o in offices.values())
     muni = collections.Counter(mk for o in offices.values() for mk in o["munis"])
     rows = sum(o["rows"] for o in offices.values())
@@ -547,7 +552,7 @@ def build():
         if not cs:
             continue
         n = sum(S[c][latest]["n"] for c in cs)
-        links_ = "".join(f'<a href="{href("", "s/" + SERVICES[c][2] + "/")}"><span>{E(SERVICES[c][1])}</span><span class="c">{S[c][latest]["n"]:,}</span></a>' for c in cs)
+        links_ = "".join(f'<a href="{href("", "s/" + SERVICES[c][2] + "/")}#area"><span>{E(SERVICES[c][1])}</span><span class="c">{S[c][latest]["n"]:,}</span></a>' for c in cs)
         purpose_html.append(f'<div class="purpose"><div class="ph">{icon(ic)}<div><h3>{E(title)}<span class="pn">{n:,}<small>か所</small></span></h3><p>{E(sub)}</p></div></div><div class="plinks">{links_}</div></div>')
 
     stats = f"""<div class="stats">
@@ -569,15 +574,14 @@ def build():
         f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href("", muni_path(*mk))}">{E(PREFS[mk[0]] + " " + mk[1])}</a></td>'
         f'<td class="n">{muni_total[latest][mk]:,}</td><td class="r">{delta(muni_total[latest][mk] - muni_total[prev][mk])}</td></tr>'
         for i, mk in enumerate(inc))
-    regions = [("北海道・東北", range(0, 7)), ("関東", range(7, 14)), ("中部", range(14, 23)), ("近畿", range(23, 30)),
-               ("中国", range(30, 35)), ("四国", range(35, 39)), ("九州・沖縄", range(39, 47))]
+    regions = REGIONS
     prefs_html = "".join(
         f'<div class="region"><h3>{r}</h3><div class="pref-grid">'
         + "".join(f'<a href="{links[pi]}"><span>{PREFS[pi]}</span><span class="c">{pref_total[latest][pi]:,}</span></a>' for pi in rng)
         + '</div></div>' for r, rng in regions)
     body = f"""
 {stats}
-<section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選んでください。数字は全国の事業所数です。</p>
+<section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
 <div class="purposes">{"".join(purpose_html)}</div></section>
 <a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
@@ -646,7 +650,20 @@ def build():
         kpi_html = "".join(f'<div class="kpi"><span class="k">{k}</span><span class="v">{v:,}<small>{u}</small></span></div>' for k, v, u in kpis)
         siblings = [x for g, cs in GROUPS if c in cs for x in cs if x in S and x != c]
         sib = "".join(f'<a href="{href(rel, "s/" + SERVICES[x][2] + "/")}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["n"]:,}</span></a>' for x in siblings)
+        by_pref_m = collections.defaultdict(list)
+        for mk, n in L["muni"].items():
+            by_pref_m[mk[0]].append((mk, n))
+        area = "".join(
+            f'<h3 class="area-h">{E(rname)}</h3>' + "".join(
+                f'<details><summary>{PREFS[pi]}<span class="c">{L["pref"].get(pi, 0):,}件</span></summary><div class="pref-grid">'
+                + "".join(f'<a href="{href(rel, ms_path(*mk, c))}"><span>{E(mk[1])}</span><span class="c">{n:,}</span></a>'
+                          for mk, n in sorted(by_pref_m[pi], key=lambda x: (-x[1], x[0][1])))
+                + '</div></details>'
+                for pi in rng if by_pref_m[pi])
+            for rname, rng in REGIONS)
         body = f"""
+<section id="area"><h2>{E(short)}を地域からさがす</h2><p class="sec-sub">都道府県を開いて、市区町村を選んでください。数字は事業所の数です。<a href="{href(rel, "data/near/")}?s={c}">いまいる場所や住所から、近い順にさがす</a></p>
+<div class="dir area">{area}</div></section>
 <section><div class="kpis">{kpi_html}</div></section>
 <section><h2>ランキング</h2>
   <div class="tabs" id="rk-tabs" role="tablist" aria-label="ランキングの種類">
@@ -976,16 +993,21 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             others = "".join(f'<a href="{href(rel, ms_path(pi, mname, x))}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["muni"][mk]:,}</span></a>'
                              for x in codes if x != c and S[x][latest]["muni"].get(mk))
             fresh_note = "「新規掲載」の印がある事業所は最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。" if c == GH else "「新規掲載」の印は、この半年で新しく公表データに載った事業所です。"
+            near_url = f'{href(rel, "data/near/")}?s={c}&amp;p={pi}&amp;m={urllib.parse.quote(mname)}'
+            tools = (f'<div class="list-tools">'
+                     + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if len(offs) > 10 else '')
+                     + f'<a class="near-link" href="{near_url}">住所やいまいる場所から近い順に見る</a></div>')
             body = f"""
 <section><h2>{E(mname)}の{E(short)}の一覧</h2><p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>
-<div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul>{items}</ul></details></div></section>
+{tools}
+<div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div></section>
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
 {f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所をすべて見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
             new_txt = f"この半年で{n_new}か所が新しく載りました。" if n_new else ""
             page(ms_path(pi, mname, c), f"{mname}（{pref}）の{name}一覧（{cur:,}か所）",
                  f"{pref}{mname}の{name}の事業所{cur:,}か所の一覧（{LATEST_LABEL}時点）。{new_txt}事業所名・運営法人・所在地と、電話番号や地図のある事業所ページ。",
-                 hero, body, og=muni_og(pi, mname))
+                 hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if len(offs) > 10 else "", og=muni_og(pi, mname))
             count += 1
     print(f"市区町村×サービスのページ: {count:,}")
 
@@ -1081,6 +1103,12 @@ def build_facilities(S, codes, periods, latest, new_nos):
             info.append(("電話番号", f'<span class="tnum">{E(tel)}</span>'))
         if url:
             info.append(("ホームページ", f'<a href="{E(url)}" rel="nofollow noopener" target="_blank">{E(url)}</a>'))
+        if o["cap"]:
+            info.append(("定員", E(o["cap"]) + ("人" if o["cap"].isdigit() else "")))
+        if o["hours"]:
+            info.append(("利用できる時間（平日）", E(o["hours"])))
+        if o["closed"]:
+            info.append(("定休日", E(o["closed"])))
         info.append(("事業所番号", f'<span class="tnum">{E(no)}</span>'))
         info_html = "".join(f'<tr><th scope="row">{k}</th><td class="name">{v}</td></tr>' for k, v in info)
         houses = "".join(
@@ -1548,7 +1576,7 @@ def build_privacy():
 <p>送りたくない場合は、<a href="https://tools.google.com/dlpage/gaoptout?hl=ja" rel="noopener" target="_blank">Google アナリティクス オプトアウト アドオン</a>を使うか、ブラウザの設定で Cookie を止めてください。</p></section>""" if GA_ID else ""
     body = f"""{ga}
 <section><h2>「近くの事業所」での位置情報</h2>
-<p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。</p></section>
+<p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」さがすときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
 <section><h2>掲載している情報</h2>
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",

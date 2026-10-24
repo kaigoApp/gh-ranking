@@ -93,4 +93,17 @@
 
   svc.addEventListener('change', () => { shown = 30; draw(); });
   more.addEventListener('click', () => { shown += 50; draw(); });
+
+  // ほかのページから ?s=サービス&p=都道府県&m=市区町村 で開かれたときは、その条件で始める
+  const q = new URLSearchParams(location.search);
+  if ([...svc.options].some(o => o.value === q.get('s'))) svc.value = q.get('s');
+  if (q.get('p') && q.get('m')) {
+    const i = D.M.findIndex(m => String(m[0]) === q.get('p') && m[1] === q.get('m'));
+    if (i >= 0) {
+      mpref.value = q.get('p');
+      mpref.dispatchEvent(new Event('change'));
+      mmuni.value = String(i);
+      mmuni.dispatchEvent(new Event('change'));
+    }
+  }
 })();

@@ -369,3 +369,9 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
   a { color: #000; text-decoration: none; }
 }
 .dir li.more-link a { font-weight: 700; }
+.dir.area details > .pref-grid { padding: 0 14px 14px; }
+.area-h { font-size: 14px; color: var(--muted); margin: 14px 0 2px; }
+.area-h:first-child { margin-top: 0; }
+.list-tools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+.filter { flex: 1 1 260px; max-width: 420px; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); }
+.near-link { font-weight: 700; font-size: 14px; }
