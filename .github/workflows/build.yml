@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -69,9 +67,10 @@ jobs:
           HOST: ${{ secrets.XSERVER_HOST }}
           USER: ${{ secrets.XSERVER_USER }}
         run: |
+          # 事業所ページを全サービスに広げてから GitHub Pages の上限（1GB）を超えるので、公開先はエックスサーバーだけ
           if [ -z "$SSH_KEY" ]; then
-            echo "鍵が登録されていないので、アップロードは飛ばします"
-            exit 0
+            echo "鍵が登録されていないので、アップロードできません"
+            exit 1
           fi
           install -m 600 /dev/null ~/xserver_key
           printf '%s\n' "$SSH_KEY" > ~/xserver_key
@@ -81,19 +80,3 @@ jobs:
           rsync -rlz --checksum --delete --exclude .htaccess --exclude .user.ini \
             -e "ssh -p 10022 -i ~/xserver_key" \
             public/ "$USER@$HOST:jimofuku.jp/public_html/"
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: public
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

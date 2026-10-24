@@ -368,3 +368,4 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
   .dir details:not([open]) { display: none; }
   a { color: #000; text-decoration: none; }
 }
+.dir li.more-link a { font-weight: 700; }
