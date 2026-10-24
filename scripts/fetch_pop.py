@@ -85,8 +85,10 @@ def parse(xlsx: bytes):
         if len(r) <= max(c_code, c_pref, c_muni, c_pop):
             continue
         code, pref, muni, pop = norm(r[c_code]), norm(r[c_pref]), norm(r[c_muni]), norm(r[c_pop])
-        if not re.fullmatch(r"\d{5,6}", code) or not muni or muni == "-":
+        if not re.fullmatch(r"\d{5,6}", code) or not muni:
             continue
+        if muni == "-":  # 都道府県の合計の行。市区町村名は空にして残す
+            muni = ""
         try:
             n = int(float(pop))
         except ValueError:
