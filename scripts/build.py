@@ -272,7 +272,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta property="og:description" content="{E(desc)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{SITE_NAME}">
-<meta name="theme-color" content="#10264a">
+<meta name="theme-color" content="#1f4d3a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
