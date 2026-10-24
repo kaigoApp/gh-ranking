@@ -27,7 +27,8 @@ SLIM = ROOT / "data" / "slim"
 ASSETS = ROOT / "site" / "assets"
 OUT = ROOT / "public"
 SITE_URL = os.environ.get("SITE_URL", "https://kaigoapp.github.io/gh-ranking").rstrip("/")
-SITE_NAME = "障害福祉事業所ランキング"
+SITE_NAME = "ジモふく"
+TAGLINE = "地元の障害福祉が見つかる"
 GH = "33"  # 住居数を出すのはグループホームだけ
 
 DESC = {
@@ -65,6 +66,17 @@ DESC = {
 PREF_ABBR = [(p[:-1] if p[-1] in "都府県" else p)[:2] for p in PREFS]
 NEW_CHIP = '<span class="chip hot">新規掲載</span>'
 CORP_CHIP = '<span class="chip hot">新規参入</span>'
+
+# トップページの「目的からさがす」。行政の分類（訪問系など）ではなく、探す人の言葉で分ける。
+# (見出し, 説明, アイコンの SVG パス, サービスコード)
+PURPOSES = [
+    ("暮らす場所", "グループホームや入所施設、ショートステイ", "M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z", ["33", "32", "24", "61", "34"]),
+    ("働く・仕事の練習", "就労継続支援A型・B型、就労移行支援", "M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M4 8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5zM4 12.5h16", ["46", "45", "60", "62"]),
+    ("日中の通い先", "生活介護、自立訓練など", "M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z", ["22", "42", "41", "21"]),
+    ("子どもの支援", "放課後等デイサービス、児童発達支援", "M12 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM7 20v-5.5a5 5 0 0 1 10 0V20M5 11.5l3 2M19 11.5l-3 2", ["65", "63", "67", "66", "64", "68", "69"]),
+    ("自宅での支援・外出", "ホームヘルプ、同行援護、移動の支援", "M7 20c0-3 1-5 1-7l-2-3 3-4 3 2 3-2M14 20l1-5 3-2M17 6.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z", ["11", "12", "15", "13", "14"]),
+    ("相談する", "サービス利用計画、地域生活の相談", "M5 6.5A1.5 1.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5v8a1.5 1.5 0 0 1-1.5 1.5H11l-4 3.5V16h-.5A1.5 1.5 0 0 1 5 14.5zM9 10h6M9 12.5h4", ["52", "70", "53", "54"]),
+]
 
 # 12列のタイル地図での (行, 列)
 TILE = {
@@ -237,9 +249,9 @@ SEARCH_FORM = """<form class="search" id="search" role="search">
 </form>"""
 
 
-LOGO = ('<svg viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="14" width="7" height="11" rx="1.5" fill="var(--accent-on-ink)" opacity=".45"/>'
-        '<rect x="9.5" y="8" width="7" height="17" rx="1.5" fill="var(--accent-on-ink)" opacity=".7"/>'
-        '<rect x="18" y="1" width="7" height="24" rx="1.5" fill="var(--accent-on-ink)"/></svg>')
+LOGO = ('<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2C9.4 2 4 7.3 4 13.9 4 22.6 16 30 16 30s12-7.4 12-16.1C28 7.3 22.6 2 16 2z" fill="var(--brand)"/>'
+        '<path d="M10 15.2 16 10l6 5.2V21a1 1 0 0 1-1 1h-3.2v-4h-3.6v4H11a1 1 0 0 1-1-1z" fill="var(--on-brand)"/>'
+        '<circle cx="23.5" cy="6.5" r="3.5" fill="var(--sun)"/></svg>')
 
 
 def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False) -> None:
@@ -247,7 +259,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     depth = path.count("/")
     rel = "../" * depth
     canonical = SITE_URL + "/" + urllib.parse.quote(path)
-    full_title = title if title == SITE_NAME else f"{title}｜{SITE_NAME}"
+    full_title = title if title.startswith(SITE_NAME) else f"{title}｜{SITE_NAME}"
     doc = f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -260,23 +272,21 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta property="og:description" content="{E(desc)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{SITE_NAME}">
-<meta name="theme-color" content="#0c2b30">
+<meta name="theme-color" content="#10264a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
 <link rel="stylesheet" href="{rel}assets/site.css">
 </head>
 <body>
-<div class="band">
-  <header class="site-head"><div class="container">
-    <a class="brand" href="{rel or './'}">{LOGO}<span>{SITE_NAME}</span></a>
-    <nav class="site-nav" aria-label="サイト内"><a class="find" href="{rel or './'}#search">施設をさがす</a><a href="{rel}#services">サービス別</a><a href="{rel}#prefs">都道府県別</a></nav>
-  </div></header>
-  <div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div>
-</div>
+<header class="site-head"><div class="container">
+  <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
+  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
+</div></header>
+<div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
 <footer class="site-foot"><div class="container">
-  <div><b>{SITE_NAME}</b>　全国の障害福祉サービス事業所の数と推移を、国の公表データから集計しています。</div>
+  <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
   <div>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>を加工して作成。最新データ：{E(LATEST_LABEL)}時点。</div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
@@ -396,52 +406,67 @@ def build():
     titles = {pi: f"{PREFS[pi]} {pref_total[latest][pi]:,}件（1年で{rates[pi]:+.1f}%）" if rates[pi] is not None else PREFS[pi] for pi in range(47)}
     links = {pi: href("", f"p/{PREF_SLUGS[pi]}/") for pi in range(47)}
     rv = [v for v in rates.values() if v is not None]
-    hero = f"""<div>
-  <div class="eyebrow">最新データ　{E(LATEST_LABEL)}時点</div>
-  <h1>全国の障害福祉事業所を、地域とサービスで比べる</h1>
-  <p class="lede">グループホーム、就労支援、放課後等デイサービスなど{len(codes)}種類のサービスについて、国の公表データから事業所の数と増減を集計しています。データは半年ごとに自動で更新されます。</p>
+    hero = f"""<div class="hero-copy">
+  <div class="eyebrow">全国 {len(all_munis):,} の市区町村　{len(codes)} 種類のサービス</div>
+  <h1>地元の障害福祉を、<br>ちゃんと見つける。</h1>
+  <p class="lede">グループホーム、就労支援、放課後等デイサービスまで。国の公表データをもとに、全国{tot:,}か所の事業所を地域とサービスからさがせます。</p>
   {SEARCH_FORM}
-  <div class="big"><div><span class="n">{tot:,}</span><span class="u">事業所</span></div>
-    <div class="meta"><span>半年で <b>{delta(tot - tot0)}</b></span><span>{label(periods[first_i])}の <b>{ratio:.2f}倍</b></span></div></div>
 </div>
-{tilemap(rates, links, titles, "都道府県別、1年間の事業所数（延べ）の増加率。タップでその都道府県のページへ。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}"""
+<div class="hero-map">
+  <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
+  {tilemap(rates, links, titles, "都道府県を押すと、その地域のページへ移ります。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}
+</div>"""
 
-    cards = []
-    for gname, cs in GROUPS:
-        items = []
-        for c in cs:
-            if c not in S:
-                continue
-            ser = [n_at(c, p) for p in periods]
-            cur, pv = ser[-1], ser[-2]
-            items.append(f'<a class="card" href="{href("", "s/" + SERVICES[c][2] + "/")}"><span class="t">{E(SERVICES[c][1])}</span>'
-                         f'<span class="n">{cur:,}<small>件</small></span>{spark(ser)}'
-                         f'<span>{delta(cur - pv) if pv is not None else ""} <span class="d zero" style="font-weight:400;font-family:var(--f-body);font-size:12px">半年</span></span></a>')
-        if items:
-            cards.append(f'<div class="group"><h3>{E(gname)}</h3><div class="cards">{"".join(items)}</div></div>')
+    def icon(d):
+        return f'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="{d}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+    purpose_html = []
+    for title, sub, ic, cs in PURPOSES:
+        cs = [c for c in cs if c in S]
+        if not cs:
+            continue
+        n = sum(S[c][latest]["n"] for c in cs)
+        links_ = "".join(f'<a href="{href("", "s/" + SERVICES[c][2] + "/")}"><span>{E(SERVICES[c][1])}</span><span class="c">{S[c][latest]["n"]:,}</span></a>' for c in cs)
+        purpose_html.append(f'<div class="purpose"><div class="ph">{icon(ic)}<div><h3>{E(title)}<span class="pn">{n:,}<small>か所</small></span></h3><p>{E(sub)}</p></div></div><div class="plinks">{links_}</div></div>')
+
+    stats = f"""<div class="stats">
+  <div><span class="v">{tot:,}</span><span class="k">掲載している事業所（延べ）</span></div>
+  <div><span class="v">{delta(tot - tot0)}</span><span class="k">この半年の増減</span></div>
+  <div><span class="v">{len(FRESH):,}</span><span class="k">この1年でできたグループホーム</span></div>
+  <div><span class="v">{latest[:4]}.{int(latest[4:])}</span><span class="k">最新データ（{E(LATEST_LABEL)}時点）</span></div>
+</div>"""
 
     fresh_top = ""
     if GH in S and FRESH:
         fc = collections.Counter(S[GH][latest]["offices"][no]["p"] for no in FRESH)
         grid = "".join(f'<a href="{href("", ps_path(pi, GH))}#fresh"><span>{PREFS[pi]}</span><span class="c">{fc.get(pi, 0):,}</span></a>' for pi in range(47))
-        fresh_top = (f'<section id="fresh"><h2>最近できたグループホーム</h2>'
-                     f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームは全国に{len(FRESH):,}件あります。できたばかりの事業所は入居者を募集していることが多く、入居先を探す手がかりになります。都道府県を選ぶと一覧が見られます。</p>'
+        fresh_top = (f'<section id="fresh" class="feature"><div class="feature-h"><span class="badge">NEW</span><h2>最近できたグループホーム</h2></div>'
+                     f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームは全国に<b>{len(FRESH):,}件</b>。できたばかりの事業所は入居者を募集していることが多く、入居先を探す手がかりになります。都道府県を選ぶと一覧が見られます。</p>'
                      f'<div class="pref-grid">{grid}</div></section>')
     inc = sorted(all_munis, key=lambda mk: (-(muni_total[latest][mk] - muni_total[prev][mk]), -muni_total[latest][mk]))[:15]
     inc_rows = "".join(
         f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href("", muni_path(*mk))}">{E(PREFS[mk[0]] + " " + mk[1])}</a></td>'
         f'<td class="n">{muni_total[latest][mk]:,}</td><td class="r">{delta(muni_total[latest][mk] - muni_total[prev][mk])}</td></tr>'
         for i, mk in enumerate(inc))
-    prefs_html = "".join(f'<a href="{links[pi]}"><span>{PREFS[pi]}</span><span class="c">{pref_total[latest][pi]:,}</span></a>' for pi in range(47))
+    regions = [("北海道・東北", range(0, 7)), ("関東", range(7, 14)), ("中部", range(14, 23)), ("近畿", range(23, 30)),
+               ("中国", range(30, 35)), ("四国", range(35, 39)), ("九州・沖縄", range(39, 47))]
+    prefs_html = "".join(
+        f'<div class="region"><h3>{r}</h3><div class="pref-grid">'
+        + "".join(f'<a href="{links[pi]}"><span>{PREFS[pi]}</span><span class="c">{pref_total[latest][pi]:,}</span></a>' for pi in rng)
+        + '</div></div>' for r, rng in regions)
     body = f"""
-<section id="services"><h2>サービス別の事業所数</h2><p class="sec-sub">カードを開くと、都道府県・市区町村・運営法人のランキングが見られます。数字は{E(LATEST_LABEL)}時点、増減は{E(label(prev))}との比較です。</p>
-<div class="groups">{"".join(cards)}</div></section>
+{stats}
+<section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選んでください。数字は全国の事業所数です。</p>
+<div class="purposes">{"".join(purpose_html)}</div></section>
 {fresh_top}
-<section><h2>この半年で事業所が増えた市区町村</h2><p class="sec-sub">全サービスの延べ事業所数の増加数です。</p>
-<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{inc_rows}</tbody></table></div></section>
-<section id="prefs"><h2>都道府県から探す</h2><p class="sec-sub">数字は全サービスの延べ事業所数です。</p><div class="pref-grid">{prefs_html}</div></section>
-<section><h2>全国の事業所数の推移</h2><p class="sec-sub">全サービスの延べ事業所数。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p>{trend_chart(periods, total_series)}</section>"""
-    page("", SITE_NAME, f"全国の障害福祉サービス事業所数（{LATEST_LABEL}時点 {tot:,}件）を、グループホーム・就労支援・放課後等デイなどサービス別、都道府県・市区町村別にランキング。国の公表データから自動更新。",
+<section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
+<section class="data-zone"><div class="data-h"><span class="eyebrow">データで見る</span><h2>障害福祉の事業所は、いまも増えています</h2>
+<p class="sec-sub">全サービスの延べ事業所数の推移。{E(label(periods[first_i]))}から<b>{ratio:.2f}倍</b>になりました。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p></div>
+{trend_chart(periods, total_series)}
+<div><h3 class="sec-h">この半年で事業所が増えた市区町村</h3><p class="sec-sub">全サービスの延べ事業所数の増加数です。増減は{E(label(prev))}との比較です。</p>
+<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{inc_rows}</tbody></table></div></div>
+</section>"""
+    page("", f"{SITE_NAME}｜{TAGLINE}", f"全国の障害福祉サービス事業所（{LATEST_LABEL}時点 {tot:,}件）を、グループホーム・就労支援・放課後等デイなどサービス別、都道府県・市区町村別にさがせます。国の公表データから自動更新。",
          hero, body, '<script src="assets/search.js" defer></script>', split=True)
 
     # ---------- サービス別
@@ -780,14 +805,23 @@ def build_facilities(S, codes, periods, latest, new_nos):
         items.append((name, None))
         fs = first_seen.get(no)
         since = (f"{label(periods[0])}以前から" if fs == periods[0] else f"{label(fs)}から") if fs else ""
+        h0 = o["houses"][0] if o["houses"] else (name, "", "", "", "")
+        acts = []
+        if o["tel"]:
+            acts.append(f'<a class="act main" href="tel:{E(re.sub(r"[^0-9+]", "", o["tel"]))}"><span>電話する</span><b class="tnum">{E(o["tel"])}</b></a>')
+        if h0[3] and h0[4]:
+            acts.append(f'<a class="act" href="https://www.google.com/maps/search/?api=1&amp;query={urllib.parse.quote(h0[3] + "," + h0[4])}" rel="noopener" target="_blank"><span>地図で見る</span><b>Google マップ</b></a>')
+        if o["url"].startswith(("http://", "https://")):
+            acts.append(f'<a class="act" href="{E(o["url"])}" rel="nofollow noopener" target="_blank"><span>事業所のホームページ</span><b>開く</b></a>')
+        actions = f'<div class="actions">{"".join(acts)}</div>' if acts else ""
         hero = f"""<div>
   {crumbs(rel, items)}
   <div class="eyebrow" style="margin-top:12px">グループホーム（共同生活援助）{fresh_chip(no)}</div>
   <h1>{E(name)}</h1>
   <p class="lede">{E(o["corp"])}が運営する、{E(place)}のグループホームです。{"この1年で新しく公表データに載った事業所で、入居者を募集している可能性があります。" if no in FRESH else ""}</p>
-  <div class="big"><div class="meta"><span>公表データへの掲載 <b>{E(since)}</b></span></div></div>
+  {actions}
+  <p class="since">公表データへの掲載：{E(since)}</p>
 </div>"""
-        h0 = o["houses"][0] if o["houses"] else (name, "", "", "", "")
         def maplink(lat, lng):
             if lat and lng:
                 q = urllib.parse.quote(f"{lat},{lng}")
