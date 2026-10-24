@@ -36,6 +36,7 @@ SITE_URL = os.environ.get("SITE_URL", "https://kaigoapp.github.io/gh-ranking").r
 SITE_NAME = "ジモふく"
 TAGLINE = "地元の障害福祉が見つかる"
 GH = "33"  # 住居数を出すのはグループホームだけ
+GA_ID = "G-1DLDV43DSJ"  # Google アナリティクスの測定 ID（G-…）。空ならアクセス解析のタグを入れない
 
 DESC = {
     "11": "自宅で入浴・排せつ・食事の介護や、調理・洗濯などの家事を手伝うサービス。",
@@ -325,7 +326,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
-<link rel="stylesheet" href="{rel}assets/site.css">
+<link rel="stylesheet" href="{rel}assets/site.css">{GA_TAG.format(id=GA_ID) if GA_ID else ""}
 </head>
 <body>
 <header class="site-head"><div class="container">
@@ -337,6 +338,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <footer class="site-foot"><div class="container">
   <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
   <div>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>を加工して作成。最新データ：{E(LATEST_LABEL)}時点。</div>
+  <div><a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
 {scripts}
@@ -393,6 +395,9 @@ def href(rel, path):
 
 PAGES: list[str] = []
 OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
+GA_TAG = """
+<script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');</script>"""
 OG_META = """
 <meta property="og:image" content="{url}">
 <meta property="og:image:width" content="1200">
@@ -893,6 +898,7 @@ def build():
     build_matome(S, codes, periods, latest, prev, year_ago, new_nos)
     build_corps(S, codes, periods, latest, prev, new_nos)
     build_near(S, codes, latest)
+    build_privacy()
 
     # ---------- 事業所ページ
     build_facilities(S, codes, periods, latest, new_nos)
@@ -1522,6 +1528,31 @@ def build_corps(S, codes, periods, latest, prev, new_nos):
              f"{name}（法人番号{k}）が運営する障害福祉サービスの事業所{len(offs):,}か所の一覧。サービス別の事業所数、事業所のある都道府県、半年間の増減（{LATEST_LABEL}時点）。",
              hero, body)
     print(f"法人ページ: {len(cur):,}")
+
+
+def build_privacy():
+    """アクセス解析で外部に送る情報を知らせるページ。"""
+    rel = "../"
+    hero = f"""<div>
+  {crumbs(rel, [("プライバシーとアクセス解析について", None)])}
+  <h1>プライバシーとアクセス解析について</h1>
+</div>"""
+    ga = f"""<section><h2>アクセス解析（Google アナリティクス）</h2>
+<p>{SITE_NAME}では、どのページがよく見られているかを知り、サイトをよくするために、Google LLC の「Google アナリティクス」を使っています。</p>
+<div class="table-wrap"><table class="info"><tbody>
+<tr><th scope="row">送る先</th><td>Google LLC</td></tr>
+<tr><th scope="row">送る情報</th><td>見たページの住所、前に見ていたページ、日時、お使いのブラウザや端末の種類、おおよその地域、Cookie などで作られる識別番号</td></tr>
+<tr><th scope="row">使いみち</th><td>アクセス数や、よく見られるページを数えるため。名前や連絡先など、個人を特定する情報は集めていません。</td></tr>
+</tbody></table></div>
+<p>送られた情報は Google のプライバシーポリシーに沿って扱われます：<a href="https://policies.google.com/technologies/partner-sites?hl=ja" rel="noopener" target="_blank">Google のサービスを使用するサイトやアプリから収集した情報の Google による使用</a></p>
+<p>送りたくない場合は、<a href="https://tools.google.com/dlpage/gaoptout?hl=ja" rel="noopener" target="_blank">Google アナリティクス オプトアウト アドオン</a>を使うか、ブラウザの設定で Cookie を止めてください。</p></section>""" if GA_ID else ""
+    body = f"""{ga}
+<section><h2>「近くの事業所」での位置情報</h2>
+<p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。</p></section>
+<section><h2>掲載している情報</h2>
+<p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
+    page("privacy/", "プライバシーとアクセス解析について",
+         f"{SITE_NAME}のアクセス解析（Google アナリティクス）で送る情報と、位置情報の扱いについて。", hero, body)
 
 
 def build_near(S, codes, latest):
