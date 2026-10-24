@@ -16,7 +16,7 @@
 
   function load() {
     if (idx || loading) return loading;
-    status.textContent = '読み込み中…';
+    status.textContent = input.value ? '読み込み中…' : '';
     loading = fetch(new URL('assets/search.json', root)).then(r => r.json()).then(d => {
       const P = d.P, S = d.S;
       idx = [];
@@ -62,6 +62,9 @@
   }
 
   input.addEventListener('focus', load, { once: true });
+  // 速い回線なら、入力される前に索引を読み込みはじめておく（データ節約モードや遅い回線では待つ）
+  const conn = navigator.connection;
+  if (!(conn && (conn.saveData || /2g/.test(conn.effectiveType || '')))) setTimeout(load, 2500);
   input.addEventListener('input', run);
   box.addEventListener('submit', e => { e.preventDefault(); run(); });
   if (location.hash === '#search') { input.focus(); }
