@@ -191,9 +191,9 @@ def gap_map(rows, rings, code, city):
     groups.sort(key=len, reverse=True)
     clusters = []
     city_others = [r for r in others if inside(rings, r[0], r[1])]
-    for m in groups[:5]:
+    for m in groups[:8]:
         a = len(m) * step * step
-        if a < 0.5:
+        if a < 0.4:
             break
         cx = sum(c[0] for c in m) / len(m)
         cy = sum(c[1] for c in m) / len(m)
@@ -208,7 +208,10 @@ def gap_map(rows, rings, code, city):
                 t = town_of(r[2], r[3], city)
                 if t:
                     towns[t] += 1
-        clusters.append(dict(a=a, x=cx, y=cy, towns=[t for t, _ in towns.most_common(3)], md=max(c[2] for c in m)))
+        near2 = [r for r in svc if math.hypot((r[0] - cx) * kx, (r[1] - cy) * ky) < 2.0]
+        inner = sum(1 for r in city_others if any(math.hypot((r[0] - c[0]) * kx, (r[1] - c[1]) * ky) < step for c in m))
+        clusters.append(dict(a=a, x=cx, y=cy, towns=[t for t, _ in towns.most_common(3)], md=max(c[2] for c in m),
+                             avgd=sum(c[2] for c in m) / len(m), comp=len(near2), compcap=sum(r[5] for r in near2), inner=inner))
     svg = map_svg(rings, bb, kx, ky, step, cells, [r for r in svc], clusters)
     return dict(n=n, area=n * step * step, far=len(far) / n * 100 if n else 0,
                 live_far=len(live_far) / len(live) * 100 if live else 0, clusters=clusters, svg=svg,
@@ -319,7 +322,8 @@ def collect():
         for r in B.read_slim(B.SLIM / c / f"{latest}.csv.gz"):
             if r["lat"] and r["lng"] and (r["no"], r["addr"]) not in seen:
                 seen.add((r["no"], r["addr"]))
-                rs.append((float(r["lng"]), float(r["lat"]), r["muni"], r["addr"], r["no"]))
+                rs.append((float(r["lng"]), float(r["lat"]), r["muni"], r["addr"], r["no"],
+                           int(r["cap"]) if (r.get("cap") or "").isdigit() else 0))
         rows[c] = rs
     return periods, latest, prev, S, codes, rows
 
@@ -355,6 +359,9 @@ def cash_path(util, perday, cost, months=120):
         if back is None and m > 12 and cash >= 0:
             back = m + 1
     return low, back
+
+
+NAT_OPEN = {}  # 全国の曜日・時間の割合（サービスごとに1回だけ数える）
 
 
 def city_counts(S, c, p, pi, city):
@@ -462,6 +469,65 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     be = cost / (CAP10 * DAYS * per["標準"][1] / 1e4)
     low, back = cash_path(0.89, per["標準"][1], cost)
 
+
+    # ねらい目の場所・サービス
+    svc_view = {}
+    for c in MAIN:
+        a, b, _ = comp[c]
+        ratio = a / b if b else 1
+        g = (now[c] - ser[c][0]) / ser[c][0] if ser[c][0] else None
+        if ratio < 0.85:
+            verdict = "少ない（ねらい目）" if (g or 0) > 0.2 else "少ない"
+        elif ratio > 1.2:
+            verdict = "多い（競争がきびしい）"
+        else:
+            verdict = "ふつう"
+        svc_view[c] = (ratio, g, len(newl[c]) - len(gone[c]), verdict)
+    cands = []
+    for c in MAPS:
+        a, b, _ = comp[c]
+        sf = max(0.7, min(1.5, b / a)) if a else 1.5
+        if c == "65" and util:
+            sf *= max(0.8, min(1.2, util / 0.89))
+        for cl in maps[c]["clusters"]:
+            if cl["inner"] == 0 or not cl["towns"]:
+                continue
+            sc = math.sqrt(cl["inner"]) * min(cl["avgd"], 3) / math.sqrt(1 + cl["comp"]) * sf
+            cands.append((sc, c, cl))
+    cands.sort(key=lambda x: -x[0])
+    seen_t, merged = {}, []
+    for sc, c, cl in cands:  # 同じ場所が複数のサービスで出たら1行にまとめる
+        k = cl["towns"][0]
+        if k in seen_t:
+            seen_t[k][3].append(c)
+            continue
+        row = [sc, c, cl, [c]]
+        seen_t[k] = row
+        merged.append(row)
+    cands = [(sc, c, cl, cs) for sc, c, cl, cs in merged[:5]]
+    top_sc = cands[0][0] if cands else 1
+
+    # ほかとの違い（曜日・時間・定員）
+    def open_stats(offs_):
+        sat = sun = late = n_c = n_h = 0
+        for o in offs_:
+            cl_ = o["closed"].strip()
+            if cl_:
+                n_c += 1
+                sat += "土" not in cl_
+                sun += not re.search(r"日曜|土日|(^|[、・,，\s/])日($|[、・,，\s/祝])", cl_)
+            m = re.search(r"-(\d{1,2}):(\d{2})$", o["hours"].strip())
+            if m:
+                n_h += 1
+                late += int(m.group(1)) * 60 + int(m.group(2)) >= 18 * 60 + 30
+        return (sat / n_c if n_c else None, sun / n_c if n_c else None, late / n_h if n_h else None, n_c, n_h)
+    diff = {}
+    for c in MAPS:
+        mine = [o for o in S[c][latest]["offices"].values() if any(in_city(mk, pi, city) for mk in o["munis"])]
+        allo = list(S[c][latest]["offices"].values())
+        capv = [int(o["cap"]) for o in mine if str(o["cap"]).isdigit() and int(o["cap"]) > 0]
+        diff[c] = (open_stats(mine), NAT_OPEN.setdefault(c, open_stats(allo)), capv)
+
     # ---- 要点
     grow = sorted([c for c in MAIN if ser[c][0]], key=lambda c: -(now[c] - ser[c][0]))
     over = sorted([c for c in MAIN if comp[c][1]], key=lambda c: -(comp[c][0] / comp[c][1]))
@@ -482,6 +548,10 @@ def build_one(ctx, pi, city, geo_dir, ranks):
                    f"（{fy_label(hd['fy'])}の市の数字から計算。全国の事業所の平均は89%）。")
     pts.append(f"定員10人の放課後等デイを開くと、平均的な事業所並みに動かせた場合の収支は<b>年{sim_year(*per['標準'], cost):+,.0f}万円</b>、"
                f"黒字になる利用率は<b>約{be * 100:.0f}%</b>です（{grade_txt}、1単位{price:.2f}円で試算）。")
+    if cands:
+        sc, c, cl, cs = cands[0]
+        pts.insert(0, f"<b>結論：開くなら、{E('・'.join(short(x) for x in cs))}を{E('・'.join(cl['towns'][:2]))}のあたりで</b>が第一候補です。"
+                      f"近くに{E(short(c))}が少なく（いちばん近いところまで平均{cl['avgd']:.1f}km）、人の住む地域です（くわしくは2章）。")
     if cf.get("note"):
         pts.append(E(cf["note"]))
     if zero:
@@ -493,15 +563,11 @@ def build_one(ctx, pi, city, geo_dir, ranks):
 <p class="eyebrow">ジモふく 地域レポート</p>
 <h1>{E(city)}の障害福祉<br>事業所レポート</h1>
 <p class="sub">{E(pref)}{E(city)}／データの時点：{lp}</p>
-<ul class="toc">
-<li>1. 要点</li><li>2. 事業所の数の移り変わり</li><li>3. 人口あたりでくらべる</li>
-<li>4. {"区ごとの数" if wards else "近くの市区町村とくらべる"}</li><li>5. 半年で新しく載った事業所</li><li>6. 運営している法人</li>
-<li>7. 定員（受け入れられる人数）</li><li>8. 放課後等デイの利用率</li><li>9. 人の集めやすさ</li>
-<li>10. 放課後等デイを開くときの収支試算</li><li>11. 近くにない地域の地図</li><li>12. 出典と注意</li></ul>
+<!--TOC-->
 <p class="by">ジモふく（https://jimofuku.jp/）</p>
 </section>''')
 
-    h.append('<section class="pb"><h2>1. 要点</h2><ol class="points">' + "".join(f"<li>{x}</li>" for x in pts) + "</ol>")
+    h.append('<section class="pb"><h2>§要点</h2><ol class="points">' + "".join(f"<li>{x}</li>" for x in pts) + "</ol>")
     h.append(f'<h3>主なサービスの数</h3><table><tr><th>サービス</th><th>{E(l0)}</th><th>{E(lp)}</th><th>増えた数</th>'
              f'<th>人口1万人あたり</th><th>主要{len(TARGETS)}市区の中で</th></tr>')
     for c in MAIN:
@@ -512,8 +578,65 @@ def build_one(ctx, pi, city, geo_dir, ranks):
                  f'<tr><th>{E(short(c))}</th><td>—</td><td>{a:,}</td><td>—</td><td>{comp[c][0]:.2f}</td><td>{ranks[c].get((pi, city), "—")}位</td></tr>')
     h.append(f'</table><p class="note">「主要{len(TARGETS)}市区の中で」は、人口1万人あたりの数が多い順の順位です（1位がいちばん多い）。</p></section>')
 
+
+    # 結論
+    h.append('<section class="pb"><h2>§結論：開くならどこか</h2>'
+             '<p>近くにない地域の地図（あとの章）、人口あたりの数、利用率をあわせて、新しく開くときの候補を点数にしました。'
+             '点数が高いほど「近くに同じサービスが少なく、人が住んでいて、まわりの競争がゆるい」場所です。</p>')
+    if cands:
+        h.append('<h3>ねらい目の場所トップ5</h3><table class="small rank"><tr><th>順位</th><th>サービス</th><th>場所</th><th>点数</th><th>理由</th></tr>')
+        for j, (sc, c, cl, cs) in enumerate(cands, 1):
+            why = (f"いちばん近い{E(short(c))}まで平均{cl['avgd']:.1f}km（遠いところで{cl['md']:.1f}km）。"
+                   f"まわり2km以内の{E(short(c))}は{cl['comp']}か所" + (f"（定員あわせて{cl['compcap']}人）" if cl['compcap'] else "") + "。"
+                   f"ほかの福祉の事業所が{cl['inner']}か所あり、人の住む地域。広さ約{cl['a']:.1f}km²。")
+            if len(cs) > 1:
+                why += f"{'・'.join(short(x) for x in cs[1:])}も同じように少ない場所です。"
+            h.append(f'<tr><th>{j}</th><td>{E("・".join(short(x) for x in cs))}</td><td>{E("・".join(cl["towns"]))}のあたり</td>'
+                     f'<td><b>{sc / top_sc * 100:.0f}</b></td><td>{E(why)}</td></tr>')
+        h.append('</table>')
+    else:
+        h.append('<p>住宅地で、同じサービスから1km以上はなれた大きな空白は見つかりませんでした。場所よりも、中身（曜日・時間・受け入れる子ども）で差をつける地域です（次の章）。</p>')
+    h.append('<h3>サービスごとの見立て</h3><table class="small"><tr><th>サービス</th><th>人口あたり（県とくらべて）</th><th>2021年からの伸び</th><th>半年の増減</th><th>見立て</th></tr>')
+    for c in MAIN:
+        ratio, g, half, verdict = svc_view[c]
+        h.append(f'<tr><th>{E(short(c))}</th><td>{ratio:.2f}倍</td><td>{f"{g * 100:+.0f}%" if g is not None else "—"}</td><td>{half:+d}</td>'
+                 f'<td style="text-align:left">{"<b>" + verdict + "</b>" if "ねらい目" in verdict else verdict}</td></tr>')
+    h.append('</table><p class="note">点数は、空白の広さ・人の住んでいる度合い（ほかの福祉の事業所の数）・近くの事業所までの距離・2km以内の同じサービスの数・'
+             'そのサービスが県の平均より少ないか・利用率（放課後等デイのみ）から計算した、くらべるための目安です（1位を100とする）。'
+             '実際の物件さがしでは、駅や学校からの距離、送迎のしやすさもあわせて見てください。</p></section>')
+
+    # ほかとの違い
+    h.append('<section class="pb"><h2>§ほかとの違いの作り方</h2><p>同じサービスの事業所が、どの曜日・時間に開いているかを数えました。'
+             'ほかが開いていない曜日や時間に開くと、それだけで選ばれる理由になります。</p>'
+             f'<table class="small"><tr><th>サービス</th><th>土曜に開いている</th><th>日曜に開いている</th><th>平日18時半すぎまで</th><th>定員（真ん中の値）</th></tr>')
+    tips = []
+    for c in MAPS:
+        (sat, sun, late, n_c, n_h), (nsat, nsun, nlate, _, _), capv = diff[c]
+
+        def cell(v, nv):
+            return f"{v * 100:.0f}%<small>（全国{nv * 100:.0f}%）</small>" if v is not None else "—"
+        md = statistics.median(capv) if capv else None
+        h.append(f'<tr><th>{E(short(c))}</th><td>{cell(sat, nsat)}</td><td>{cell(sun, nsun)}</td><td>{cell(late, nlate)}</td>'
+                 f'<td>{f"{md:g}人" if md else "—"}</td></tr>')
+        child = c in ("65", "63")
+        who = "共働きの家庭" if child else "平日に通いにくい人や、ほかの日に働いている人"
+        if sat is not None and n_c >= 5:
+            if sat < nsat - 0.05:
+                tips.append(f"{short(c)}は、土曜に開いているところが{sat * 100:.0f}%と全国（{nsat * 100:.0f}%）より少なめです。土曜に開くと、{who}に選ばれやすくなります。")
+            if sun < nsun - 0.03:
+                tips.append(f"{short(c)}は、日曜に開いているところが{sun * 100:.0f}%と全国（{nsun * 100:.0f}%）より少なめです。日曜も開けば、{who}に選ばれやすくなります。")
+        if child and late is not None and n_h >= 5 and late < nlate - 0.02:
+            tips.append(f"{short(c)}は、平日18時半すぎまで開いているところが{late * 100:.0f}%と全国（{nlate * 100:.0f}%）より少なめです。夕方おそくまで預かれると、働く親の助けになります。")
+    h.append('</table>')
+    if tips:
+        h.append('<h3>差をつけられる点</h3><ul>' + "".join(f"<li>{E(t)}</li>" for t in tips) + '</ul>')
+    else:
+        h.append('<p>曜日や時間は全国と同じくらいそろっています。受け入れる子どもの種類（重い障害の子、医療的ケアの子など）や、プログラムの中身で差をつける地域です。</p>')
+    h.append('<p class="note">事業所が WAM NET に届け出た「定休日」「平日の営業時間」をもとに数えています。書かれていない事業所は数に入れていません。'
+             '「重い障害の子を受け入れる事業所」「医療的ケアに対応する事業所」はこのデータでは分けられないので、個別調査で対応します。</p></section>')
+
     # 2. 推移
-    h.append(f'<section class="pb"><h2>2. 事業所の数の移り変わり</h2><p>{l0}から{lp}まで、半年ごとの数です。</p>')
+    h.append(f'<section class="pb"><h2>§事業所の数の移り変わり</h2><p>{l0}から{lp}まで、半年ごとの数です。</p>')
     h.append(B.trend_chart(periods, total).replace('class="chart"', 'class="chart big"'))
     h.append('<div class="grid3">')
     for c in MAIN[:9]:
@@ -521,7 +644,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     h.append('</div><p class="note">WAM NET に事業所の情報が載った数です。グラフの左はしと右はしの数字は、最初と最新の件数です。</p></section>')
 
     # 3. 人口あたり
-    h.append(f'<section class="pb"><h2>3. 人口あたりでくらべる</h2><p>人口1万人あたりの事業所の数を、{E(pref)}の平均・全国の平均とくらべました。'
+    h.append(f'<section class="pb"><h2>§人口あたりでくらべる</h2><p>人口1万人あたりの事業所の数を、{E(pref)}の平均・全国の平均とくらべました。'
              '人口の多い市と少ない市を同じものさしでくらべるための数です。</p>')
     h.append('<table><tr><th>サービス</th><th>' + E(city) + '</th><th>' + E(pref) + '</th><th>全国</th><th>県とくらべて</th></tr>')
     for c in MAIN:
@@ -536,7 +659,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
 
     # 4. 区ごと／近く
     if wards:
-        h.append(f'<section class="pb"><h2>4. 区ごとの数</h2><p>主なサービスの区ごとの数です。かっこの中は人口1万人あたりの数です。</p><table class="small"><tr><th>区</th><th>人口</th>'
+        h.append(f'<section class="pb"><h2>§区ごとの数</h2><p>主なサービスの区ごとの数です。かっこの中は人口1万人あたりの数です。</p><table class="small"><tr><th>区</th><th>人口</th>'
                  + "".join(f"<th>{E(short(c))}</th>" for c in MAIN[:6]) + "</tr>")
         for wd in wards:
             wp = B.POP_MUNI[pi].get(wd)
@@ -550,7 +673,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
         h.append('<figure><figcaption>放課後等デイ（区ごと、人口1万人あたり）</figcaption>'
                  + bars_h(sorted(wv, key=lambda x: -x[1]), fmt="{:.2f}") + '</figure></section>')
     else:
-        h.append(f'<section class="pb"><h2>4. 近くの市区町村とくらべる</h2><p>{E(pref)}の中で、事業所の場所から見て近い市区町村です。かっこの中は人口1万人あたりの数です。</p>'
+        h.append(f'<section class="pb"><h2>§近くの市区町村とくらべる</h2><p>{E(pref)}の中で、事業所の場所から見て近い市区町村です。かっこの中は人口1万人あたりの数です。</p>'
                  '<table class="small"><tr><th>市区町村</th><th>人口</th>' + "".join(f"<th>{E(short(c))}</th>" for c in MAIN[:6]) + "</tr>")
         for k in [(pi, city)] + near:
             kp = B.POP_MUNI[pi].get(k[1])
@@ -559,7 +682,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
         h.append('</table></section>')
 
     # 5. 新しく載った
-    h.append(f'<section class="pb"><h2>5. 半年で新しく載った事業所</h2><p>{lq}には載っていなくて、{lp}に載った事業所です（主なサービスのみ）。'
+    h.append(f'<section class="pb"><h2>§半年で新しく載った事業所</h2><p>{lq}には載っていなくて、{lp}に載った事業所です（主なサービスのみ）。'
              '開いたばかりの事業所のほか、届け出の出し直しで番号が変わった事業所もふくみます。</p>')
     h.append('<table class="small"><tr><th>サービス</th><th>新しく載った</th><th>見えなくなった</th></tr>'
              + "".join(f"<tr><th>{E(short(c))}</th><td>{len(newl[c])}</td><td>{len(gone[c])}</td></tr>" for c in MAIN)
@@ -576,7 +699,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     h.append('</section>')
 
     # 6. 法人
-    h.append(f'<section class="pb"><h2>6. 運営している法人</h2><p>{E(city)}で事業所を運営している法人は<b>{n_corp:,}</b>あります。'
+    h.append(f'<section class="pb"><h2>§運営している法人</h2><p>{E(city)}で事業所を運営している法人は<b>{n_corp:,}</b>あります。'
              '1つの法人がいくつものサービスを運営していることがあるので、事業所の数で数えています。</p>')
     h.append('<h3>法人の種類（事業所の数の割合）</h3>' + stack_bar(ctype.most_common()))
     h.append('<h3>事業所の多い法人（上位10）</h3><table class="small txt"><tr><th>法人</th><th>事業所の数</th><th>運営しているサービス</th></tr>')
@@ -586,7 +709,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     h.append(f'</table><p class="note">上位10法人で、全体の事業所の約{top10:.0f}%を運営しています。</p></section>')
 
     # 7. 定員
-    h.append('<section class="pb"><h2>7. 定員（受け入れられる人数）</h2><p>定員は、1日に受け入れられる人数として事業所が届け出ている数です。'
+    h.append('<section class="pb"><h2>§定員（受け入れられる人数）</h2><p>定員は、1日に受け入れられる人数として事業所が届け出ている数です。'
              '定員が書かれている事業所だけで足しています。</p><table><tr><th>サービス</th><th>事業所</th><th>定員が書かれている</th>'
              '<th>定員の合計</th><th>1事業所の定員（真ん中の値）</th><th>人口1万人あたりの定員</th></tr>')
     for c, (n, nc, sm, md) in caps.items():
@@ -595,7 +718,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
 
 
     # 8. 利用率
-    h.append('<section class="pb"><h2>8. 放課後等デイの利用率</h2><p>利用率は、定員の何%が実際に使われているかです。'
+    h.append('<section class="pb"><h2>§放課後等デイの利用率</h2><p>利用率は、定員の何%が実際に使われているかです。'
              '市の障害福祉計画にある「1か月に使われた日数の合計（人日）」を、その時点の定員の合計と1か月の営業日（約23日）で割って出しました。</p>')
     if util:
         users = f"{hd['users']:,}人" if hd.get("users") else "—"
@@ -621,7 +744,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     h.append('</section>')
 
     # 9. 人の集めやすさ
-    h.append(f'<section class="pb"><h2>9. 人の集めやすさ</h2><p>放課後等デイや児童発達支援では、保育士や児童指導員が欠かせません。'
+    h.append(f'<section class="pb"><h2>§人の集めやすさ</h2><p>放課後等デイや児童発達支援では、保育士や児童指導員が欠かせません。'
              f'「有効求人倍率」は、仕事をさがしている人1人に何件の求人があるかで、高いほど人を集めにくいことを表します。</p>'
              f'<table><tr><th>項目</th><th>{E(pref)}</th><th>全国</th></tr>'
              f'<tr><th>保育士の有効求人倍率（2026年1月）</th><td>{pf["hoiku"]:.2f}倍</td><td>{nf["hoiku"]:.2f}倍</td></tr>'
@@ -648,7 +771,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
     grid = ("<table class=\"small\"><tr><th>利用率＼1人1日</th>" + "".join(f"<th>{p:,.0f}円</th>" for p in grid_p) + "</tr>"
             + "".join(f"<tr><th>{u * 100:.0f}%</th>" + "".join(f"<td>{sim_year(u, p, cost):+,.0f}</td>" for p in grid_p) + "</tr>" for u in grid_u)
             + "</table>")
-    h.append(f'<section class="pb"><h2>10. 放課後等デイを開くときの収支試算</h2>'
+    h.append(f'<section class="pb"><h2>§放課後等デイを開くときの収支試算</h2>'
              f'<p>定員10人の放課後等デイを{E(city)}で開いた場合の、仮の1年間の収支です。{E(city)}は<b>{grade_txt}</b>で、報酬1単位は<b>{price:.2f}円</b>です'
              f'（全国でいちばん高い東京23区は11.20円、上乗せなしは10.00円）。</p>'
              f'<table><tr><th></th><th>利用率</th><th>1人1日の報酬</th><th>1年の売上</th><th>1年の費用</th><th>1年の収支</th></tr>{rows_sim}</table>'
@@ -686,7 +809,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
         h.append('</section>')
 
     # 9. 出典
-    h.append(f'''<section class="pb"><h2>12. 出典と注意</h2><ul class="src">
+    h.append(f'''<section class="pb"><h2>§出典と注意</h2><ul class="src">
 <li>事業所：独立行政法人福祉医療機構 WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」（{l0}〜{lp}、半年ごと）をもとに ジモふくが集計。</li>
 <li>{E(B.POP_SOURCE)}（{E(B.POP_ASOF[0])}）。</li>
 <li>地図の境界：国土交通省「国土数値情報（行政区域データ）」をもとに作成。</li>
@@ -699,7 +822,22 @@ def build_one(ctx, pi, city, geo_dir, ranks):
 <li>放課後等デイの利用量：{E(hd["src"]) + "（" + E(hd["url"]) + "）" if hd else "市の公表資料で確認できませんでした"}。</li>
 <li>収支試算：福祉医療機構「2024年度 放課後等デイサービス・児童発達支援の経営状況」をもとに ジモふくが試算。</li>
 </ul><p class="contact">このレポートの数字は自由に引用できます（「ジモふく調べ」と書いてください）。ほかのサービスの試算や、もっとくわしい調査のご相談は https://jimofuku.jp/ から。</p></section>''')
-    return "\n".join(h)
+    return number_sections("\n".join(h))
+
+
+def number_sections(doc):
+    """見出しの「§」に順に番号をふり、表紙の目次を作る。「§§」は前の章のつづき。"""
+    n, toc = 0, []
+
+    def num(m):
+        nonlocal n
+        if m.group(1) == "§§":
+            return f"<h2>{n}. "
+        n += 1
+        toc.append(f"<li>{n}. {m.group(2)}</li>")
+        return f"<h2>{n}. "
+    doc = re.sub(r"<h2>(§§?)([^<]*)", lambda m: num(m) + m.group(2), doc)
+    return doc.replace("<!--TOC-->", '<ul class="toc">' + "".join(toc) + "</ul>")
 
 
 CSS = """
@@ -725,6 +863,7 @@ table.txt td { text-align: left; }
 table.txt td:nth-child(2) { text-align: right; }
 table.cl td:nth-child(2) { text-align: left; }
 table.txt2 td { text-align: left; }
+table.rank td { text-align: left; } table.rank td:nth-child(4) { text-align: right; }
 ul li { margin-bottom: 4px; }
 table.list td { text-align: left; font-size: 8.5pt; }
 table.list td:last-child { text-align: right; }

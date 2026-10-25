@@ -1,0 +1,28 @@
+name: レポート用データ（将来推計人口）
+
+on:
+  push:
+    branches: [regional-report]
+    paths: [scripts/fetch_child_proj.py, .github/workflows/report-data.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl==3.1.5
+      - name: 子どもの将来推計人口を取得
+        run: python scripts/fetch_child_proj.py
+      - name: 保存
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/report/child_proj.csv data/report/child_proj_layout.txt
+          git diff --cached --quiet || (git commit -m "将来推計人口（子ども）を取得" && git push)
