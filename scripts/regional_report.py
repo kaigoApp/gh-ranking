@@ -1414,58 +1414,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 <li>収支試算：{E(FACTS["other_source"])}をもとに ジモふくが試算。</li>
 <li>将来推計人口：国立社会保障・人口問題研究所『日本の地域別将来推計人口（令和5年推計）』。</li>
 <li>開業の手続き：{E(FACTS["open_source"])}。</li>
-</ul><p class="contact">付録の Excel「事業所一覧」に、市内のすべての事業所の名前・住所・電話・定員・法人と、サービスごとの数の移り変わりをのせています。</p><p class="contact">このレポートの数字は自由に引用できます（「ジモふく調べ」と書いてください）。ほかのサービスの試算や、もっとくわしい調査のご相談は https://jimofuku.jp/ から。</p></section>''')
+</ul><p class="contact">このレポートの数字は自由に引用できます（「ジモふく調べ」と書いてください）。ほかのサービスの試算や、もっとくわしい調査のご相談は https://jimofuku.jp/ から。</p></section>''')
     return number_sections("\n".join(h))
-
-
-def clean(v):
-    """Excel に入れられない制御文字をのぞく。"""
-    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", v) if isinstance(v, str) else v
-
-
-def write_xlsx(f, ctx, pi, city):
-    """付録：市内の全事業所の一覧と、サービスごとの数の移り変わり（Excel）。"""
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill
-    periods, latest, prev, S, codes, rows = ctx
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "事業所一覧"
-    head = ["サービス", "事業所名", "運営する法人", "法人番号", "市区町村", "住所", "電話", "定員", "平日の時間", "定休日", "半年で新しく載った", "事業所番号"]
-    ws.append(head)
-    n = 0
-    for c in codes:
-        L, Pv = S[c][latest]["offices"], S[c][prev]["offices"]
-        for no, o in sorted(L.items(), key=lambda kv: kv[1]["name"]):
-            for mk, (nm, addr) in o["munis"].items():
-                if in_city(mk, pi, city):
-                    ws.append([clean(v) for v in [SERVICES[c][0], nm, o["corp"], o["corp_key"] if o["corp_key"].isdigit() else "", mk[1], addr,
-                               o["tel"], int(o["cap"]) if str(o["cap"]).isdigit() else None, o["hours"], o["closed"],
-                               "新" if no not in Pv else "", no]])
-                    n += 1
-    for col, w in zip("ABCDEFGHIJKL", [20, 32, 30, 15, 14, 34, 14, 6, 14, 18, 8, 12]):
-        ws.column_dimensions[col].width = w
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:L{n + 1}"
-    t = wb.create_sheet("数の移り変わり")
-    t.append(["サービス"] + [B.label(p) for p in periods])
-    for c in codes:
-        t.append([SERVICES[c][0]] + [city_counts(S, c, p, pi, city) for p in periods])
-    t.column_dimensions["A"].width = 24
-    for sh in (ws, t):
-        for cell in sh[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor="1F4D3A")
-    src = wb.create_sheet("出典")
-    for line in [f"{city}の障害福祉の事業所一覧（データの時点：{B.label(latest)}）",
-                 "出典：独立行政法人福祉医療機構 WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」をもとに ジモふくが加工。",
-                 "1つの事業所がいくつかの場所でサービスをしているときは、場所ごとに1行です。",
-                 "「半年で新しく載った」は、半年前の時点になく今回載った事業所です（届け出の出し直しで番号が変わったものもふくむ）。",
-                 "ジモふく https://jimofuku.jp/"]:
-        src.append([line])
-    src.column_dimensions["A"].width = 120
-    wb.save(f)
-    return n
 
 
 def number_sections(doc):
@@ -1570,8 +1520,6 @@ def main():
             f.write_text(f'<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>{E(city)}の障害福祉 事業所レポート {E(ED["name"])}（{B.label(latest)}）</title>'
                          f'{FONTS}<style>{CSS}</style></head><body>{body}</body></html>', encoding="utf-8")
             print("書き出し:", f.name)
-        nx = write_xlsx(out / f"{latest}_{PREFS[pi]}_{city}_事業所一覧.xlsx", ctx, pi, city)
-        print("Excel:", f"{nx:,}行")
 
 
 if __name__ == "__main__":

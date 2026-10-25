@@ -1649,7 +1649,7 @@ def build_area_reports():
 <section><h2>値段</h2>
 <div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市・1つの版</p></div>
 <div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市・3つの版のセット</p></div></div>
-<p class="note">BOOTH（ピクシブのお店のサービス）でお支払いのあと、すぐに PDF と Excel をダウンロードできます。税こみの値段です。</p></section>
+<p class="note">BOOTH（ピクシブのお店のサービス）でお支払いのあと、すぐに PDF をダウンロードできます。税こみの値段です。</p></section>
 <section><h2>まずは無料の見本を</h2><p class="sec-sub">船橋市の放課後等デイ・児童発達支援版の前半（まとめ・結論・開業までにやること など）を、そのまま読めます。</p>
 {f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を開く（船橋市・前半）</a>' if sample else ''}</section>
 <section><h2>3つの版の中身</h2><div class="report-cols area-eds">{eds}</div>

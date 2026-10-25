@@ -27,7 +27,7 @@ def main():
            '<p>見本はここまでです。製品版には、このあとに次の章が入っています。</p><ul>'
            + "".join(f"<li>{t}</li>" for t in rest) + "</ul>"
            '<p class="contact">ほかの市区のレポートと、グループホーム版・就労継続支援B型版は '
-           'https://jimofuku.jp/report/area/ から。付録として、市の中のすべての事業所の一覧（Excel）がつきます。</p></section>')
+           'https://jimofuku.jp/report/area/ から。</p></section>')
     style = "<style>.stamp{background:#ffb93f;color:#1f4d3a;padding:2px 10px;border-radius:4px;margin-left:8px}</style>"
     out = head.replace("</head>", style + "</head>") + "<body>" + cover + "".join(
         '<section class="pb">' + c for c in chapters[:keep]) + end + "</body>" + tail
