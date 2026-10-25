@@ -40,7 +40,8 @@ def num(s):
 
 
 def norm(s):
-    return re.sub(r"[\s　]", "", s or "").replace("~", "～").replace("〜", "～")
+    s = (s or "").translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    return re.sub(r"[\s　]", "", s).replace("~", "～").replace("〜", "～")
 
 
 def places(code, cities, notes):
