@@ -678,22 +678,36 @@ FACTS = json.loads((B.ROOT / "data" / "report" / "city_facts.json").read_text(en
 DAYS = 280  # 放課後等デイの1年の営業日（福祉医療機構の経営調査の平均 280.4日）
 CAP10 = 10  # 試算の定員
 BASE_PRICE = 10.72  # 船橋市（4級地）の単価。1人1日の報酬の目安はこの単価のときの値
-STAFF = 2000  # 職員6人の人件費（万円、千葉県の保育士の給料のとき）
 OTHER = 680  # 家賃・送迎車・光熱費など＋開業費用の償却（万円、船橋市のとき）
 RENT = 240  # そのうち家賃（月20万円、船橋市のとき）
-GH_REV = 233  # グループホームの定員1人あたりの1年の収益（万円、全国平均。経営実態調査 2022年度決算 3,496万円÷定員15）
-GH_BASE = 10.5  # 全国平均の1単位の単価のおよそ
-GH_STAFF = 0.617  # 収益に対する給与の割合（令和7年 経営概況調査）
-GH_COST = 0.909  # 収益に対する費用の割合（収支差率9.1%）
-GH_RENT = 360  # そのうち建物の家賃（月30万円、全国平均の家賃のとき）
+# 人件費は職種ごとに積み上げる。給与は厚生労働省「令和6年度 障害福祉サービス等従事者処遇状況等調査」（2024年9月、全国、
+# 処遇改善加算を取っている事業所）。月額は基本給＋手当＋賞与（4〜9月分の1/6）なので、12倍で年収のおよそになる。
+PAY_SAB = 405480  # サービス管理責任者等（常勤、第86表）。管理者を兼ねる前提
+PAY_FT = {"65": 286110, "63": 293940, "46": 289130, "33": 291050}  # 福祉・介護職員（常勤、サービス別、第90表）
+PAY_PT = {"65": 94760 / 64.1, "63": 98840 / 70.3, "46": 99680 / 74.6, "33": 99420 / 65.9}  # 非常勤の時給（第91表の月額÷実労働時間）
+FT_RATE = {"65": 0.79, "63": 0.81, "46": 0.71, "33": 0.56}  # 直接支援の職員のうち常勤の割合（令和7年 経営概況調査）
+DIRECT = {"65": 3.5, "63": 3.8, "46": 3.5}  # 直接支援の職員（常勤換算）。経営概況調査の全国平均を試算の定員に合わせた
+# B型は、経営概況調査の給与費（定員1人あたり123万円）が基準の職員だけでは説明できないので、目標工賃達成指導員・送迎・事務などを足す
+DIRECT_OTHER = {"46": 1.0}
+FTE_H = 1930  # 常勤1人の1年の労働時間（処遇状況等調査の常勤の実労働 月160.7時間×12）
+RAISE = 1.06  # 2024年9月から2026年度までの賃上げ（年3%×2年と仮定）
+SOCIAL = 0.164  # 社会保険料などの会社負担（厚生年金9.15%、健康保険・介護保険・子ども子育て支援金 約5.8%、雇用保険0.85%、労災0.3%、子ども・子育て拠出金0.36%）
+LEAD = {"65": "管理者兼児童発達支援管理責任者", "63": "管理者兼児童発達支援管理責任者", "46": "管理者兼サービス管理責任者", "33": "管理者兼サービス管理責任者"}
+# グループホーム（介護サービス包括型）。売上は報酬の単位から、人件費は職種ごとに積み上げる
+GH_HOUSE = 10  # 1住居の定員
+GH_HOUSES = 2  # 試算の住居の数（サービス管理責任者は入居者30人までに1人なので、2住居で1人を共有する）
 GH_UTIL = 0.9  # 入居率
-# グループホーム（介護サービス包括型）の基本報酬（2024年度改定後、世話人6:1、1人1日の単位）と、生活支援員の配置（入居者何人に1人）
-GH_UNITS = {"6": 600, "5": 456, "4": 372, "3": 297, "2": 188, "1": 171}
-GH_SUP = {"6": 2.5, "5": 4, "4": 6, "3": 9}
+GH_UNITS = {"6": 600, "5": 456, "4": 372, "3": 297, "2": 188, "1": 171}  # 基本報酬（2024年度改定後、世話人6:1、1人1日の単位）
+GH_SUP = {"6": 2.5, "5": 4, "4": 6, "3": 9}  # 生活支援員の配置（入居者何人に1人、指定の基準）
+GH_NIGHT = {"6": 1344, "5": 1344, "4": 1344, "3": 1120, "2": 896, "1": 896}  # 夜間支援等体制加算(Ⅰ)の1住居1晩あたり（1人あたりの単位×人数。4人なら区分4以上336単位×4）
+GH_SHOGU = 0.163  # 福祉・介護職員等処遇改善加算(Ⅰ)の率（2026年6月から、介護サービス包括型）
+NIGHT_SHIFT = 2.0  # 夜勤1回の給料（万円、千葉県のとき。首都圏の求人は1回1.6〜2.0万円）
+SHIFT_DAY = 9  # 夜勤（16時〜翌9時）のうち、夕方と朝の世話人・生活支援員として数える時間
+GH_OTHER = 27  # 家賃のほかの費用（定員1人あたり年、万円。経営概況調査の「その他」と委託費から、入居者が払う利用料の分を引いた）
+GH_RENT = 360  # 1住居の建物の家賃（年、万円。月30万円、全国平均の家賃のとき）。入居者が払う家賃で回収する
+GH_OPEN = 600  # 1住居の開業費用（改修・消防設備・敷金・開業前の人件費）
 GH_MIX = [("軽い人が中心", {"1": .3, "2": .4, "3": .3}), ("区分3〜4が中心（試算の前提）", {"2": .2, "3": .4, "4": .4}),
           ("重い人が中心", {"4": .3, "5": .4, "6": .3})]
-GH_FTE = 350  # 生活支援員1人の1年の人件費（万円、社会保険料を含む。全国のおよそ）
-GH_OPEN = 1200  # 開業費用（改修・消防設備・敷金・開業前の人件費）
 OPEN = 900  # 開業費用（万円）
 RAMP = [.3] * 3 + [.5] * 3 + [.7] * 3 + [.8] * 3 + [.85] * 6  # 開業からの利用率の伸び（その後は標準の利用率）
 
@@ -751,11 +765,64 @@ CORP_N = collections.Counter()  # 法人ごとの全国の事業所の数（main
 
 # ほかのサービスの試算（福祉医療機構の経営調査の全国平均。単価は4級地のときの値）
 OTHERS = {
-    "63": dict(cap=10, util=0.827, perday=15786, base=10.72, days=266, staff=2400, other=780, rent=240, open=900, price="unit_price",
+    "63": dict(cap=10, util=0.827, perday=15786, base=10.72, days=266, other=780, rent=240, open=900, price="unit_price",
                src="2024年度 児童発達支援の経営状況（利用率82.7%、1人1日15,786円、営業日266日、利益率8.5%、赤字の事業所28.4%）"),
-    "46": dict(cap=20, util=0.817, perday=9126, base=10.68, days=260, staff=2600, other=930, rent=300, open=1100, price="unit_price_b",
+    "46": dict(cap=20, util=0.817, perday=9126, base=10.68, days=260, other=930, rent=300, open=1100, price="unit_price_b",
                src="2024年度 就労継続支援B型の経営状況（利用率81.7%、1人1日9,126円、利益率9.1%、赤字の事業所30.4%、平均工賃月23,583円）"),
 }
+
+
+def staff_plan(c, w, direct):
+    """職種ごとに1年の人件費を積み上げる（万円、社会保険料の会社負担を含む）。
+    w は地域の賃金の水準（全国＝1）。戻り値は合計と、(職種, 常勤換算の人数, 給料の合計) の行。"""
+    lead = PAY_SAB * 12 * RAISE * w / 1e4
+    ft = PAY_FT[c] * 12 * RAISE * w / 1e4
+    pt = PAY_PT[c] * FTE_H * RAISE * w / 1e4
+    per = ft * FT_RATE[c] + pt * (1 - FT_RATE[c])
+    rows = [(LEAD[c], 1, lead), ("直接支援の職員", direct, per * direct)]
+    if c in DIRECT_OTHER:
+        rows.append(("目標工賃達成指導員・送迎・事務など", DIRECT_OTHER[c], per * DIRECT_OTHER[c]))
+    return round(sum(r[2] for r in rows) * (1 + SOCIAL)), rows, per
+
+
+def staff_html(rows, total, w):
+    """人件費の内訳の表。"""
+    body = "".join(f'<tr><td>{E(n)}</td><td>{f:.1f}人</td><td>{v:,.0f}万円</td></tr>' for n, f, v in rows)
+    sub = sum(v for _, _, v in rows)
+    return ('<table class="small"><tr><th>職種</th><th>常勤換算</th><th>1年の給料</th></tr>' + body
+            + f'<tr><td>社会保険料などの会社負担（給料の{SOCIAL * 100:.1f}%）</td><td></td><td>{sub * SOCIAL:,.0f}万円</td></tr>'
+            f'<tr><th>人件費の合計</th><th></th><th>{total:,}万円</th></tr></table>'
+            f'<p class="note">給料は、厚生労働省「令和6年度 障害福祉サービス等従事者処遇状況等調査」の職種別・サービス別の平均（2024年9月、全国、賞与を含む）に、'
+            f'2026年度までの賃上げ（年3%×2年）と、地域の給料の水準（介護職員の年収の全国比 {w:.2f}倍）をかけた。'
+            '直接支援の職員は、常勤と非常勤（時給）の割合を、令和7年 障害福祉サービス等経営概況調査の全国平均に合わせている。</p>')
+
+
+def gh_model(houses, mix, util, pr, w, w_chiba, rent_house):
+    """グループホーム（介護サービス包括型）の1年の収支を積み上げる（万円）。
+    売上＝基本報酬＋夜間支援等体制加算(Ⅰ)、それに処遇改善加算(Ⅰ)＋入居者が払う家賃。
+    人件費＝管理者兼サービス管理責任者＋毎晩の夜勤＋足りない分の世話人・生活支援員。"""
+    cap = GH_HOUSE * houses
+    res = cap * util
+    base = sum(v * GH_UNITS[k] for k, v in mix.items()) * res * 365
+    night = houses * sum(v * GH_NIGHT[k] for k, v in mix.items()) * 365
+    fee = (base + night) * pr / 1e4 * (1 + GH_SHOGU)
+    rent_in = rent_house * houses * util
+    lead = PAY_SAB * 12 * RAISE * w / 1e4 * (1 if cap * util <= 30 else 2)
+    ft = PAY_FT["33"] * 12 * RAISE * w / 1e4
+    pt = PAY_PT["33"] * FTE_H * RAISE * w / 1e4
+    per = ft * FT_RATE["33"] + pt * (1 - FT_RATE["33"])
+    shifts = 365 * houses * NIGHT_SHIFT * w / w_chiba
+    need = res / 6 + sum(v * res / GH_SUP[k] for k, v in mix.items() if k in GH_SUP)  # 世話人6:1＋生活支援員（常勤換算）
+    by_shift = houses * SHIFT_DAY * 365 / FTE_H  # 夜勤の人が夕方・朝に世話人・生活支援員として働く分
+    extra = max(0.0, need - by_shift)
+    rows = [("管理者兼サービス管理責任者", 1, lead), (f"夜勤（毎晩{houses}人、1回{NIGHT_SHIFT * w / w_chiba:.1f}万円）", round(by_shift, 1), shifts),
+            ("世話人・生活支援員（夜勤で足りない分）", round(extra, 1), extra * per)]
+    st = round(sum(r[2] for r in rows) * (1 + SOCIAL))
+    ct = st + round(GH_OTHER * cap) + round(rent_house * houses)
+    rv = fee + rent_in
+    return dict(cap=cap, util=util, days=365, rv=rv, fee=fee, st=st, ct=ct, rent=round(rent_house * houses), bal=rv - ct,
+                pd=rv * 1e4 / (cap * 365 * util), be=ct / (rv / util), open=GH_OPEN * houses, pr=pr, rows=rows, per=per,
+                need=need, by_shift=by_shift, houses=houses, units=base / (res * 365), night_u=night / (houses * 365))
 
 
 def load_child():
@@ -973,10 +1040,11 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     grade_txt = f"{grade}級地" if grade != "0" else "その他（上乗せなし）"
     r = price / BASE_PRICE
     chiba = FACTS["pref"]["千葉県"]
-    pay_r = pf["pay"] / chiba["pay"]  # 保育士の年収の、千葉県との比較
+    wage_r = pf["care"] / nf["care"]  # 介護職員の年収の、全国との比較（地域の福祉の給料の水準）
+    wage_chiba = chiba["care"] / nf["care"]
     rent_r = cf["rent"] / FACTS["city"]["船橋市"]["rent"]  # 家賃の、船橋市との比較
     rent = round(RENT * rent_r)
-    staff = round(STAFF * pay_r)
+    staff, staff_rows, staff_per = staff_plan("65", wage_r, DIRECT["65"])
     other = OTHER - RENT + rent
     cost = staff + other
     per = {"慎重": (0.80, 11000 * r), "標準": (0.89, 12500 * r), "好調": (0.93, 13300 * r)}
@@ -1083,18 +1151,13 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     for c, m in OTHERS.items():
         pr = FACTS[m["price"]][grade]
         pd = m["perday"] * pr / m["base"]
-        st = round(m["staff"] * pay_r)
+        st, rows_, _ = staff_plan(c, wage_r, DIRECT[c])
         ct = st + m["other"] - m["rent"] + round(m["rent"] * rent_r)
         rv = m["cap"] * m["days"] * m["util"] * pd / 1e4
-        oth[c] = dict(m, pr=pr, pd=pd, st=st, ct=ct, rv=rv, bal=rv - ct, be=ct / (m["cap"] * m["days"] * pd / 1e4))
+        oth[c] = dict(m, pr=pr, pd=pd, st=st, ct=ct, rv=rv, bal=rv - ct, be=ct / (m["cap"] * m["days"] * pd / 1e4), rows=rows_)
     gh_pr = FACTS["unit_price_gh"][grade]
-    # グループホーム（介護サービス包括型）：厚生労働省の経営実態調査（2022年度決算）の全国平均から
-    gh_rv = GH_REV * CAP10 * gh_pr / GH_BASE
-    gh_st = round(GH_REV * CAP10 * GH_STAFF * pf["pay"] / nf["pay"])
-    gh_rent = round(GH_RENT * cf["rent"] / nf["rent"])
-    gh_ct = gh_st + round(GH_REV * CAP10 * (GH_COST - GH_STAFF)) - GH_RENT + gh_rent
-    gh = dict(cap=CAP10, util=GH_UTIL, pd=gh_rv * 1e4 / (CAP10 * 365 * GH_UTIL), rv=gh_rv, st=gh_st, ct=gh_ct, rent=gh_rent,
-              bal=gh_rv - gh_ct, be=gh_ct / (gh_rv / GH_UTIL), days=365, open=GH_OPEN, pr=gh_pr)
+    gh_rent_h = round(GH_RENT * cf["rent"] / nf["rent"])
+    gh = gh_model(GH_HOUSES, GH_MIX[1][1], GH_UTIL, gh_pr, wage_r, wage_chiba, gh_rent_h)
     oth["46"]["open"] = OTHERS["46"]["open"]
     # この版の中心の試算
     if ed == "child":
@@ -1236,7 +1299,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              f'<p class="lead">第一候補：{first}</p><div class="tiles">' + "".join(tiles) + '</div>'
              '<h3>サービスの信号</h3><table class="small sig"><tr><th>サービス</th><th>評価</th><th>人口あたり（県と比べて）</th><th>定員1か所の試算（標準）</th></tr>'
              + "".join(sig) + '</table><p class="note">緑＝少なくて狙い目、黄＝競争が厳しいか市の規制に注意、赤＝市が新しい指定を止めている。'
-             f'試算は定員{"10人" if ed != "b" else "20人"}で開設し、全国平均並みに運営できた場合の1年の収支である。</p>'
+             + (f'試算は定員{"10人" if ed == "child" else "20人"}で開設し、全国平均並みに運営できた場合の1年の収支である。</p>' if ed != "gh" else
+              f'試算は定員{GH_HOUSE}人の住居を{GH_HOUSES}か所開設し、毎晩夜勤を置いた場合の1年の収支である。</p>')
              + '</section>')
     h.append('<!--EXEC-->')
 
@@ -1619,8 +1683,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         h.append(f'<p>{E(pref)}の保育士の求人倍率は、全職種の<b>約{hard:.1f}倍</b>である。'
                  + ("全国より採用しにくい地域である。" if pf["hoiku"] > nf["hoiku"] else "全国よりやや低いものの、採用しにくい職種である。")
                  + '一番の壁は、事業所に必ず1人置く「児童発達支援管理責任者」である。開設の前に、誰がこの役をするかを決めておく必要がある。</p>'
-                 f'<p class="note">収支試算の人件費は、{E(pref)}の保育士の平均年収（{pf["pay"] / 10:,.0f}万円、全国{nf["pay"] / 10:,.0f}万円）に合わせて調整している'
-                 f'（千葉県の{chiba["pay"] / 10:,.0f}万円のとき年2,000万円）。家賃は{E(city)}の借家の平均家賃（月{cf["rent"]:,}円、全国{nf["rent"]:,}円）に合わせている。</p></section>')
+                 f'<p class="note">収支試算の人件費は、職種ごとの障害福祉の給料（厚生労働省の処遇状況等調査）を、{E(pref)}の介護職員の平均年収'
+                 f'（{pf["care"] / 10:,.0f}万円、全国{nf["care"] / 10:,.0f}万円）で地域に合わせて積み上げている。家賃は{E(city)}の借家の平均家賃（月{cf["rent"]:,}円、全国{nf["rent"]:,}円）に合わせている。</p></section>')
 
     else:
         who_ = "世話人・生活支援員、夜の支援をする人" if ed == "gh" else "職業指導員・生活支援員"
@@ -1628,13 +1692,14 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  '「有効求人倍率」は、仕事を探している人1人に何件の求人があるかで、高いほど人を集めにくいことを表す。</p>'
                  f'<table><tr><th>項目</th><th>{E(pref)}</th><th>全国</th></tr>'
                  f'<tr><th>全職種の有効求人倍率（2026年8月）</th><td>{pf["all"]:.2f}倍</td><td>{nf["all"]:.2f}倍</td></tr>'
-                 f'<tr><th>保育士の平均月給（2025年、福祉の給料の目安）</th><td>{pf["pay_month"] / 10:,.1f}万円</td><td>{nf["pay_month"] / 10:,.1f}万円</td></tr>'
+                 f'<tr><th>介護職員の平均年収（2025年、福祉の給料の目安）</th><td>{pf["care"] / 10:,.0f}万円</td><td>{nf["care"] / 10:,.0f}万円</td></tr>'
                  f'<tr><th>最低賃金（時給）</th><td>{pf["wage"]:,}円<small>（{E(pf["wage_from"])}から）</small></td><td>{nf["wage"]:,}円<small>（平均）</small></td></tr></table>'
                  f'<p>{E(pref)}の全職種の求人倍率は全国{"より高く、人を集めにくい地域" if pf["all"] > nf["all"] else "並みかそれより低く、比べれば人を集めやすい地域"}である。'
                  + ('夜の支援をする人は、短い時間・夜だけの働き方で集めることが多く、最低賃金の高さが人件費にひびく。' if ed == "gh" else
                     '職業指導員は、作業の中身（軽作業、食品、農作業、パソコンの仕事など）に合った経験のある人を集めると、仕事を取りやすくなる。')
                  + '一番の壁は、事業所に必ず置く「サービス管理責任者」である。実務の経験と研修が必要なので、開設の前に、誰がこの役をするかを決めておく必要がある。</p>'
-                 f'<p class="note">収支試算の人件費は、{E(pref)}の保育士の平均年収（{pf["pay"] / 10:,.0f}万円、全国{nf["pay"] / 10:,.0f}万円）を福祉の給料の目安として調整している。'
+                 f'<p class="note">収支試算の人件費は、職種ごとの障害福祉の給料（厚生労働省の処遇状況等調査）を、{E(pref)}の介護職員の平均年収'
+                 f'（{pf["care"] / 10:,.0f}万円、全国{nf["care"] / 10:,.0f}万円）で地域に合わせて積み上げている。'
                  f'家賃は{E(city)}の借家の平均家賃（月{cf["rent"]:,}円、全国{nf["rent"]:,}円）に合わせている。</p></section>')
 
     # 10. 収支試算
@@ -1662,10 +1727,11 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  + f'<h3>前提</h3><table class="small txt2"><tr><th>項目</th><th>設定</th></tr>'
                  f'<tr><td>営業日</td><td>年{DAYS}日（経営調査の平均280.4日）</td></tr>'
                  f'<tr><td>1人1日の報酬</td><td>標準{per["標準"][1]:,.0f}円。全国平均12,747円（4級地相当）を{E(city)}の単価に合わせ、2026年6月からの新規事業所の減額を見こんで少し下げた</td></tr>'
-                 f'<tr><td>人件費</td><td>職員6人で年{staff:,}万円（管理者兼児童発達支援管理責任者1人、常勤3人、パート2人。社会保険料を含む。{E(pref)}の保育士の給料に合わせた）</td></tr>'
+                 f'<tr><td>人件費</td><td>年{staff:,}万円。管理者兼児童発達支援管理責任者1人と、児童指導員・保育士など常勤換算{DIRECT["65"]}人（全国平均は定員11人で5.1人）。内訳は下の表</td></tr>'
                  f'<tr><td>そのほかの費用</td><td>年{other:,}万円（家賃月{rent / 12:.0f}万円、送迎車、光熱費、教材、保険、求人、開業費用の償却。家賃は{E(city)}の家賃の水準に合わせた）</td></tr>'
                  f'<tr><td>開業費用</td><td>{OPEN}万円（内装・備品、敷金、開業前の人件費、申請の準備）</td></tr>'
                  f'<tr><td>開業後の利用率</td><td>3か月ごとに30%→50%→70%→80%、その後半年85%、それからは標準の利用率</td></tr></table>'
+                 + '<h3>人件費の内訳</h3>' + staff_html(staff_rows, staff, wage_r)
                  + '<p class="contact"><b>この試算に入っていないこと：</b>子どもには障害支援区分はない。放課後等デイの基本の報酬は、2024年度改定で<b>利用する時間の長さ</b>'
                  '（30分以上1時間30分以下／1時間30分を超え3時間以下／3時間を超え5時間以下）で分かれ、<b>重症心身障害児</b>を主に受け入れる事業所は別の報酬になる。'
                  '医療的ケアが必要な子どもを受け入れると加算もある。試算は全国の平均の1人1日の報酬を使っているので、受け入れる子どもと時間の組み合わせで上下する。</p>'
@@ -1690,18 +1756,35 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                 + "".join(f"<tr><th>{u * 100:.0f}%</th>" + "".join(f"<td>{rv_at(u) * k - m_['ct']:+,.0f}</td>" for k in grid_k) + "</tr>" for u in grid_u)
                 + "</table>")
         if ed == "gh":
-            pre = (f'<tr><td>定員と日数</td><td>定員{m_["cap"]}人（例えば5人の住まいを2か所）、1年365日</td></tr>'
-                   f'<tr><td>1人1日の収益</td><td>{m_["pd"]:,.0f}円。全国平均（定員1人あたり年{GH_REV}万円、入居者が払う家賃・食費なども含む）を、{E(city)}の1単位{m_["pr"]:.2f}円に合わせた</td></tr>'
-                   f'<tr><td>人件費</td><td>年{m_["st"]:,}万円（世話人・生活支援員・夜の支援・サービス管理責任者。売上に対する給与の割合61.7%を、{E(pref)}の給料の水準に合わせた）</td></tr>'
-                   f'<tr><td>そのほかの費用</td><td>年{m_["ct"] - m_["st"]:,}万円（建物の家賃月{m_["rent"] / 12:.0f}万円を含む。家賃は{E(city)}の家賃の水準に合わせた）</td></tr>'
-                   f'<tr><td>開業費用</td><td>{m_["open"]:,}万円（建物の改修、消防の設備、敷金、開業前の人件費）</td></tr>')
-            src = "厚生労働省「令和5年 障害福祉サービス等経営実態調査」（介護サービス包括型、2022年度決算：収益3,496万円、定員15人、収支差率9.1%）、「令和7年 経営概況調査」（給与の割合61.7%）"
-            extra = ('<p>グループホームの1人あたりの売上は公表されている数が少なく、この試算は全国の平均的な事業所を定員10人にちぢめた<b>目安</b>である。'
-                     '日中サービス支援型や外部サービス利用型では、職員の数も報酬も変わる。</p>')
+            nshift = NIGHT_SHIFT * wage_r / wage_chiba
+            pre = (f'<tr><td>定員と日数</td><td>定員{m_["cap"]}人（定員{GH_HOUSE}人の住居を{m_["houses"]}か所）、1年365日</td></tr>'
+                   f'<tr><td>報酬</td><td>基本報酬（区分3〜4が中心で1人1日平均{m_["units"]:.0f}単位）＋夜間支援等体制加算(Ⅰ)（1住居1晩約{m_["night_u"]:,.0f}単位）に、'
+                   f'{E(city)}の1単位{m_["pr"]:.2f}円をかけ、福祉・介護職員等処遇改善加算(Ⅰ)（{GH_SHOGU * 100:.1f}%）を足した。年{m_["fee"]:,.0f}万円</td></tr>'
+                   f'<tr><td>家賃</td><td>建物の家賃は1住居月{m_["rent"] / m_["houses"] / 12:.0f}万円（{E(city)}の家賃の水準）。入居者から同じ額を家賃として受け取る前提で、売上と費用の両方に入れた。'
+                   f'空き部屋の分は事業所の負担になる</td></tr>'
+                   f'<tr><td>1人1日の収益</td><td>{m_["pd"]:,.0f}円（報酬と入居者が払う家賃の合計）</td></tr>'
+                   f'<tr><td>人件費</td><td>年{m_["st"]:,}万円。管理者兼サービス管理責任者1人（{m_["houses"]}住居で共有）、毎晩の夜勤（1回{nshift:.1f}万円×{m_["houses"]}住居）、'
+                   f'夜勤で足りない世話人・生活支援員。内訳は下の表</td></tr>'
+                   f'<tr><td>そのほかの費用</td><td>年{m_["ct"] - m_["st"]:,}万円（建物の家賃のほか、光熱費・消耗品・保険・修繕・車など定員1人年{GH_OTHER}万円）</td></tr>'
+                   f'<tr><td>開業費用</td><td>{m_["open"]:,}万円（1住居{GH_OPEN}万円：建物の改修、消防の設備、敷金、開業前の人件費）</td></tr>')
+            src = ("厚生労働省「令和7年 障害福祉サービス等経営概況調査」（介護サービス包括型、2024年度決算）、「令和6年度 障害福祉サービス等従事者処遇状況等調査」、"
+                   "2024年度報酬改定の単位、夜勤の給料は首都圏の求人（1回1.6〜2.0万円）")
+            nat_rv, nat_st, nat_bal = 2482, 1538, 0.069  # 経営概況調査の定員1人あたり収入・給与費（千円）と収支差率
+            extra = (f'<p>夜勤は、1住居に毎晩1人を置く前提である。夜勤の人は16時〜翌9時の勤務のうち、夕方と朝の{SHIFT_DAY}時間を世話人・生活支援員として数え、'
+                     f'その外の夜の時間を夜間支援等体制加算の対象とした。1晩の夜勤の費用（社会保険料を含め約{nshift * (1 + SOCIAL):.1f}万円）に対して、'
+                     f'加算は1住居1晩で約{m_["night_u"] * m_["pr"] * (1 + GH_SHOGU) / 1e4:.1f}万円にとどまる。夜の体制は、それだけでは赤字になる部分である。</p>'
+                     '<h3>全国の平均とくらべる（定員1人あたり1年）</h3>'
+                     '<table class="small"><tr><th></th><th>この試算</th><th>全国の平均（介護サービス包括型）</th></tr>'
+                     f'<tr><td>売上（報酬＋入居者が払う利用料）</td><td>{m_["rv"] / m_["cap"]:,.0f}万円</td><td>{nat_rv / 10:,.0f}万円</td></tr>'
+                     f'<tr><td>人件費</td><td>{m_["st"] / m_["cap"]:,.0f}万円</td><td>{nat_st / 10:,.0f}万円</td></tr>'
+                     f'<tr><td>収支差率</td><td>{m_["bal"] / m_["rv"] * 100:+.1f}%</td><td>+{nat_bal * 100:.1f}%（赤字の事業所は39.0%）</td></tr></table>'
+                     '<p class="note">全国の平均は、令和7年 障害福祉サービス等経営概況調査（2024年度決算、1事業所あたり定員16人、常勤換算6.2人、客体341）。'
+                     '全国平均の職員のうち夜間支援従事者は常勤換算0.41人で、毎晩の夜勤を置かない事業所（宿直や連絡体制だけの事業所）も多く含まれるとみられる。'
+                     'この試算は毎晩の夜勤を置く分だけ人件費が重く、全国平均より厳しめの見積もりである。</p>')
         else:
             pre = (f'<tr><td>定員と日数</td><td>定員{m_["cap"]}人、年{m_["days"]}日営業</td></tr>'
                    f'<tr><td>1人1日の報酬</td><td>{m_["pd"]:,.0f}円。全国平均9,126円（4級地相当）を{E(city)}の1単位{m_["pr"]:.2f}円に合わせた。報酬は利用者に払う工賃の高さで変わる</td></tr>'
-                   f'<tr><td>人件費</td><td>職員7〜8人で年{m_["st"]:,}万円（管理者、サービス管理責任者、職業指導員、生活支援員。社会保険料を含む。{E(pref)}の給料の水準に合わせた）</td></tr>'
+                   f'<tr><td>人件費</td><td>年{m_["st"]:,}万円。管理者兼サービス管理責任者1人と、職業指導員・生活支援員 常勤換算{DIRECT["46"]}人（全国平均は定員21人で3.6人）、目標工賃達成指導員・送迎・事務など{DIRECT_OTHER["46"]}人。内訳は下の表</td></tr>'
                    f'<tr><td>そのほかの費用</td><td>年{m_["ct"] - m_["st"]:,}万円（家賃、送迎車、光熱費、保険、求人、開業費用の償却。家賃は{E(city)}の家賃の水準に合わせた）</td></tr>'
                    f'<tr><td>開業費用</td><td>{m_["open"]:,}万円（内装・作業の設備、敷金、開業前の人件費、申請の準備）</td></tr>'
                    '<tr><td>工賃</td><td>利用者に払う工賃は、作業で得たお金から払う前提で、この表の売上・費用には入れていない</td></tr>')
@@ -1718,7 +1801,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  + '</ul>' + extra + f'<h3>{word}と1人1日の収益でどう変わるか（1年の収支、万円）</h3>' + grid
                  + '<h3>前提</h3><table class="small txt2"><tr><th>項目</th><th>設定</th></tr>' + pre
                  + f'<tr><td>開業後の{word}</td><td>3か月ごとに30%→50%→70%→80%、その後半年85%、それからは標準の{word}</td></tr></table>'
-                 '<p class="note">この試算は判断のたたき台である。家賃、給与、加算の取り方で大きく変わる。実際に開設するときは、税理士や行政書士と作り直す必要がある。税金は含めていない。'
+                 + '<h3>人件費の内訳</h3>' + staff_html(m_["rows"], m_["st"], wage_r)
+                 + '<p class="note">この試算は判断のたたき台である。家賃、給与、加算の取り方で大きく変わる。実際に開設するときは、税理士や行政書士と作り直す必要がある。税金は含めていない。'
                  f'数字のもと：{E(src)}。</p></section>')
 
 
@@ -1740,7 +1824,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     torn = [(f'{P_["word"]}（±5ポイント）', prof(u=std_u - 0.05) - base_p, prof(u=min(1, std_u + 0.05)) - base_p, "-5pt", "+5pt"),
             ("1人1日の報酬（±5%）", prof(pd_=std_pd * 0.95) - base_p, prof(pd_=std_pd * 1.05) - base_p, "-5%", "+5%"),
             ("人件費（±10%）", -(P_["staff"] * 0.1), P_["staff"] * 0.1, "+10%", "-10%"),
-            ("家賃（±30%）", -(P_["rent"] * 0.3), P_["rent"] * 0.3, "+30%", "-30%")]
+            ("家賃（±30%）", -(P_["rent"] * 0.3 * (1 - std_u if ed == "gh" else 1)), P_["rent"] * 0.3 * (1 - std_u if ed == "gh" else 1), "+30%", "-30%")]
     torn.sort(key=lambda t: -abs(t[2] - t[1]))
     us = [x / 100 for x in range(50, 101, 5)]
     be_u = P_["cost"] / (P_["cap"] * P_["days"] * std_pd / 1e4)
@@ -1759,36 +1843,41 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     sd = inv["標準"]
 
     def kubun_table():
-        """グループホームで、入居する人の障害支援区分の組み合わせが変わると、収支がどう変わるか。"""
+        """グループホームで、入居する人の障害支援区分と住居の数で、収支がどう変わるか。"""
         if ed != "gh":
             return ""
-        base_mix = GH_MIX[1][1]
-        n_in = P_["cap"] * std_u
 
-        def units(mx):
-            return sum(GH_UNITS[k] * v for k, v in mx.items())
+        def one(houses, mx):
+            g = gh_model(houses, mx, std_u, gh_pr, wage_r, wage_chiba, gh_rent_h)
+            v = invest(g["cap"], 365, std_u, g["pd"], g["ct"], g["open"])
+            return g, v
 
-        def fte(mx):
-            return sum(v / GH_SUP[k] for k, v in mx.items() if k in GH_SUP)
-        pay = GH_FTE * pf["pay"] / nf["pay"]
+        def roi_s(v):
+            return f'{v["roi"] * 100:.0f}%' if v["roi"] is not None else "—"
         rows_ = []
         for name, mx in GH_MIX:
-            d_rev = (units(mx) - units(base_mix)) * gh_pr * 365 * n_in / 1e4
-            d_st = (fte(mx) - fte(base_mix)) * n_in * pay
-            v = invest(P_["cap"], P_["days"], std_u, std_pd + (units(mx) - units(base_mix)) * gh_pr, P_["cost"] + d_st, P_["open_"])
-            roi_s = f'{v["roi"] * 100:.0f}%' if v["roi"] is not None else "—"
+            g, v = one(GH_HOUSES, mx)
             mix_s = "・".join(f"区分{k if k != '1' else '1以下'} {int(x * 100)}%" for k, x in mx.items())
-            rows_.append(f'<tr{" class=\"me\"" if mx is base_mix else ""}><th>{E(name)}<br><small>{mix_s}</small></th><td>{units(mx) * gh_pr:,.0f}円</td>'
-                         f'<td>{d_rev:+,.0f}万円</td><td>{d_st:+,.0f}万円</td><td><b>{v["profit"]:+,.0f}万円</b></td><td>{roi_s}</td></tr>')
+            rows_.append(f'<tr{" class=\"me\"" if mx is GH_MIX[1][1] else ""}><th>{E(name)}<br><small>{mix_s}</small></th>'
+                         f'<td>{g["units"] * gh_pr:,.0f}円</td><td>{g["rv"]:,.0f}万円</td><td>{g["st"]:,}万円</td><td><b>{g["bal"]:+,.0f}万円</b></td><td>{roi_s(v)}</td></tr>')
+        rows_h = []
+        for hs in (1, 2, 3):
+            g, v = one(hs, GH_MIX[1][1])
+            rows_h.append(f'<tr{" class=\"me\"" if hs == GH_HOUSES else ""}><th>{hs}住居（定員{g["cap"]}人）</th><td>{g["rv"]:,.0f}万円</td><td>{g["st"]:,}万円</td>'
+                          f'<td><b>{g["bal"]:+,.0f}万円</b></td><td>{g["bal"] / g["rv"] * 100:+.1f}%</td><td>{g["open"]:,}万円</td></tr>')
         return ('<h3>入居する人の障害支援区分でどう変わるか</h3>'
                 '<p>グループホームの基本の報酬は、入居する人の障害支援区分で大きく変わる（区分6は1日600単位、区分2は188単位）。'
-                '区分の重い人が多いと売上は上がるが、決まりで生活支援員を多く置く必要があり、人件費も上がる。</p>'
-                '<table class="small"><tr><th>入居する人の組み合わせ</th><th>基本の報酬（1人1日）</th><th>1年の売上の差</th><th>生活支援員の人件費の差</th><th>1年の利益</th><th>ROI</th></tr>'
+                '区分の重い人が多いと売上は上がるが、指定の基準で生活支援員を多く置く必要があり、人件費も上がる。</p>'
+                f'<table class="small"><tr><th>入居する人の組み合わせ（{GH_HOUSES}住居）</th><th>基本の報酬（1人1日）</th><th>1年の売上</th><th>人件費</th><th>1年の利益</th><th>ROI</th></tr>'
                 + "".join(rows_) + '</table>'
+                '<h3>住居の数でどう変わるか（区分3〜4が中心）</h3>'
+                '<p>管理者兼サービス管理責任者の給料は、住居が増えても1人分で済む（入居者30人までに1人）。一方で、夜勤は住居ごとに毎晩必要である。'
+                'そのため、1住居だけでは固定の人件費を賄えず、住居を増やすほど収支は良くなる。</p>'
+                '<table class="small"><tr><th>住居の数</th><th>1年の売上</th><th>人件費</th><th>1年の利益</th><th>利益率</th><th>開業費用</th></tr>'
+                + "".join(rows_h) + '</table>'
                 f'<p class="note">基本の報酬は、2024年度改定後の介護サービス包括型（世話人6:1）の単位に、{E(city)}の1単位{gh_pr:.2f}円をかけたものである。'
-                '生活支援員は、区分3は入居者9人に1人、区分4は6人に1人、区分5は4人に1人、区分6は2.5人に1人（指定の基準）として、1人年'
-                f'{pay:,.0f}万円で数えた。収支試算は「区分3〜4が中心」に近いと仮定している。夜間支援等体制加算や重度障害者支援加算は入れていないので、'
-                '重い人が中心のときは、加算と夜の体制の人件費で、さらに上にも下にも動く。</p>')
+                '生活支援員は、区分3は入居者9人に1人、区分4は6人に1人、区分5は4人に1人、区分6は2.5人に1人（指定の基準）として数えた。'
+                '重度障害者支援加算、医療連携体制加算、日中支援加算などは入れていないので、取れる加算があれば利益は上に動く。</p>')
 
     def site_money():
         """候補地ごとの家賃の目安と、そこで開設したときの見通し（標準）。"""
@@ -1797,11 +1886,11 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
             if ED["main"] not in cs0:
                 continue
             f, use, med, cm, nn = land_factor(city, cl["x"], cl["y"])
-            d_rent = P_["rent"] * (f - 1)
+            d_rent = P_["rent"] * (f - 1) * (1 - std_u if ed == "gh" else 1)  # グループホームの家賃は入居者が払うので、空き部屋の分だけ
             v = invest(P_["cap"], P_["days"], std_u, std_pd, P_["cost"] + d_rent, P_["open_"])
             land = f'{use}の地価 {med / 1e4:,.1f}万円/㎡（市の真ん中 {cm / 1e4:,.1f}万円、{nn}地点）' if use else "近くに地価公示の地点が少ない（市の平均で計算）"
             roi_s = f'{v["roi"] * 100:.0f}%' if v["roi"] is not None else "—"
-            rows_.append(f'<tr><th>{j}</th><td>{E(cl["towns"][0])}のあたり</td><td>{land}</td><td>月{P_["rent"] * f / 12:,.0f}万円</td>'
+            rows_.append(f'<tr><th>{j}</th><td>{E(cl["towns"][0])}のあたり</td><td>{land}</td><td>月{P_["rent"] * f / 12 / (GH_HOUSES if ed == "gh" else 1):,.0f}万円</td>'
                          f'<td>{v["profit"]:+,.0f}万円</td><td>{v["need"]:,.0f}万円</td><td>{roi_s}</td></tr>')
         if not rows_:
             return ""
@@ -1809,7 +1898,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                 '<th>家賃の目安</th><th>1年の利益</th><th>投下資本</th><th>ROI</th></tr>' + "".join(rows_) + '</table>'
                 f'<p class="note">家賃は、{E(city)}の借家の平均家賃（総務省「住宅・土地統計調査」2023年）から置いた月{P_["rent"] / 12:,.0f}万円を、'
                 '国土交通省「地価公示」の候補地の周辺の地価で上げ下げした目安である。家賃は地価ほど大きく動かないので、地価の倍率の平方根を使っている。'
-                '実際の募集家賃とは違うので、物件を探すときは、候補地の近くの貸店舗・事務所の募集家賃を不動産サイトで3件ほど見て、この表と比べる必要がある。</p>')
+                '実際の募集家賃とは違うので、物件を探すときは、候補地の近くの貸店舗・事務所の募集家賃を不動産サイトで3件ほど見て、この表と比べる必要がある。'
+                + ('グループホームは1住居あたりの家賃で、入居者が払う家賃で回収する前提なので、利益に効くのは空き部屋の分だけである。' if ed == "gh" else '') + '</p>')
     h.append(f'<section class="pb"><h2>§投資の判断：投下資本・ROI・回収</h2>'
              f'<p>{E(short(ED["main"]))}（定員{P_["cap"]}人）を{E(city)}で開設するとき、<b>いくら入れて、いくら返ってくるか</b>を、'
              f'収支試算の章と同じ前提で、10年間の月ごとのお金の出入りから計算した。</p>'
@@ -1875,7 +1965,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     def cand_money(c, cl):
         f = land_factor(city, cl["x"], cl["y"])[0]
         if c == mc or (child and c != "63"):
-            v = invest(P_["cap"], P_["days"], std_u, std_pd, P_["cost"] + P_["rent"] * (f - 1), P_["open_"])
+            v = invest(P_["cap"], P_["days"], std_u, std_pd, P_["cost"] + P_["rent"] * (f - 1) * (1 - std_u if ed == "gh" else 1), P_["open_"])
             return v, P_["rent"] * f
         o = oth["63"]
         r0 = round(OTHERS["63"]["rent"] * rent_r)
@@ -1901,7 +1991,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         ex_rows.append(f'<tr><th>{j}</th><td>{E("・".join(short(x) for x in cs))}</td><td>{E(cl["towns"][0])}のあたり</td>'
                        f'<td>{f"{idx:.2f}倍" if idx else "—"}</td>'
                        f'<td>{short_s}</td>'
-                       f'<td>月{rent_y / 12:,.0f}万円</td><td>{v["need"]:,.0f}万円</td><td>{pct(roi)}</td><td>{yrs(v["back"])}</td>'
+                       f'<td>月{rent_y / 12 / (GH_HOUSES if c == "33" and c == mc else 1):,.0f}万円</td><td>{v["need"]:,.0f}万円</td><td>{pct(roi)}</td><td>{yrs(v["back"])}</td>'
                        f'<td><span class="dot {col}"></span><b>{vd}</b></td></tr>')
     best = next((x for x in verdicts if x[0] == "進める価値が高い"), next((x for x in verdicts if x[0] == "条件付き"), None))
     ex = ['<section class="pb"><h2>§判断のまとめ：開設するならどこが良いか</h2>']
@@ -1975,7 +2065,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                           + ("地域の中小の法人が中心の市" if chain_share < 0.3 else "大手の存在感が大きい市"))
     MSG["人材の採用しやすさ"] = (f'{pref}の{jobr0[2]}の求人倍率は{jobr0[0]:.2f}倍（全国{jobr0[1]:.2f}倍）。'
                             + ("採用は開設の半年前から始める必要がある" if jobr0[0] >= 2 else "採用は比較的しやすい"))
-    MSG["を開設するときの収支試算"] = (f'定員{P_["cap"]}人で年{base_p:+,.0f}万円。黒字になる{word_m}は約{be_u * 100:.0f}%')
+    MSG["を開設するときの収支試算"] = (f'定員{P_["cap"]}人で年{base_p:+,.0f}万円。黒字になる{word_m}は約{be_u * 100:.0f}%'
+                                + ('。住居の数と入居する人の区分で、収支は大きく変わる' if ed == "gh" else ''))
     if child:
         MSG["児童発達支援を合わせて開設するときの収支試算"] = f'児童発達支援は定員10人で年{oth["63"]["bal"]:+,.0f}万円。黒字になる利用率は約{oth["63"]["be"] * 100:.0f}%'
     MSG["投資の判断：投下資本・ROI・回収"] = (f'必要な資金は約{sd["need"]:,.0f}万円。'
@@ -2032,7 +2123,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
             f'{E(city)}では半年で{len(newl[mc])}か所の{E(short(mc))}が新規に登録された。曜日・時間・受け入れる人で違いをはっきりさせる（「差別化のポイント」の章）。'),
            ("市の総量規制・指定の制限", "高" if caps_open.get(mc) else "中" if ed == "gh" else "低", "開業そのものができない",
             '物件の契約の前に、市の障害福祉課に、計画の量と事前協議の時期を確かめる。'),
-           ("家賃が高い・物件の改修費がふくらむ", "中", f'家賃が30%上がると年{-P_["rent"] * 0.3:+,.0f}万円',
+           ("家賃が高い・物件の改修費がふくらむ", "中", (f'家賃が30%上がると、入居者の家賃も上がり、空き部屋の分で年{-P_["rent"] * 0.3 * (1 - std_u):+,.0f}万円' if ed == "gh" else f'家賃が30%上がると年{-P_["rent"] * 0.3:+,.0f}万円'),
             '契約の前に、用途変更・消防設備・バリアフリーの工事がいくらかかるかを、建築士と消防署に確かめる。'),
            ("運営の指導・監査で報酬を返す", "低", "過去にさかのぼって返すことがあり、影響は大きい",
             '人員の基準、個別支援計画、記録を毎月点検する。分からないところは市に先に聞く。')]
@@ -2141,15 +2232,14 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         f'<tr><th>{E(short(c))}</th><td>{o["cap"]}人</td><td>{o["util"] * 100:.0f}%</td><td>{o["pd"]:,.0f}円</td><td>{o["rv"]:,.0f}万円</td>'
         f'<td>{o["ct"]:,}万円</td><td><b>{o["bal"]:+,.0f}万円</b></td><td>約{o["be"] * 100:.0f}%</td></tr>' for c in show for o in [allm[c]])
     pre_o = {
-        "65": f'年{DAYS}日営業。職員6人で人件費年{staff:,}万円、そのほか年{other:,}万円（家賃を含む）。1単位{price:.2f}円',
-        "63": f'年{OTHERS["63"]["days"]}日営業。職員6〜7人で人件費年{oth["63"]["st"]:,}万円、そのほか年{oth["63"]["ct"] - oth["63"]["st"]:,}万円（家賃を含む）。1単位{oth["63"]["pr"]:.2f}円',
-        "46": f'年{OTHERS["46"]["days"]}日営業。職員7〜8人で人件費年{oth["46"]["st"]:,}万円、そのほか年{oth["46"]["ct"] - oth["46"]["st"]:,}万円（家賃を含む）。1単位{oth["46"]["pr"]:.2f}円。'
+        "65": f'年{DAYS}日営業。職員{1 + DIRECT["65"]:.1f}人（常勤換算）で人件費年{staff:,}万円、そのほか年{other:,}万円（家賃を含む）。1単位{price:.2f}円',
+        "63": f'年{OTHERS["63"]["days"]}日営業。職員{1 + DIRECT["63"]:.1f}人（常勤換算）で人件費年{oth["63"]["st"]:,}万円、そのほか年{oth["63"]["ct"] - oth["63"]["st"]:,}万円（家賃を含む）。1単位{oth["63"]["pr"]:.2f}円',
+        "46": f'年{OTHERS["46"]["days"]}日営業。職員{1 + DIRECT["46"] + DIRECT_OTHER["46"]:.1f}人（常勤換算）で人件費年{oth["46"]["st"]:,}万円、そのほか年{oth["46"]["ct"] - oth["46"]["st"]:,}万円（家賃を含む）。1単位{oth["46"]["pr"]:.2f}円。'
               '工賃（利用者の給料）は売上と別に、作業の収入から払う前提',
-        "33": f'1年365日、入居率{GH_UTIL * 100:.0f}%。人件費年{gh["st"]:,}万円、そのほか年{gh["ct"] - gh["st"]:,}万円（建物の家賃を含む）。1単位{gh_pr:.2f}円。'
-              '売上は入居者が払う家賃・食費なども含む全国平均からの目安',
+        "33": f'定員{GH_HOUSE}人の住居を{GH_HOUSES}か所、入居率{GH_UTIL * 100:.0f}%。人件費年{gh["st"]:,}万円（毎晩の夜勤を含む）、そのほか年{gh["ct"] - gh["st"]:,}万円（建物の家賃を含む）。1単位{gh_pr:.2f}円',
     }
     src_o = {"65": "福祉医療機構「2024年度 放課後等デイサービスの経営状況」", "63": f'福祉医療機構「{OTHERS["63"]["src"]}」',
-             "46": f'福祉医療機構「{OTHERS["46"]["src"]}」', "33": "厚生労働省「令和5年 障害福祉サービス等経営実態調査」"}
+             "46": f'福祉医療機構「{OTHERS["46"]["src"]}」', "33": "厚生労働省「令和7年 障害福祉サービス等経営概況調査」「令和6年度 処遇状況等調査」"}
     if show:
         h.append('<section class="pb"><h2>§児童発達支援を合わせて開設するときの収支試算</h2>'
              f'<p>児童発達支援を{E(city)}で開設した場合の、仮の1年間の収支である。'

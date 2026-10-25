@@ -1,8 +1,1 @@
-# 収支試算を障害福祉の公的な数字で作り直すために取りに行く資料（名前 URL）。
-keiei_r7 https://www.mhlw.go.jp/houdou/2026/05/dl/r0801-02.pdf
-keiei_r7_gaiyou https://www.mhlw.go.jp/content/12401000/001599113.pdf
-shogu_r6 https://www.mhlw.go.jp/bunya/shougaihoken/toukei/shogu_tyousa/dl/r06_kekka.pdf
-wage_r7_a https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421195&fileKind=4
-wage_r7_b https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421196&fileKind=4
-wage_r7_c https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421197&fileKind=4
-wage_r7_d https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421198&fileKind=4
+# 取り寄せる資料はいまはなし
