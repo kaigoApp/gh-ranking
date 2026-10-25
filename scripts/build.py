@@ -1014,6 +1014,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
 <section><h2>{E(mname)}の{E(short)}の一覧</h2><p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>
 {tools}
 <div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div></section>
+{area_box(rel, pi, mname, c)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
 {f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所をすべて見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
@@ -1596,6 +1597,75 @@ def build_privacy():
          f"{SITE_NAME}のアクセス解析（Google アナリティクス）で送る情報と、位置情報の扱いについて。", hero, body)
 
 
+SHOP = json.loads((ROOT / "data" / "report" / "shop.json").read_text(encoding="utf-8"))
+AREA_PATH = "report/area/"
+
+
+def area_report_for(pi, mname):
+    """市区町村（政令市の区もふくむ）に地域レポートがあれば、その市の設定を返す。"""
+    for x in SHOP["cities"]:
+        if PREFS[pi] == x["pref"] and (mname == x["city"] or mname.startswith(x["city"]) and mname.endswith("区")):
+            return x
+    return None
+
+
+def area_box(rel, pi, mname, c):
+    """市区町村 × サービスのページに出す、地域レポートの案内枠。"""
+    x = area_report_for(pi, mname)
+    ed = next((e for e in SHOP["editions"] if c in e["svcs"]), None)
+    if not x or not ed:
+        return ""
+    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}を開く方へ</p>'
+            f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
+            f'<p>開くならどの町か、市の手続きと総量規制、収支と要る手元資金までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
+            f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">中身と値段を見る</a></aside>')
+
+
+def build_area_reports():
+    """地域別レポート（有料、BOOTH で販売）の売り場。"""
+    rel = "../../"
+    one, st = SHOP["price_one"], SHOP["price_set"]
+
+    def buy(x, label_):
+        if x["booth"]:
+            return f'<a class="area-btn" href="{E(x["booth"])}" rel="noopener" target="_blank">{label_}</a>'
+        return '<span class="area-btn off">準備中</span>'
+    eds = "".join(
+        f'<div><h3>{E(e["name"])}</h3><p class="note">{E(e["for"])}</p><ul>' + "".join(f"<li>{E(s)}</li>" for s in e["points"]) + "</ul></div>"
+        for e in SHOP["editions"])
+    rows = "".join(
+        f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small></th>'
+        '<td>放デイ・児発／グループホーム／就労B型</td>'
+        f'<td>{buy(x, "BOOTH で買う")}</td></tr>'
+        for x in SHOP["cities"])
+    sample = SHOP.get("sample_pdf")
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
+  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
+  <h1>開くならどこか、がわかる地域レポート</h1>
+  <p class="lede">障害福祉の事業所を開こうとしている方に向けて、人口の多い20市区と船橋市について、国の公表データと市の資料から「どの町で開くか」「いくら要るか」「市の決まりはどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
+</div>"""
+    body = f"""
+<section><h2>値段</h2>
+<div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市・1つの版</p></div>
+<div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市・3つの版のセット</p></div></div>
+<p class="note">BOOTH（ピクシブのお店のサービス）でお支払いのあと、すぐに PDF と Excel をダウンロードできます。税こみの値段です。</p></section>
+<section><h2>まずは無料の見本を</h2><p class="sec-sub">船橋市の放課後等デイ・児童発達支援版の前半（まとめ・結論・開業までにやること など）を、そのまま読めます。</p>
+{f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を開く（船橋市・前半）</a>' if sample else ''}</section>
+<section><h2>3つの版の中身</h2><div class="report-cols area-eds">{eds}</div>
+<h3>どの版にも入っているもの</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
+<section><h2>市区の一覧</h2><p class="sec-sub">ボタンを押すと BOOTH の商品ページに移ります。版はそこで選べます。</p>
+<div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th>版</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
+<section><h2>このレポートについて</h2><ul>
+<li>事業所の数と場所は、福祉医療機構 WAM NET のオープンデータ（2021年11月から半年ごと）をもとにしています。</li>
+<li>手続き・総量規制は、各市の手引きと募集要項を2026年10月に確かめたものです。動き出す前に、必ず市の最新の案内を確かめてください。</li>
+<li>収支の試算は、全国の平均的な事業所の数字を市の単価・給料・家賃に合わせた、判断のたたき台です。</li>
+<li>レポートの数字は、出典（ジモふく）を書いていただければ引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
+    page(AREA_PATH, "地域レポート｜開くならどこか、がわかる市区ごとのレポート",
+         f"障害福祉の事業所を開く方へ。人口の多い20市区と船橋市について、開くならどの町か・市の手続きと総量規制・収支と要る手元資金をまとめた PDF（{SHOP['period']}のデータ）。",
+         hero, body)
+
+
 def report_path(p):
     return f"report/{p}/"
 
@@ -1619,7 +1689,9 @@ def build_reports(S, codes, periods):
 </div>"""
     page("report/", "レポート｜障害福祉の事業所はどう変わったか",
          "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
-         hero, f'<section><ul class="report-list">{items}</ul></section>')
+         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>開くならどの町か・市の手続き・収支を、市区ごとに1冊に。人口の多い20市区と船橋市。無料の見本あり。</span></a></section>'
+         f'<section><ul class="report-list">{items}</ul></section>')
+    build_area_reports()
 
 
 def build_report(S, codes, ps, p, q, start):
