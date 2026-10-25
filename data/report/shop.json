@@ -3,7 +3,7 @@
   "period": "2026年3月末",
   "price_one": 3300,
   "price_set": 8800,
-  "shop_url": "",
+  "shop_url": "https://jimofuku.booth.pm/",
   "sample_pdf": "assets/report/sample-funabashi.pdf",
   "editions": [
     {"key": "child", "name": "放課後等デイ・児童発達支援版", "svcs": ["65", "63"],
@@ -38,6 +38,6 @@
     {"pref": "東京都", "city": "練馬区", "booth": ""},
     {"pref": "東京都", "city": "大田区", "booth": ""},
     {"pref": "熊本県", "city": "熊本市", "booth": ""},
-    {"pref": "千葉県", "city": "船橋市", "booth": ""}
+    {"pref": "千葉県", "city": "船橋市", "booth": "https://jimofuku.booth.pm/items/9042819"}
   ]
 }
