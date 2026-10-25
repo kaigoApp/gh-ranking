@@ -701,7 +701,7 @@ def build_one(ctx, pi, city, geo_dir, ranks):
         return f'<div class="tile"><p class="tl">{label}</p><p class="tv">{val}</p><p class="ts">{sub}</p></div>'
     tiles = [
         tile("障害福祉の事業所", f"{total[-1]:,}件", f"{l0}から{(total[-1] - total[0]) / total[0] * 100:+.0f}%"),
-        tile("放課後等デイの利用率", f"約{util * 100:.0f}%" if util else "—", "全国の平均89%" if util else "市の数字なし（全国89%で試算）"),
+        tile("放課後等デイの利用率", f"約{util * 100:.0f}%" if util else "—", ("定員をこえる計算（くわしくは利用率の章）" if util > 1.2 else "全国の平均89%") if util else "市の数字なし（全国89%で試算）"),
         tile("放デイ定員10人の収支", f"年{sim_year(*per['標準'], cost):+,.0f}万円", f"黒字になる利用率 約{be * 100:.0f}%"),
         tile("開くのに要る手元資金", f"約{-low:,.0f}万円", f"元が取れるまで約{back // 12}年{back % 12}か月" if back else "10年では元が取れない"),
         tile("保育士の求人倍率", f"{pf['hoiku']:.2f}倍", f"全国{nf['hoiku']:.2f}倍・{E(pref)}"),
@@ -932,7 +932,8 @@ def build_one(ctx, pi, city, geo_dir, ranks):
                  f'<tr><th>1か月に使った子どもの数</th><td>{users}</td><td style="text-align:left">同じ資料</td></tr>'
                  f'<tr><th>そのころの定員の合計（推計）</th><td>約{cap_then:,.0f}人</td><td style="text-align:left">そのころの事業所の数×いまの1事業所あたりの定員（{avg_cap:.1f}人）</td></tr>'
                  f'<tr><th><b>利用率の目安</b></th><td><b>約{util * 100:.0f}%</b></td><td style="text-align:left">全国の事業所の平均は89.1%（福祉医療機構、2024年度）</td></tr></table>')
-        msg = ("定員より多く使われている計算になります。市の外の事業所に通う子どもが多いか、定員をこえて受け入れている事業所が多いと考えられます。足りていない可能性が高い地域です。" if util > 1.0 else
+        msg = ("定員を大きくこえて使われている計算です。WAM NET に載っていない事業所があるか、市の外の事業所に通う子どもが多いと考えられるので、数字そのものより「足りていない側」の目安として見てください。" if util > 1.2 else
+               "定員より多く使われている計算になります。市の外の事業所に通う子どもが多いか、定員をこえて受け入れている事業所が多いと考えられます。足りていない可能性が高い地域です。" if util > 1.0 else
                "全国の平均より高く、空きの少ない地域です。新しい事業所にも利用者が集まりやすいと考えられます。" if util >= 0.9 else
                "全国の平均に近い地域です。場所や中身で選ばれる事業所になることが大事です。" if util >= 0.8 else
                "全国の平均より低く、空きのある地域です。新しく開くなら、空白の地域をねらうか、ほかにない特色が必要です。")
