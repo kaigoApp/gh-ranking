@@ -1,0 +1,13 @@
+# 利用率の数字を探すために、市・区の資料を GitHub Actions で取りに行く一覧（名前 URL）。
+# 取った資料は文字にして data/report/raw/ に置く（調べ終わったら消す）。
+kumamoto_plan7 https://www.city.kumamoto.jp/kiji003836/5_836_397423_up_MGKB2UHW.pdf
+nerima_plan_soan https://www.city.nerima.tokyo.jp/kusei/kaigi/kaigiroku/hoken/jiritusien/051109ziritukyogikai.files/1109siryo3-3.pdf
+nerima_seika_r5 https://www.city.nerima.tokyo.jp/kusei/zaisei/kessan/r5/index.files/R5syuyoujigyou.pdf
+ota_kodomo_r5 https://www.city.ota.tokyo.jp/gikai/kugikai_katsudou/iinkai/iinkaishiryo/kodomo/R5kodomo/kodomo050714.files/04_kodomo050714.pdf
+setagaya_plan_soan https://www.city.setagaya.lg.jp/documents/3312/05.pdf
+nagoya_nenpo_r5 https://www.city.nagoya.jp/_res/projects/default_project/_page_/001/004/284/hyo12.xlsx
+nagoya_nenpo_r5_08 https://www.city.nagoya.jp/_res/projects/default_project/_page_/001/004/284/hyo08.xlsx
+kawasaki_nenpo_r6 https://www.city.kawasaki.jp/350/cmsfiles/contents/0000186/186166/2024nenpo.pdf
+yokohama_plan_0089 https://www.city.yokohama.lg.jp/kenko-iryo-fukushi/fukushi-kaigo/fukushi/plan/sho-plan/syoplan4th.files/0089_20240718.pdf
+yokohama_plan_0097 https://www.city.yokohama.lg.jp/kenko-iryo-fukushi/fukushi-kaigo/fukushi/plan/sho-plan/syoplan4th.files/0097_20240718.pdf
+yokohama_plan_0099 https://www.city.yokohama.lg.jp/kenko-iryo-fukushi/fukushi-kaigo/fukushi/plan/sho-plan/syoplan4th.files/0099_20240718.pdf
