@@ -42,6 +42,7 @@ EDITIONS = {
 MAPCACHE = {}
 INV = {}  # いま作っている版の投資の判断（まとめで使う）
 SITE = {}  # いま作っている版の立地の点数
+LABELS = {}  # 地図に書く区・町の名前
 CAP = ["65", "63", "46", "22", "45", "60"]  # 定員を足すサービス（グループホームは定員のデータがない）
 E = html.escape
 
@@ -228,16 +229,60 @@ def gap_map(rows, rings, code, city):
         inner = sum(1 for r in city_others if any(math.hypot((r[0] - c[0]) * kx, (r[1] - c[1]) * ky) < step for c in m))
         clusters.append(dict(a=a, x=cx, y=cy, towns=[t for t, _ in towns.most_common(3)], md=max(c[2] for c in m),
                              avgd=sum(c[2] for c in m) / len(m), comp=len(near2), compcap=sum(r[5] for r in near2), inner=inner))
-    svg = map_svg(rings, bb, kx, ky, step, cells, [r for r in svc], clusters)
+    svg = None
+    args = (rings, bb, kx, ky, step, cells, [r for r in svc], clusters)
     return dict(n=n, area=n * step * step, far=len(far) / n * 100 if n else 0,
-                live_far=len(live_far) / len(live) * 100 if live else 0, clusters=clusters, svg=svg,
+                live_far=len(live_far) / len(live) * 100 if live else 0, clusters=clusters, svg=svg, args=args,
                 inside=sum(1 for r in svc if inside(rings, r[0], r[1])))
 
 
 BANDS = [(0.5, "#cfe9d3", "0.5km以内"), (1.0, "#8fcf9c", "0.5〜1km"), (2.0, "#f6c36b", "1〜2km"), (99, "#d9792b", "2km より遠い")]
 
 
-def map_svg(rings, bb, kx, ky, step, cells, svc, clusters):
+def map_labels(geo_dir, pi, city, rings):
+    """地図に書く名前：政令市は区、ほかは人の多い町（重ならないように間をあける）。"""
+    f = pathlib.Path(geo_dir) / f"N03_{pi + 1:02d}.json"
+    g = json.loads(f.read_text(encoding="utf-8"))
+    wards = collections.defaultdict(list)
+    for ft in g["features"]:
+        pr = ft["properties"]
+        if pr["N03_003"] == city and pr["N03_004"]:
+            gm = ft["geometry"]
+            for poly in (gm["coordinates"] if gm["type"] == "MultiPolygon" else [gm["coordinates"]]):
+                wards[pr["N03_004"]].append(poly[0])
+    out = []
+    for w, rs in wards.items():
+        r = max(rs, key=len)
+        out.append((sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r), w, "ward"))
+    load_small()
+    areas = collections.defaultdict(lambda: [0, 0.0, 0.0])
+    for t in SMALL:
+        if t["muni"].startswith(city) and t["v"].get("0～4歳", 0) >= 0:
+            n = sum(t["v"].values())
+            nm = area_name(t["muni"], t["town"], city)
+            nm = nm[len(t["muni"]) - len(city):] if t["muni"] != city else nm  # 区の名前は外す
+            a = areas[nm]
+            a[0] += n
+            a[1] += t["x"] * n
+            a[2] += t["y"] * n
+    xs = [p[0] for r, _ in rings for p in r]
+    ys = [p[1] for r, _ in rings for p in r]
+    span = max(km(min(xs), min(ys), max(xs), min(ys)), km(min(xs), min(ys), min(xs), max(ys)))
+    gap = span / (9 if out else 6)
+    taken = [(x, y) for x, y, _, _ in out]
+    n_town = 0
+    for nm, (n, sx, sy) in sorted(areas.items(), key=lambda kv: -kv[1][0]):
+        if not n or not nm or n_town >= (10 if out else 16):
+            continue
+        x, y = sx / n, sy / n
+        if all(km(x, y, a, b) > gap for a, b in taken):
+            out.append((x, y, nm, "town"))
+            taken.append((x, y))
+            n_town += 1
+    return out
+
+
+def map_svg(rings, bb, kx, ky, step, cells, svc, clusters, labels=(), picks=()):
     W = 640
     w_km, h_km = (bb[2] - bb[0]) * kx, (bb[3] - bb[1]) * ky
     sc = W / w_km
@@ -263,10 +308,22 @@ def map_svg(rings, bb, kx, ky, step, cells, svc, clusters):
         px, py = P(r[0], r[1])
         if -4 < px < W + 4 and -4 < py < H + 4:
             out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="2.6" fill="#1f4d3a" stroke="#fff" stroke-width=".8"/>')
-    for i, c in enumerate(clusters, 1):
+    for x, y, t, kind in labels:  # 区・町の名前（白いふちどりで読みやすく）
+        px, py = P(x, y)
+        if not (0 < px < W and 0 < py < H):
+            continue
+        fs, fw, col = (15, 800, "#1f4d3a") if kind == "ward" else (10.5, 600, "#33443a")
+        out.append(f'<text x="{px:.1f}" y="{py:.1f}" text-anchor="middle" font-size="{fs}" font-weight="{fw}" fill="{col}" '
+                   f'stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">{E(t)}</text>')
+    for i, c in enumerate(clusters):
         px, py = P(c["x"], c["y"])
-        out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="10" fill="#fff" stroke="#b3392c" stroke-width="2"/>'
-                   f'<text x="{px:.1f}" y="{py + 4.5:.1f}" text-anchor="middle" font-size="13" font-weight="700" fill="#b3392c">{i}</text>')
+        lab = "ABCDEFGH"[i]
+        out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="9" fill="#fff" stroke="#5b6c60" stroke-width="1.5" stroke-dasharray="3 2"/>'
+                   f'<text x="{px:.1f}" y="{py + 4:.1f}" text-anchor="middle" font-size="11" font-weight="700" fill="#5b6c60">{lab}</text>')
+    for j, c in picks:  # 「開設するならどこが良いか」の順位
+        px, py = P(c["x"], c["y"])
+        out.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="11" fill="#b3392c" stroke="#fff" stroke-width="2"/>'
+                   f'<text x="{px:.1f}" y="{py + 4.5:.1f}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">{j}</text>')
     return f'<svg viewBox="0 0 {W:.0f} {H:.0f}" width="{W:.0f}" height="{H:.0f}" class="map">{"".join(out)}</svg>'
 
 
@@ -797,6 +854,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 
     # 地図
     rings = load_rings(geo_dir, pi, city)
+    if (pi, city) not in LABELS:
+        LABELS[(pi, city)] = map_labels(geo_dir, pi, city, rings)
     maps = {}
     for c in MAPS:
         if (pi, city, c) not in MAPCACHE:
@@ -1698,15 +1757,15 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         h.append(f'<section class="pb"><h2>{"§近くにない地域の地図" if i == 0 else "§§近くにない地域の地図（つづき）"}</h2>'
                  f'<h3>{E(SERVICES[c][0])}</h3>'
                  f'<p>色は、いちばん近い{E(short(c))}までのまっすぐの距離です。点は{E(short(c))}の事業所（市の外の近くの事業所もふくむ）。'
-                 f'数字の丸は、住宅地なのに1km以上はなれている場所のまとまりです。</p>'
-                 f'<div class="mapbox">{m["svg"]}</div><p class="legend">'
+                 '<b style="color:#b3392c">赤い数字</b>は「開設するならどこが良いか」の章の順位、点線の丸（A, B…）は、住宅地なのに1km以上はなれている場所のまとまりです。</p>'
+                 f'<div class="mapbox">{map_svg(*m["args"], labels=LABELS.get((pi, city), ()), picks=[(j, cl) for j, (_, c0, cl, cs0, _) in enumerate(cands, 1) if c in cs0])}</div><p class="legend">'
                  + "".join(f'<span class="lg"><i style="background:{col}"></i>{lab}</span>' for _, col, lab in BANDS)
                  + '</p>')
         h.append(f'<p>1km以上はなれている場所は市の面積の<b>約{m["far"]:.0f}%</b>、住宅地の目安とした場所の<b>約{m["live_far"]:.0f}%</b>です。</p>')
         if m["clusters"]:
             h.append('<table class="small cl"><tr><th></th><th>だいたいの場所</th><th>広さ</th><th>いちばん遠いところ</th></tr>'
                      + "".join(f'<tr><th>{j}</th><td>{E("・".join(cl["towns"]) or "—")}のあたり</td><td>約{cl["a"]:.1f}km²</td><td>約{cl["md"]:.1f}km</td></tr>'
-                               for j, cl in enumerate(m["clusters"], 1)) + '</table>')
+                               for j, cl in zip("ABCDEFGH", m["clusters"])) + '</table>')
         else:
             h.append('<p>住宅地で1km以上はなれている大きなまとまりは見つかりませんでした。</p>')
         h.append('</section>')
