@@ -129,6 +129,14 @@
      "地下・窓のない部屋・5階以上は不可。トイレは事業所の中に男女別で",
      "風俗店などから200m以内は不可。1981年より前の建物は不可"
     ]
+   },
+   "houday": {
+    "fy": 2022,
+    "nd": 104889,
+    "users": 9886,
+    "kind": "実績（延べ利用日数 年1,258,671人日÷12）",
+    "src": "第4期横浜市障害者プラン 中間見直し素案（詳細版）",
+    "url": "https://www.city.yokohama.lg.jp/kenko-iryo-fukushi/fukushi-kaigo/fukushi/plan/sho-plan/syoplan4th.files/syosai1.pdf"
    }
   },
   "大阪市": {
@@ -408,6 +416,13 @@
     "cautions": [
      "区は重症心身障害児・医療的ケア児を受け入れる事業所を特に求めています"
     ]
+   },
+   "houday": {
+    "fy": 2023,
+    "nd": 10172,
+    "kind": "推計（支給額 年16.26億円÷1人1日の報酬 約13,300円÷12）",
+    "src": "世田谷区 令和6年度 保健福祉総合事業概要",
+    "url": "https://www.city.setagaya.lg.jp/documents/6082/r6jigyougaiyou.pdf"
    }
   },
   "北九州市": {
@@ -523,6 +538,14 @@
      "2か月前の月末までに申請書を出す",
      "毎月1日付で指定"
     ]
+   },
+   "houday": {
+    "fy": 2022,
+    "nd": 11415,
+    "users": 1115,
+    "kind": "実績",
+    "src": "練馬区障害者計画（一部改定）・第三期障害児福祉計画 素案（2023年11月）",
+    "url": "https://www.city.nerima.tokyo.jp/kusei/kaigi/kaigiroku/hoken/jiritusien/051109ziritukyogikai.files/1109siryo3-3.pdf"
    }
   },
   "大田区": {
@@ -599,6 +622,14 @@
       "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf"
      }
     }
+   },
+   "houday": {
+    "fy": 2022,
+    "nd": 37017,
+    "users": 2742,
+    "kind": "実績の利用者数×市の計画の1人あたり平均13.5日",
+    "src": "第7期熊本市障がい福祉計画・第3期熊本市障がい児福祉計画（2024年3月）",
+    "url": "https://www.city.kumamoto.jp/kiji003836/5_836_397423_up_MGKB2UHW.pdf"
    }
   },
   "船橋市": {
