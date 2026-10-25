@@ -1615,7 +1615,7 @@ def area_box(rel, pi, mname, c):
     ed = next((e for e in SHOP["editions"] if c in e["svcs"]), None)
     if not x or not ed:
         return ""
-    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}を開く方へ</p>'
+    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}を開設する方へ</p>'
             f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
             f'<p>開設するならどの町が良いか、投下資本と回収の見通し、経営の考え方から見た読み方までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
             f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">中身と値段を見る</a></aside>')
@@ -1643,7 +1643,7 @@ def build_area_reports():
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
   <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
   <h1>開設するならどこが良いか、がわかる地域レポート</h1>
-  <p class="lede">障害福祉の事業所を開こうとしている方に向けて、人口の多い20市区と船橋市について、国勢調査と国の公表データから「どの町で開くか」「いくら入れて、いくら返ってくるか」「経営の考え方から見てどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
+  <p class="lede">障害福祉の事業所を開設しようとしている方に向けて、人口の多い20市区と船橋市について、国勢調査と国の公表データから「どの町で開設するか」「いくら入れて、いくら返ってくるか」「経営の考え方から見てどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
 </div>"""
     body = f"""
 <section><h2>値段</h2>
@@ -1671,7 +1671,7 @@ def build_area_reports():
 <li>収支の試算は、全国の平均的な事業所の数字を市の単価・給料・家賃に合わせた、判断のたたき台です。</li>
 <li>レポートの数字は、出典（ジモふく）を書いていただければ引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
     page(AREA_PATH, "地域レポート｜開設するならどこが良いか、がわかる市区ごとのレポート",
-         f"障害福祉の事業所を開く方へ。人口の多い20市区と船橋市について、開設するならどの町が良いか・投下資本とROI・経営の考え方から見た読み方をまとめた PDF（{SHOP['period']}のデータ）。",
+         f"障害福祉の事業所を開設する方へ。人口の多い20市区と船橋市について、開設するならどの町が良いか・投下資本とROI・経営の考え方から見た読み方をまとめた PDF（{SHOP['period']}のデータ）。",
          hero, body)
 
 
