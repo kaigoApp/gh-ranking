@@ -804,8 +804,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                f"黒字になる{'入居率' if ed == 'gh' else '利用率'}は<b>約{est['be'] * 100:.0f}%</b>です（{grade_txt}で試算）。")
     if cands:
         sc, c, cl, cs, _ = cands[0]
-        pts.insert(0, f"<b>結論：開くなら、{E('・'.join(short(x) for x in cs))}を{E('・'.join(cl['towns'][:2]))}のあたりで</b>が第一候補です。"
-                      f"近くに{E(short(c))}が少なく（いちばん近いところまで平均{cl['avgd']:.1f}km）、人の住む地域です（くわしくは「結論：開くならどこか」の章）。")
+        pts.insert(0, f"<b>結論：開設するなら、{E('・'.join(short(x) for x in cs))}を{E('・'.join(cl['towns'][:2]))}のあたりで</b>が第一候補です。"
+                      f"近くに{E(short(c))}が少なく（いちばん近いところまで平均{cl['avgd']:.1f}km）、人の住む地域です（くわしくは「結論：開設するならどこが良いか」の章）。")
     for c_, r_ in caps_open.items():
         if c_ in SV or (child and c_ in ("65", "63")):
             pts.append(f"<b>注意（{E(short(c_))}）：</b>{E(r_['text'])}")
@@ -881,7 +881,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 
 
     # 結論
-    h.append('<section class="pb"><h2>§結論：開くならどこか</h2>'
+    h.append('<section class="pb"><h2>§結論：開設するならどこが良いか</h2>'
              '<p>近くにない地域の地図（あとの章）、人口あたりの数、利用率をあわせて、新しく開くときの候補を点数にしました。'
              '点数が高いほど「近くに同じサービスが少なく、人が住んでいて、まわりの競争がゆるい」場所です。</p>')
     if cands:
@@ -984,7 +984,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         if stopped:
             h.append('<p class="contact"><b>いまは新しく開けません。</b>市が新しい指定を止めているあいだは、申請しても受け付けられません。'
                      '下のカレンダーは、止める期間が終わったあとに開く場合の目安です。再開の時期と条件を、市の担当に確かめてから動いてください。</p>')
-        h.append('<h3>開業の逆算カレンダー</h3><table class="small txt2"><tr><th>' + "</th><th>".join(f"{y}年{m}月1日に開くなら" for y, m in targets)
+        h.append('<h3>開業の逆算カレンダー</h3><table class="small txt2"><tr><th>' + "</th><th>".join(f"{y}年{m}月1日に開設するなら" for y, m in targets)
                  + '</th><th>やること</th></tr>' + "".join(
                      '<tr>' + "".join(f'<td>{cal_date(y, m, mb, day):%Y年%-m月%-d日}' + ("まで" if mb else "") + '</td>' for y, m in targets)
                      + f'<td>{E(t)}</td></tr>' for mb, day, t in cal_ed) + '</table>'
@@ -1025,7 +1025,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         h.append('<h3>開業の逆算カレンダー</h3>')
         if op.get("cal_note"):
             h.append(f'<p class="contact"><b>募集のある市：</b>{E(op["cal_note"])}</p>')
-        h.append('<table class="small txt2"><tr><th>' + "</th><th>".join(f"{y}年{m}月1日に開くなら" for y, m in targets)
+        h.append('<table class="small txt2"><tr><th>' + "</th><th>".join(f"{y}年{m}月1日に開設するなら" for y, m in targets)
                  + '</th><th>やること</th></tr>' + "".join(
                      '<tr>' + "".join(f'<td>{cal_date(y, m, mb, day):%Y年%-m月%-d日}' + ("まで" if mb else "") + '</td>' for y, m in targets)
                      + f'<td>{"<b>" if city_ else ""}{E(t)}{"</b>" if city_ else ""}</td></tr>' for mb, day, t, city_ in items) + '</table>'
@@ -1201,7 +1201,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                    "定員より多く使われている計算になります。市の外の事業所に通う子どもが多いか、定員をこえて受け入れている事業所が多いと考えられます。足りていない可能性が高い地域です。" if util > 1.0 else
                    "全国の平均より高く、空きの少ない地域です。新しい事業所にも利用者が集まりやすいと考えられます。" if util >= 0.9 else
                    "全国の平均に近い地域です。場所や中身で選ばれる事業所になることが大事です。" if util >= 0.8 else
-                   "全国の平均より低く、空きのある地域です。新しく開くなら、空白の地域をねらうか、ほかにない特色が必要です。")
+                   "全国の平均より低く、空きのある地域です。新しく開設するなら、空白の地域をねらうか、ほかにない特色が必要です。")
             h.append(f'<p>{msg}</p>')
             if hd.get("users"):
                 h.append(f'<p class="note">1人の子どもが1か月に使う日数は平均{hd["nd"] / hd["users"]:.1f}日です。</p>')
@@ -1368,7 +1368,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
             h.append(f'<p>いまの事業所は<b>{d_["now"]:,}か所</b>です。2035年に要る事業所は<b>{n35l:,.0f}〜{n35h:,.0f}か所</b>の見こみで、'
                      + (f'いまより<b>{n35l - d_["now"]:+,.0f}〜{n35h - d_["now"]:+,.0f}か所</b>。' )
                      + ("子どもがへっても、使う子の割合が増えるかぎり、需要は大きくはへりません。" if d_["k35"] < d_["k25"] and n35h >= d_["now"] else
-                        "子どもがへるため、10年後は今より事業所が余る可能性があります。開くなら、選ばれる理由（場所・中身）がいっそう大事です。" if n35h < d_["now"] else
+                        "子どもがへるため、10年後は今より事業所が余る可能性があります。開設するなら、選ばれる理由（場所・中身）がいっそう大事です。" if n35h < d_["now"] else
                         "子どもの数も需要も増える地域です。")
                      + '</p>')
         h.append('<p class="note">少なめ＝サービスを使う子の割合がいまのまま（子どもの数だけ変わる）。'

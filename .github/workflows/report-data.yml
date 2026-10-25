@@ -2,8 +2,8 @@ name: レポート用データ（将来推計人口）
 
 on:
   push:
-    branches: [regional-report]
-    paths: [scripts/fetch_child_proj.py, scripts/fetch_raw.py, scripts/fetch_places.py, data/report/raw_urls.txt, .github/workflows/report-data.yml]
+    branches: [regional-report, wording-kaisetsu]
+    paths: [scripts/fetch_smallarea.py, scripts/fetch_child_proj.py, scripts/fetch_raw.py, scripts/fetch_places.py, data/report/raw_urls.txt, .github/workflows/report-data.yml]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +20,9 @@ jobs:
       - run: pip install openpyxl==3.1.5 pyshp==2.3.1 xlrd==2.0.1 && sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
       - name: 子どもの将来推計人口を取得
         run: python scripts/fetch_child_proj.py
+      - name: 町丁ごとの年齢別人口を取得
+        run: python scripts/fetch_smallarea.py
+        continue-on-error: true
       - name: 学校と駅の位置を取得
         run: python scripts/fetch_places.py
       - name: 市・区の資料を取得
@@ -29,4 +32,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/report/schools.csv data/report/stations.csv data/report/places_layout.txt data/report/child_proj.csv data/report/child_proj_layout.txt data/report/raw
+          git add data/report/smallarea_layout.txt || true
+          git add data/report/smallarea.csv || true
           git diff --cached --quiet || (git commit -m "レポート用の資料を取得" && git push)
