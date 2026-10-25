@@ -282,6 +282,33 @@ def map_labels(geo_dir, pi, city, rings):
     return out
 
 
+LAND = []
+
+
+def load_land():
+    p = B.ROOT / "data" / "report" / "landprice.csv"
+    if LAND or not p.exists():
+        return
+    with p.open(encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            LAND.append(dict(use=r["use"], price=int(r["price"]), x=float(r["lng"]), y=float(r["lat"]), addr=r["addr"]))
+
+
+def land_factor(city, x, y, r=1.5):
+    """候補地のまわりの地価が、市の真ん中の値の何倍か。商業地を優先し、なければ住宅地。
+    家賃は地価ほど大きくは変わらないので、家賃の倍率は地価の倍率の平方根（0.6〜1.6倍におさえる）とする。
+    (家賃の倍率, 使った用途, まわりの地価の真ん中の値, 市の真ん中の値, 地点の数)"""
+    load_land()
+    mine = [p for p in LAND if re.search(r"(^|[\s　])" + re.escape(city), p["addr"])]  # 「東大阪市」「東広島市」を外す
+    for use in ("商業地", "住宅地"):
+        allp = sorted(p["price"] for p in mine if p["use"] == use)
+        near = sorted(p["price"] for p in mine if p["use"] == use and km(x, y, p["x"], p["y"]) <= r)
+        if len(near) >= 2 and allp:
+            med, cm = statistics.median(near), statistics.median(allp)
+            return max(0.6, min(1.6, (med / cm) ** 0.5)), use, med, cm, len(near)
+    return 1.0, None, None, None, 0
+
+
 def map_svg(rings, bb, kx, ky, step, cells, svc, clusters, labels=(), picks=()):
     W = 640
     w_km, h_km = (bb[2] - bb[0]) * kx, (bb[3] - bb[1]) * ky
@@ -524,9 +551,33 @@ def area_name(muni, town, city):
     return ward + t
 
 
+def decay(d, R):
+    """距離による重み（ガウス型。Luo & Qi 2009 の E2SFCA などで使われる形）。R km で 0 になる。"""
+    if d > R:
+        return 0.0
+    e = math.exp(-0.5)
+    return (math.exp(-0.5 * (d / R) ** 2) - e) / (1 - e)
+
+
+class Bucket:
+    """近くの点をすばやくさがすための、およそ1km四方のます目。"""
+    def __init__(self, pts):
+        self.g = collections.defaultdict(list)
+        for p in pts:
+            self.g[(int(p[0] * 80), int(p[1] * 110))].append(p)
+
+    def near(self, x, y, R):
+        n = int(R) + 1
+        kx, ky = int(x * 80), int(y * 110)
+        for i in range(kx - n, kx + n + 1):
+            for j in range(ky - n, ky + n + 1):
+                yield from self.g.get((i, j), ())
+
+
 def site_model(c, city, rings, rows, periods):
-    """町ごとに、半径 R km の需要（サービスを使う年れいの人口）と受け皿（同じサービスの定員）をくらべる。
-    点数＝(需要 ÷ (今の受け皿＋新しい受け皿)) ÷ (市全体の 需要 ÷ 受け皿)。1.0 が市の平均。"""
+    """町ごとの需要（サービスを使う年れいの人口）を、まわりの事業所が定員と距離に応じて分け合うと考えて
+    （ハフモデル。重みは E2SFCA と同じガウス型の距離減衰）、新しく開いた事業所に来ると見込める利用を出す。
+    倍率＝見込める利用 ÷ 新しい定員。1.0 は市の平均並みに埋まる、という意味。"""
     towns = [t for t in SMALL if t["muni"].startswith(city)]
     if not towns:
         return None
@@ -547,6 +598,12 @@ def site_model(c, city, rings, rows, periods):
     if not d_city or not s_city:
         return None
     base = d_city / s_city
+    u = s_city / d_city  # 市の中で、需要1人あたりの席の数（市の平均の使われ方）
+    fb = Bucket([(r[0], r[1], seat(r)) for r in svc])
+    tb = Bucket([(t["x"], t["y"], t["d"]) for t in towns])
+    for t in towns:  # 町ごとに、まわりの事業所の「引きつける力」の合計
+        t["pull"] = sum(sv * decay(km(t["x"], t["y"], fx, fy), R) for fx, fy, sv in fb.near(t["x"], t["y"], R))
+    tpull = {(t["x"], t["y"]): t["pull"] for t in towns}
     # 最近開いた事業所と、それが続いているか（最初の時点より後に載り、最後の1年より前に載ったもの）
     H = HIST.get(c, {})
     born = []
@@ -569,19 +626,27 @@ def site_model(c, city, rings, rows, periods):
             continue
         cx = sum(t["x"] * t["d"] for t in ts) / dd
         cy = sum(t["y"] * t["d"] for t in ts) / dd
-        dem_r = sum(t["d"] for t in towns if abs(t["y"] - cy) < R / 110 and abs(t["x"] - cx) < R / 80 and km(cx, cy, t["x"], t["y"]) <= R)
-        near_s = [r for r in svc if abs(r[1] - cy) < R / 110 and abs(r[0] - cx) < R / 80 and km(cx, cy, r[0], r[1]) <= R]
-        s_r = sum(seat(r) for r in near_s)
-        idx = dem_r / (s_r + new) / base
+        users = use_r = dem_r = 0.0
+        for tx, ty, td in tb.near(cx, cy, R):
+            wd = decay(km(cx, cy, tx, ty), R)
+            if wd <= 0:
+                continue
+            dem_r += td
+            use_r += td * u
+            users += td * u * new * wd / (tpull[(tx, ty)] + new * wd)
+        near_s = [r for r in fb.near(cx, cy, R) if km(cx, cy, r[0], r[1]) <= R]
+        s_r = sum(r[2] for r in near_s)
+        idx = users / new
+        cap_rate = new / use_r if use_r else None
         nb = [g for (x, y), g in born if abs(y - cy) < R / 110 and abs(x - cx) < R / 80 and km(cx, cy, x, y) <= R]
         g_r = sum(nb) / len(nb) if nb else None
         sc = idx * (1 - 0.5 * max(0.0, (g_r or 0) - g_city)) if len(nb) >= 3 else idx
         nd = min((km(cx, cy, r[0], r[1]) for r in svc), default=9.9)
         out.append(dict(towns=[name], x=cx, y=cy, dem=dem_r, seats=s_r, comp=len(near_s), compcap=s_r if c != "33" else 0,
-                        idx=idx, sc=sc, born=len(nb), gone=sum(nb), g=g_r, avgd=nd, md=nd, a=0, inner=1, own=dd))
+                        idx=idx, sc=sc, users=users, use_r=use_r, cap_rate=cap_rate, short=use_r - s_r,
+                        born=len(nb), gone=sum(nb), g=g_r, avgd=nd, md=nd, a=0, inner=1, own=dd))
     out.sort(key=lambda a: -a["sc"])
-    return dict(areas=out, base=base, d_city=d_city, s_city=s_city, g_city=g_city, n_born=len(born_city), R=R, new=new, med=med)
-
+    return dict(areas=out, base=base, u=u, d_city=d_city, s_city=s_city, g_city=g_city, n_born=len(born_city), R=R, new=new, med=med)
 
 def collect():
     periods, latest, prev, _, S = B.load()
@@ -621,6 +686,12 @@ GH_STAFF = 0.617  # 収益に対する給与の割合（令和7年 経営概況�
 GH_COST = 0.909  # 収益に対する費用の割合（収支差率9.1%）
 GH_RENT = 360  # そのうち建物の家賃（月30万円、全国平均の家賃のとき）
 GH_UTIL = 0.9  # 入居率
+# グループホーム（介護サービス包括型）の基本報酬（2024年度改定後、世話人6:1、1人1日の単位）と、生活支援員の配置（入居者何人に1人）
+GH_UNITS = {"6": 600, "5": 456, "4": 372, "3": 297, "2": 188, "1": 171}
+GH_SUP = {"6": 2.5, "5": 4, "4": 6, "3": 9}
+GH_MIX = [("軽い人が中心", {"1": .3, "2": .4, "3": .3}), ("区分3〜4が中心（試算の前提）", {"2": .2, "3": .4, "4": .4}),
+          ("重い人が中心", {"4": .3, "5": .4, "6": .3})]
+GH_FTE = 350  # 生活支援員1人の1年の人件費（万円、社会保険料をふくむ。全国のおおよそ）
 GH_OPEN = 1200  # 開業費用（改修・消防設備・敷金・開業前の人件費）
 OPEN = 900  # 開業費用（万円）
 RAMP = [.3] * 3 + [.5] * 3 + [.7] * 3 + [.8] * 3 + [.85] * 6  # 開業からの利用率の伸び（その後は標準の利用率）
@@ -720,6 +791,34 @@ SCHOOLS, STATIONS = load_places()
 
 def km(x1, y1, x2, y2):
     return math.hypot((x1 - x2) * 111.32 * math.cos(math.radians(y1)), (y1 - y2) * 110.95)
+
+
+def rivals(S, periods, c, x, y, r):
+    """(距離, 事業所番号, 事業所, 初めて載った時点) を近い順に。r km 以内だけ。"""
+    latest, out = periods[-1], []
+    for no, o in S[c][latest]["offices"].items():
+        for hs in o["houses"]:
+            try:
+                hy, hx = float(hs[3]), float(hs[4])
+            except (ValueError, IndexError):
+                continue
+            if abs(hy - y) < r / 110 and abs(hx - x) < r / 80 and km(x, y, hx, hy) <= r:
+                since = next((p for p in periods if no in HIST[c].get(p, {})), periods[-1])
+                out.append((km(x, y, hx, hy), no, o, since))
+                break
+    return sorted(out, key=lambda t: t[0])
+
+
+def weekend(closed):
+    """休みの書き方から、(土曜に開いている, 日曜に開いている)。書いていなければ None。"""
+    cl_ = (closed or "").strip()
+    if not cl_:
+        return None, None
+    return "土" not in cl_, not re.search(r"日曜|土日|(^|[、・,，\s/])日($|[、・,，\s/祝])", cl_)
+
+
+def keypts(items):
+    return '<div class="keyp"><b>この章のポイント</b><ul>' + "".join(f"<li>{x}</li>" for x in items) + "</ul></div>"
 
 
 def nearby(pts, x, y, r):
@@ -1136,6 +1235,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              + "".join(sig) + '</table><p class="note">緑＝少なくてねらい目、黄＝競争がきびしいか市の決まりに注意、赤＝市が新しい指定を止めている。'
              '試算は放デイ・児発・グループホームが定員10人、B型が定員20人の1年の収支（全国平均並みに動かせた場合）。</p>'
              + '</section>')
+    h.append('<!--EXEC-->')
 
     h.append('<section class="pb"><h2>§要点</h2><ol class="points">' + "".join(f"<li>{x}</li>" for x in pts) + "</ol>")
     h.append(f'<h3>主なサービスの数</h3><table><tr><th>サービス</th><th>{E(l0)}</th><th>{E(lp)}</th><th>増えた数</th>'
@@ -1152,19 +1252,29 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     # 結論
     h.append('<section class="pb"><h2>§結論：開設するならどこが良いか</h2>'
              + ('<p>町ごとに、<b>通ってくる範囲に住んでいる、サービスを使う年れいの人の数（需要）</b>と、'
-                '<b>その範囲にすでにある同じサービスの定員（受け皿）</b>をくらべました。新しく開いたとき、1つの席あたりの需要が市の平均より何倍多いかが「需給の倍率」です。'
-                '1.0 が市の平均で、大きいほど、開いた事業所が埋まりやすいと考えられる場所です。</p>' if SITE else
+                '<b>その範囲にすでにある同じサービスの定員（受け皿）</b>をくらべました。方法は、医療や福祉の「通いやすさ」の研究で広く使われている'
+                '<b>2段階の通所圏の方法（E2SFCA）</b>と、出店の研究で使われる<b>ハフモデル</b>です（考え方と出典はこの章の終わり）。'
+                '町ごとの需要を、まわりの事業所が「定員の大きさ」と「近さ」に応じて分け合うと考え、新しく開いた事業所に来ると見込める利用を出しました。'
+                'それを新しい定員で割り、市の平均を1.0にしたものが「需給の倍率」です。大きいほど、開いた事業所が埋まりやすいと考えられる場所です。</p>' if SITE else
                 '<p>近くにない地域の地図（あとの章）、人口あたりの数、利用率をあわせて、新しく開くときの候補を点数にしました。'
                 '点数が高いほど「近くに同じサービスが少なく、人が住んでいて、まわりの競争がゆるい」場所です。</p>'))
     if cands:
+        c0_, cl0_ = cands[0][1], cands[0][2]
+        h.append(keypts([f'第一候補は{E(short(c0_))}の<b>{E(cl0_["towns"][0])}のあたり</b>'
+                         + (f'。新しく開いても需要が市の平均の{cl0_["idx"]:.2f}倍あります。' if "idx" in cl0_ else '。'),
+                         '点数は、論文で使われている方法（ハフモデル・E2SFCA）で、需要と受け皿の差を町ごとに出したものです。',
+                         '点数は「どこから見に行くか」の順番です。最後は現地で確かめてください（「現地で確かめること」の章）。']))
         h.append('<h3>ねらい目の場所トップ5</h3><table class="small rank"><tr><th>順位</th><th>サービス</th><th>場所</th><th>点数</th><th>理由</th></tr>')
         for j, (sc, c, cl, cs, note) in enumerate(cands, 1):
             if "idx" in cl:
                 sm = SITE[c]
                 unit = "か所" if c == "33" else "人分"
+                need = cl["use_r"]
                 why = (f"半径{sm['R']:.0f}kmに{DEM_WHO[c]}が約{cl['dem']:,.0f}人。いまある{E(short(c))}は{cl['comp']}か所"
                        + (f"（定員あわせて{cl['seats']:,.0f}人）" if c != "33" else "") + "。"
-                       f"新しく{sm['new']}{unit}増やしても、{'1か所' if c == '33' else '1席'}あたりの需要は市の平均の<b>{cl['idx']:.2f}倍</b>。")
+                       f"市の平均並みに使われるとすると、この範囲で要る受け皿は約{need:,.0f}{'か所' if c == '33' else '人分'}で、"
+                       + (f"いまより約{cl['short']:,.0f}{'か所' if c == '33' else '人分'}足りない。" if cl["short"] >= 0.5 else "いまある受け皿で足りている計算。")
+                       + f"新しく{sm['new']}{unit}開くと、近さと定員で分け合っても、{'1か所' if c == '33' else '1席'}あたりの需要は市の平均の<b>{cl['idx']:.2f}倍</b>。")
                 if cl["born"] >= 3:
                     why += f"近くで2022年以降に開いた{cl['born']}か所のうち{cl['born'] - cl['gone']}か所が今も続いている。"
                 elif cl["born"]:
@@ -1188,13 +1298,17 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                      + bars_h([(a["towns"][0], a["idx"], j < 3) for j, a in enumerate(top)], unit="倍", fmt="{:.2f}")
                      + f'<p class="note">市全体では、{DEM_WHO[c_]}約{sm["d_city"]:,.0f}人に対して、{E(short(c_))}の受け皿は'
                      + (f'{sm["s_city"]:,.0f}か所' if c_ == "33" else f'定員{sm["s_city"]:,.0f}人分')
-                     + f'（1席あたり約{sm["base"]:,.0f}人）。これを1.0として、半径{sm["R"]:.0f}km の中の数でくらべています。'
+                     + f'（{"1か所" if c_ == "33" else "1席"}あたり約{sm["base"]:,.0f}人）。これを1.0として、{sm["R"]:.0f}kmまでの距離で重みをつけてくらべています。'
                      + (f'市の中で2022年以降に開いた{E(short(c_))}{sm["n_born"]}か所のうち、今は見えないのは{sm["g_city"] * 100:.0f}%で、'
                         'これより閉じた割合が高い地区は点数を下げています。' if sm["n_born"] else '') + '</p>')
         if SITE:
             h.append('<div class="method"><b>この点数の考え方と限界</b><ul>'
-                     '<li>考え方は、商圏分析の「フェアシェア」（需要を、まわりの受け皿で分け合うと考える）を簡単にしたものです。'
-                     '小売の出店で使われるハフモデル（近くて大きい店ほど客を集める）の、距離の重みを「半径の中か外か」にしぼった形です。</li>'
+                     '<li><b>もとにした研究：</b>町ごとの需要を、まわりの事業所が分け合うと考える方法は、ハフ（1963年）の小売の商圏の研究に始まり、'
+                     '医療の「通いやすさ」をはかる2段階の通所圏の方法（2SFCA、Luo と Wang 2003年）、距離が遠いほど重みを小さくする改良版（E2SFCA、Luo と Qi 2009年）として、'
+                     '病院・保育所・高齢者施設などの配置の研究で世界中で使われています。このレポートでは、距離の重みに E2SFCA と同じガウス型（近いほど重く、'
+                     f'{"・".join(sorted({f"{v:.0f}km" for v in (RADIUS[k] for k in SITE)}))}で0になる）を使い、新しい事業所が「定員×距離の重み」の割合で需要を分け合うと考えました。</li>'
+                     '<li><b>計算のしかた：</b>①町ごとに、まわりの事業所の「定員×距離の重み」を合計する。②候補地に新しい定員を置き、まわりの町の需要のうち、新しい事業所の取り分を足す。'
+                     '③その見込みを新しい定員で割り、市全体の「需要÷定員」を1.0として倍率にする。④近くで最近開いた事業所が閉じた割合が市より高ければ点数を下げる。</li>'
                      '<li>需要は、国勢調査（2020年）の町ごとの年れい別の人口です。障害のある人の割合は町によってちがいますが、町ごとの数は公表されていないので、市の中では同じと考えています。</li>'
                      + ('<li>グループホームは定員のデータがないので、受け皿は事業所の数で数えています。また、住む場所なので、市の外や遠くの町から入居する人も多く、ほかのサービスより距離の意味が小さくなります。</li>' if "33" in SITE else '')
                      + '<li>受け皿は、WAM NET に載っている事業所の定員です。市の外の近くの事業所もふくみます。市の外に住む人の需要はふくめていないので、市の境に近い地区は低めに出ます。</li>'
@@ -1238,6 +1352,47 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              if SITE else '点数は、空白の広さ・人の住んでいる度合い（ほかの福祉の事業所の数）・近くの事業所までの距離・2km以内の同じサービスの数・'
              'そのサービスが県の平均より少ないか・利用率（放課後等デイのみ）から計算した、くらべるための目安です（1位を100とする）。')
              + 'この表の「見立て」は市全体の数の多い少ないで、町ごとの差は上の表で見てください。実際の物件さがしでは、駅や学校からの距離、送迎のしやすさもあわせて見てください。</p></section>')
+
+    # 候補地のまわりの同じサービス（競合）
+    if cands:
+        comp_h, kp = [], []
+        for j, (sc, c, cl, cs, note) in enumerate(cands[:3], 1):
+            R = RADIUS.get(c, 2.0)
+            rv = rivals(S, periods, c, cl["x"], cl["y"], R)
+            if not rv:
+                comp_h.append(f'<h3>{j}位 {E(cl["towns"][0])}のあたり（{E(short(c))}）</h3><p>半径{R:.0f}km以内に{E(short(c))}はありません。</p>')
+                continue
+            wk = [weekend(o["closed"]) for _, _, o, _ in rv]
+            sat = sum(1 for a, _ in wk if a) / max(1, sum(1 for a, _ in wk if a is not None))
+            sun = sum(1 for _, b in wk if b) / max(1, sum(1 for _, b in wk if b is not None))
+            capv = [int(o["cap"]) for _, _, o, _ in rv if str(o["cap"]).isdigit()]
+            new_n = sum(1 for *_, since in rv if since != periods[0])
+            big = sum(1 for _, _, o, _ in rv if CORP_N[o["corp_key"] or o["corp"]] >= CHAIN_MIN)
+            live = c == "33"  # 住む場所なので、曜日・時間はない
+            kp.append(f'{j}位の{E(cl["towns"][0])}のあたり：半径{R:.0f}kmに{len(rv)}か所（{l0}より後に載ったのは{new_n}か所、大手{big}か所）。'
+                      + ('' if live else f'土曜に開いているのは{sat * 100:.0f}%、日曜は{sun * 100:.0f}%。'))
+            trs = []
+            for d, no, o, since in rv[:10]:
+                a, b = weekend(o["closed"])
+                yn = {True: "○", False: "休み", None: "—"}
+                trs.append(f'<tr><td style="text-align:left">{E(o["name"][:30])}</td><td style="text-align:left">{E(o["corp"][:22])}</td><td>{d:.1f}km</td>'
+                           + ('' if live else f'<td>{E(str(o["cap"])) if str(o["cap"]).isdigit() else "—"}</td>')
+                           + ('' if live else f'<td>{yn[a]}</td><td>{yn[b]}</td><td>{E(o["hours"][:13]) or "—"}</td>')
+                           + f'<td>{"〜" + E(l0) if since == periods[0] else E(B.label(since))}</td></tr>')
+            comp_h.append(f'<h3>{j}位 {E(cl["towns"][0])}のあたり：半径{R:.0f}km以内の{E(short(c))}（{len(rv)}か所、近い順）</h3>'
+                          '<table class="small rv"><tr><th>事業所</th><th>運営法人</th><th>距離</th>'
+                          + ('' if live else '<th>定員</th><th>土曜</th><th>日曜</th><th>時間</th>') + '<th>載った時期</th></tr>'
+                          + "".join(trs) + '</table>'
+                          + (f'<p class="note">ほかに{len(rv) - 10}か所あります。' if len(rv) > 10 else '<p class="note">')
+                          + (f'定員の平均は{sum(capv) / len(capv):.1f}人。' if capv else '') + '</p>')
+        h.append('<section class="pb"><h2>§候補地のまわりの同じサービス（競合）</h2>'
+                 '<p>上位3つの候補地について、通ってくる範囲にある同じサービスの事業所を、WAM NET の公表データから並べました。'
+                 '「載った時期」が新しい事業所が多い場所は、最近になって競争が強まっている場所です。'
+                 + ('グループホームは、定員や入居の状況が公表データにないので、まわりの事業所の数と開いた時期で見てください。</p>' if ed == "gh" else
+                    '土曜・日曜に開いている事業所が少なければ、そこが違いを作る余地になります。</p>')
+                 + keypts(kp) + "".join(comp_h)
+                 + '<p class="note">事業所の名前・定員・営業時間・休みは、WAM NET に事業所が届け出ている内容です（データの時点：' + E(lp) + '）。'
+                 '「土曜」「日曜」は休みの欄の書き方から読み取ったもので、祝日や月ごとの営業は反映していません。「大手」は全国で' + f'{CHAIN_MIN}' + 'か所以上を運営する法人です。</p></section>')
 
     # 特別支援学校とまわりの放デイ
     sps = [p_ for p_ in SCHOOLS["特別支援学校"] if p_[3] == pref and inside(rings, p_[0], p_[1])]
@@ -1499,6 +1654,9 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  f'<tr><td>そのほかの費用</td><td>年{other:,}万円（家賃月{rent / 12:.0f}万円、送迎車、光熱費、教材、保険、求人、開業費用の償却。家賃は{E(city)}の家賃の水準に合わせた）</td></tr>'
                  f'<tr><td>開業費用</td><td>{OPEN}万円（内装・備品、敷金、開業前の人件費、申請の準備）</td></tr>'
                  f'<tr><td>開業後の利用率</td><td>3か月ごとに30%→50%→70%→80%、その後半年85%、それからは標準の利用率</td></tr></table>'
+                 + '<p class="contact"><b>この試算に入っていないこと：</b>子どもには障害支援区分はありません。放課後等デイの基本の報酬は、2024年度改定で<b>利用する時間の長さ</b>'
+                 '（30分以上1時間30分以下／1時間30分をこえ3時間以下／3時間をこえ5時間以下）で分かれ、<b>重症心身障害児</b>を主に受け入れる事業所は別の報酬になります。'
+                 '医療的ケアが必要な子どもを受け入れると加算もあります。試算は全国の平均の1人1日の報酬を使っているので、受け入れる子どもと時間の組み合わせで上下します。</p>'
                  '<p class="note">この試算は判断のたたき台です。家賃、給与、加算の取り方で大きく変わります。実際に開くときは、税理士や行政書士と作り直してください。税金はふくめていません。'
                  '数字のもと：福祉医療機構「2024年度 放課後等デイサービスの経営状況」（利用率89.1%、1人1日12,747円、赤字の事業所31.8%）。</p></section>')
 
@@ -1536,7 +1694,9 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                    f'<tr><td>開業費用</td><td>{m_["open"]:,}万円（内装・作業の設備、敷金、開業前の人件費、申請の準備）</td></tr>'
                    '<tr><td>工賃</td><td>利用者に払う工賃は、作業で得たお金から払う前提で、この表の売上・費用には入れていない</td></tr>')
             src = "福祉医療機構「" + OTHERS["46"]["src"] + "」"
-            extra = ('<p>B型の報酬は、利用者に払う工賃（平均月23,583円）が高いほど上がります。仕事（作業）を安定して取れるかが、売上と利用者集めの両方を左右します。</p>')
+            extra = ('<p>B型の報酬は、利用者に払う工賃（平均月23,583円）が高いほど上がります。仕事（作業）を安定して取れるかが、売上と利用者集めの両方を左右します。</p>'
+                     '<p class="contact"><b>この試算に入っていないこと：</b>B型の基本の報酬は、利用する人の障害支援区分ではなく、<b>平均工賃の段階</b>と<b>職員の配置（7.5:1か6:1か）</b>で決まります。'
+                     '試算は全国の平均の1人1日の報酬を使っているので、工賃を上げられる作業があるか、職員を厚く置くかで、売上は上にも下にも動きます。</p>')
         h.append(f'<section class="pb"><h2>§{E(lname(mc))}を開くときの収支試算</h2>'
                  f'<p>定員{m_["cap"]}人の{E(lname(mc))}を{E(city)}で開いた場合の、仮の1年間の収支です。{E(city)}は<b>{grade_txt}</b>です。</p>'
                  f'<table><tr><th></th><th>{word}</th><th>1人1日</th><th>1年の売上</th><th>1年の費用</th><th>1年の収支</th></tr>{rows_m}</table>'
@@ -1585,10 +1745,66 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         f'<td><b>{pct(v["roi"])}</b></td><td>{yrs(v["back"])}</td><td>{v["c5"]:+,.0f}万円</td><td>{pct(v["irr"])}</td><td>{v["npv"]:+,.0f}万円</td></tr>'
         for k, v in inv.items() for u in [P_["lv"][k][0]])
     sd = inv["標準"]
+
+    def kubun_table():
+        """グループホームで、入居する人の障害支援区分の組み合わせが変わると、収支がどう変わるか。"""
+        if ed != "gh":
+            return ""
+        base_mix = GH_MIX[1][1]
+        n_in = P_["cap"] * std_u
+
+        def units(mx):
+            return sum(GH_UNITS[k] * v for k, v in mx.items())
+
+        def fte(mx):
+            return sum(v / GH_SUP[k] for k, v in mx.items() if k in GH_SUP)
+        pay = GH_FTE * pf["pay"] / nf["pay"]
+        rows_ = []
+        for name, mx in GH_MIX:
+            d_rev = (units(mx) - units(base_mix)) * gh_pr * 365 * n_in / 1e4
+            d_st = (fte(mx) - fte(base_mix)) * n_in * pay
+            v = invest(P_["cap"], P_["days"], std_u, std_pd + (units(mx) - units(base_mix)) * gh_pr, P_["cost"] + d_st, P_["open_"])
+            roi_s = f'{v["roi"] * 100:.0f}%' if v["roi"] is not None else "—"
+            mix_s = "・".join(f"区分{k if k != '1' else '1以下'} {int(x * 100)}%" for k, x in mx.items())
+            rows_.append(f'<tr{" class=\"me\"" if mx is base_mix else ""}><th>{E(name)}<br><small>{mix_s}</small></th><td>{units(mx) * gh_pr:,.0f}円</td>'
+                         f'<td>{d_rev:+,.0f}万円</td><td>{d_st:+,.0f}万円</td><td><b>{v["profit"]:+,.0f}万円</b></td><td>{roi_s}</td></tr>')
+        return ('<h3>入居する人の障害支援区分でどう変わるか</h3>'
+                '<p>グループホームの基本の報酬は、入居する人の障害支援区分で大きく変わります（区分6は1日600単位、区分2は188単位）。'
+                '区分の重い人が多いと売上は上がりますが、決まりで生活支援員を多く置く必要があり、人件費も上がります。</p>'
+                '<table class="small"><tr><th>入居する人の組み合わせ</th><th>基本の報酬（1人1日）</th><th>1年の売上の差</th><th>生活支援員の人件費の差</th><th>1年の利益</th><th>ROI</th></tr>'
+                + "".join(rows_) + '</table>'
+                f'<p class="note">基本の報酬は、2024年度改定後の介護サービス包括型（世話人6:1）の単位に、{E(city)}の1単位{gh_pr:.2f}円をかけたものです。'
+                '生活支援員は、区分3は入居者9人に1人、区分4は6人に1人、区分5は4人に1人、区分6は2.5人に1人（指定の基準）として、1人年'
+                f'{pay:,.0f}万円で数えました。前の章の試算は「区分3〜4が中心」に近いと置いています。夜間支援等体制加算や重度障害者支援加算は入れていないので、'
+                '重い人が中心のときは、加算と夜の体制の人件費で、さらに上にも下にも動きます。</p>')
+
+    def site_money():
+        """候補地ごとの家賃の目安と、そこで開いたときの見通し（標準）。"""
+        rows_ = []
+        for j, (_, c0, cl, cs0, _) in enumerate(cands, 1):
+            if ED["main"] not in cs0:
+                continue
+            f, use, med, cm, nn = land_factor(city, cl["x"], cl["y"])
+            d_rent = P_["rent"] * (f - 1)
+            v = invest(P_["cap"], P_["days"], std_u, std_pd, P_["cost"] + d_rent, P_["open_"])
+            land = f'{use}の地価 {med / 1e4:,.1f}万円/㎡（市の真ん中 {cm / 1e4:,.1f}万円、{nn}地点）' if use else "近くに地価公示の地点が少ない（市の平均で計算）"
+            roi_s = f'{v["roi"] * 100:.0f}%' if v["roi"] is not None else "—"
+            rows_.append(f'<tr><th>{j}</th><td>{E(cl["towns"][0])}のあたり</td><td>{land}</td><td>月{P_["rent"] * f / 12:,.0f}万円</td>'
+                         f'<td>{v["profit"]:+,.0f}万円</td><td>{v["need"]:,.0f}万円</td><td>{roi_s}</td></tr>')
+        if not rows_:
+            return ""
+        return ('<h3>候補地ごとの家賃の目安と見通し（' + E(short(ED["main"])) + '、標準）</h3><table class="small"><tr><th>順位</th><th>場所</th><th>まわり1.5kmの地価</th>'
+                '<th>家賃の目安</th><th>1年の利益</th><th>投下資本</th><th>ROI</th></tr>' + "".join(rows_) + '</table>'
+                f'<p class="note">家賃は、{E(city)}の借家の平均家賃（総務省「住宅・土地統計調査」2023年）から置いた月{P_["rent"] / 12:,.0f}万円を、'
+                '国土交通省「地価公示」の候補地のまわりの地価で上げ下げした目安です。家賃は地価ほど大きく動かないので、地価の倍率の平方根を使っています。'
+                '実際の募集家賃とはちがうので、物件をさがすときは、候補地の近くの貸店舗・事務所の募集家賃を不動産サイトで3件ほど見て、この表とくらべてください。</p>')
     h.append(f'<section class="pb"><h2>§投資の判断：投下資本・ROI・回収</h2>'
              f'<p>{E(lname(ED["main"]))}（定員{P_["cap"]}人）を{E(city)}で開くとき、<b>いくら入れて、いくら返ってくるか</b>を、'
              f'前の章の収支試算と同じ前提で、10年間の月ごとのお金の出入りから計算しました。</p>'
-             f'<div class="tiles"><div class="tile"><p class="tl">投下資本（要る手元資金）</p><p class="tv">{sd["need"]:,.0f}<small>万円</small></p></div>'
+             + keypts([f'用意する手元資金は、標準で約{sd["need"]:,.0f}万円、慎重で約{inv["慎重"]["need"]:,.0f}万円です。',
+                       (f'標準ではROI 約{sd["roi"] * 100:.0f}%、{yrs(sd["back"])}で回収できます。' if sd["back"] else '標準の見通しでは、10年で回収できません。'),
+                       f'利益をいちばん動かすのは「{E(torn[0][0])}」です。'])
+             + f'<div class="tiles"><div class="tile"><p class="tl">投下資本（要る手元資金）</p><p class="tv">{sd["need"]:,.0f}<small>万円</small></p></div>'
              f'<div class="tile"><p class="tl">ROI（1年の利益÷投下資本）</p><p class="tv">{pct(sd["roi"])}</p></div>'
              f'<div class="tile"><p class="tl">回収までの期間</p><p class="tv" style="font-size:14pt">{yrs(sd["back"])}</p></div></div>'
              f'<table class="small"><tr><th>見通し</th><th>{P_["word"]}</th><th>投下資本</th><th>落ち着いた後の1年の利益</th><th>ROI</th><th>回収まで</th><th>5年の累計</th><th>IRR（10年）</th><th>NPV（10年、割引率5%）</th></tr>{rows_i}</table>'
@@ -1600,6 +1816,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              '<h3>手元資金の動き（開業から5年）</h3>'
              + xy_chart([(k, cols[k], [inv[k]["cum"][m] for m in months]) for k in inv], months, "開業からの月数", "累計の手元資金（万円）", every=12,
                         marks=[(sd["back"], "標準で回収")] if sd["back"] and sd["back"] <= 60 else [])
+             + site_money() + kubun_table()
              + f'<p class="note">最初に開業費用{P_["open_"]:,}万円が出ていき、利用が増えるまでの赤字でさらに減ってから、少しずつ戻ってきます（いわゆる「Jカーブ」）。'
              'いちばん下がったところが、用意しておくべき手元資金です。</p>'
              f'<h3>{P_["word"]}と1年の利益</h3>'
@@ -1613,6 +1830,126 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              'お金をかけて確かめる順番、気をつける順番の目安にしてください。</p>'
              '<p class="note">税金・借入の利息はふくめていません。費用には開業費用の償却もふくめているので、手元資金は少し多めに見積もっています。'
              '試算は全国の平均的な事業所の数字を、この市の単価・給料・家賃に合わせたもので、判断のたたき台です。</p></section>')
+
+    # 5年間の損益計画
+    us_m = [min(RAMP[m], std_u) if m < len(RAMP) else std_u for m in range(60)]
+    oth_c = P_["cost"] - P_["staff"] - P_["rent"]
+    pl = []
+    for y in range(5):
+        um = us_m[12 * y:12 * y + 12]
+        rv_y = sum(P_["cap"] * P_["days"] / 12 * u * std_pd / 1e4 for u in um)
+        pl.append(dict(u=sum(um) / 12, rv=rv_y, pr=rv_y - P_["cost"], cash=sd["cum"][12 * (y + 1)]))
+    plr = [("平均の" + P_["word"], [f'{r["u"] * 100:.0f}%' for r in pl]),
+           ("売上（報酬）", [f'{r["rv"]:,.0f}' for r in pl]),
+           ("人件費", [f'{P_["staff"]:,.0f}' for r in pl]),
+           ("家賃", [f'{P_["rent"]:,.0f}' for r in pl]),
+           ("そのほかの費用（償却ふくむ）", [f'{oth_c:,.0f}' for r in pl]),
+           ("<b>利益</b>", [f'<b>{r["pr"]:+,.0f}</b>' for r in pl]),
+           ("利益率", [f'{r["pr"] / r["rv"] * 100:.0f}%' if r["rv"] else "—" for r in pl]),
+           ("年末の手元資金の累計", [f'{r["cash"]:+,.0f}' for r in pl])]
+    first_black = next((y + 1 for y, r in enumerate(pl) if r["pr"] > 0), None)
+    h.append('<section class="pb"><h2>§§投資の判断（つづき）：5年間の損益計画</h2>'
+             + keypts([f'1年目は{P_["word"]}が平均{pl[0]["u"] * 100:.0f}%にとどまり、利益は{pl[0]["pr"]:+,.0f}万円。'
+                      + (f'{first_black}年目から黒字になる計画です。' if first_black else '5年のうちに黒字になりません。'),
+                      f'5年目の利益は年{pl[4]["pr"]:+,.0f}万円、5年目の終わりの手元資金の累計は{pl[4]["cash"]:+,.0f}万円です。',
+                      '融資を申し込むときは、この表を「事業計画書」の収支計画のたたき台にできます。'])
+             + '<table class="small pl"><tr><th>（万円）</th>' + "".join(f'<th>{y}年目</th>' for y in range(1, 6)) + '</tr>'
+             + "".join(f'<tr><th>{k}</th>' + "".join(f'<td>{v}</td>' for v in vs) + '</tr>' for k, vs in plr) + '</table>'
+             + f'<p class="note">標準の見通しです。{P_["word"]}は、開業から3か月30%、次の3か月50%、次の3か月70%、次の3か月80%、その後半年85%と伸び、'
+             f'2年目の途中から{std_u * 100:.0f}%で落ち着くと置いています。人件費は開業時から全員そろえる前提です（利用に合わせて採用をずらせば、1年目の赤字は小さくなります）。'
+             f'「年末の手元資金の累計」は、開業費用{P_["open_"]:,}万円と、報酬が2か月おくれて入る分をふくみます。税金・借入の返済は入れていません。</p></section>')
+
+    # 候補地ごとの判断（冒頭のまとめに入れる）
+    def cand_money(c, cl):
+        f = land_factor(city, cl["x"], cl["y"])[0]
+        if c == mc or (child and c != "63"):
+            v = invest(P_["cap"], P_["days"], std_u, std_pd, P_["cost"] + P_["rent"] * (f - 1), P_["open_"])
+            return v, P_["rent"] * f
+        o = oth["63"]
+        r0 = round(OTHERS["63"]["rent"] * rent_r)
+        v = invest(o["cap"], o["days"], o["util"], o["pd"], o["ct"] + r0 * (f - 1), OTHERS["63"]["open"])
+        return v, r0 * f
+    ex_rows, verdicts = [], []
+    for j, (sc, c, cl, cs, note) in enumerate(cands, 1):
+        v, rent_y = cand_money(c, cl)
+        idx = cl.get("idx")
+        roi = v["roi"]
+        surv_ok = cl.get("born", 0) < 3 or (cl["born"] - cl["gone"]) / cl["born"] >= 0.75
+        if note or roi is None or roi <= 0:
+            vd, col = "慎重に", "red"
+        elif (idx or 0) >= 1.2 and roi >= 0.15 and surv_ok:
+            vd, col = "進める価値が高い", "green"
+        elif (idx or 0) >= 1.0 or roi >= 0.15:
+            vd, col = "条件付き", "yellow"
+        else:
+            vd, col = "慎重に", "red"
+        verdicts.append((vd, j, cl, c, v))
+        unit = "か所" if c == "33" else "人分"
+        short_s = "—" if "short" not in cl else f'{cl["short"]:,.0f}{unit}' if cl["short"] >= 0.5 else "足りている"
+        ex_rows.append(f'<tr><th>{j}</th><td>{E("・".join(short(x) for x in cs))}</td><td>{E(cl["towns"][0])}のあたり</td>'
+                       f'<td>{f"{idx:.2f}倍" if idx else "—"}</td>'
+                       f'<td>{short_s}</td>'
+                       f'<td>月{rent_y / 12:,.0f}万円</td><td>{v["need"]:,.0f}万円</td><td>{pct(roi)}</td><td>{yrs(v["back"])}</td>'
+                       f'<td><span class="dot {col}"></span><b>{vd}</b></td></tr>')
+    best = next((x for x in verdicts if x[0] == "進める価値が高い"), next((x for x in verdicts if x[0] == "条件付き"), None))
+    ex = ['<section class="pb"><h2>§判断のまとめ：開設するならどこが良いか</h2>']
+    concl = []
+    if best:
+        vd, j, cl, c, v = best
+        concl.append(f'<b>場所：</b>{E(short(c))}を<b>{E(cl["towns"][0])}のあたり</b>で開くのが、いちばん有望です（{j}位、判断は「{vd}」）。'
+                     + (f'新しく開いても、需要が市の平均の{cl["idx"]:.2f}倍あります。' if cl.get("idx") else ''))
+    elif cands and all(x[4] for x in cands):
+        concl.append(f'<b>場所：</b>需要と受け皿の差では{E(cands[0][2]["towns"][0])}のあたりが一番ですが、どの候補地にも市の決まりがあるので「慎重に」としました（{E(cands[0][4])}）。'
+                     '市の募集や事前協議の予定を先に確かめてください。')
+    elif cands:
+        concl.append('<b>場所：</b>どの候補地も、標準の見通しでは「慎重に」です。場所より、収支の前提（受け入れる人・加算・家賃）を見直すところから始めてください。')
+    else:
+        concl.append('<b>場所：</b>市の決まりで新しく開けないか、需要と受け皿の差が目立つ場所がありません。ほかのサービスや近くの市区町村も検討してください。')
+    concl.append(f'<b>お金：</b>{E(short(mc))}（定員{P_["cap"]}人）の投下資本は標準で約{sd["need"]:,.0f}万円、'
+                 + (f'ROI 約{sd["roi"] * 100:.0f}%、回収まで{yrs(sd["back"])}。' if sd["back"] else '10年では回収できません。')
+                 + (f'慎重の見通しでは約{inv["慎重"]["need"]:,.0f}万円要ります。' if inv["慎重"]["back"] else '慎重の見通しでは10年たっても回収できないので、資金は多めに用意してください。'))
+    concl.append(f'<b>いちばんのリスク：</b>利益をいちばん動かすのは「{E(torn[0][0])}」です（1年に約{max(abs(torn[0][1]), abs(torn[0][2])):,.0f}万円）。'
+                 f'損益分岐の{P_["word"]}は約{be_u * 100:.0f}%です。')
+    concl.append('<b>次にやること：</b>「現地で確かめること」の章の10項目を、' + ('下の表の上位の候補地から順に確かめてください。' if cands else 'まず市の障害福祉課で、新しい指定の受け付けがいつ再開するかから確かめてください。'))
+    ex.append('<div class="exec"><ul>' + "".join("<li>" + re.sub(r"^(<b>[^<]*</b>)(.*)$", r'\1<span class="ev">\2</span>', x, flags=re.S) + "</li>"
+                                              for x in concl) + '</ul></div>')
+    if ex_rows:
+        ex.append('<h3>候補地ごとの判断</h3><table class="small exec-t"><tr><th>順位</th><th>サービス</th><th>場所</th><th>需給の<br>倍率</th><th>足りない<br>受け皿</th>'
+                  '<th>家賃の<br>目安</th><th>投下資本</th><th>ROI</th><th>回収まで</th><th>判断</th></tr>' + "".join(ex_rows) + '</table>')
+    ex.append('<p class="note">判断の基準：<b>進める価値が高い</b>＝需給の倍率1.2倍以上、ROI 15%以上、近くで最近開いた事業所の4分の3以上が続いている。'
+              '<b>条件付き</b>＝倍率1.0倍以上かROI 15%以上（現地で確かめてから）。<b>慎重に</b>＝それ以外か、標準の見通しで利益が出ない、または市の決まりに注意がある。'
+              '家賃の目安と投下資本・ROIは、候補地のまわりの地価で家賃を上げ下げして、標準の見通しで計算しています（くわしくは「結論」「投資の判断」の章）。'
+              '「足りない受け皿」は、市の平均並みに使われるとしたときに、半径の中で足りない定員です。</p></section>')
+    EXEC = "".join(ex)
+
+    # リスクと打ち手
+    jobr = (pf["hoiku"], nf["hoiku"], "保育士") if child else (pf["all"], nf["all"], "すべての仕事")
+    d10 = prof(u=std_u - 0.10) - base_p
+    rsk = [("利用（入居）が思ったより集まらない", "中", f'{P_["word"]}が10ポイント下がると年{d10:+,.0f}万円',
+            f'開業の3か月前から相談支援事業所{"・学校" if child else ""}を回る。見学会を開く。開業1年で損益分岐（約{be_u * 100:.0f}%）に届かなければ、受け入れる人や時間帯を見直す。'),
+           ("職員が集まらない・辞める", "高" if jobr[0] >= 2 else "中", f'人件費が10%上がると年{-P_["staff"] * 0.1:+,.0f}万円。人が足りないと定員まで受けられない',
+            f'{E(pref)}の{jobr[2]}の求人倍率は{jobr[0]:.2f}倍。開業の4〜6か月前から採用を始め、処遇改善加算を取って給料を地域の相場以上にする。'),
+           ("報酬の改定（3年ごと。次は2027年度）", "中", f'1人1日の報酬が5%下がると年{prof(pd_=std_pd * 0.95) - base_p:+,.0f}万円',
+            '基本の報酬だけに頼らず、取れる加算（専門職の配置・送迎・医療的ケアなど）を開業時から設計に入れる。'),
+           ("近くに同じサービスが新しく開く", "高" if len(newl[mc]) >= 5 else "中", f'{P_["word"]}が5ポイント下がると年{prof(u=std_u - 0.05) - base_p:+,.0f}万円',
+            f'{E(city)}では半年で{len(newl[mc])}か所の{E(short(mc))}が新しく載りました。曜日・時間・受け入れる人で違いをはっきりさせる（「ほかとの違いの作り方」の章）。'),
+           ("市の総量規制・指定の制限", "高" if caps_open.get(mc) else "中" if ed == "gh" else "低", "開業そのものができない",
+            '物件の契約の前に、市の障害福祉課に、計画の量と事前協議の時期を確かめる。'),
+           ("家賃が高い・物件の改修費がふくらむ", "中", f'家賃が30%上がると年{-P_["rent"] * 0.3:+,.0f}万円',
+            '契約の前に、用途変更・消防設備・バリアフリーの工事がいくらかかるかを、建築士と消防署に確かめる。'),
+           ("運営の指導・監査で報酬を返す", "低", "過去にさかのぼって返すことがあり、影響は大きい",
+            '人員の基準、個別支援計画、記録を毎月点検する。わからないところは市に先に聞く。')]
+    if child and "65" in dem:
+        kd = dem["65"]["k35"] / dem["65"]["k25"] - 1
+        rsk.append(("子どもの数がへる", "中" if kd < -0.05 else "低", f'6〜17歳は2035年に{kd * 100:+.0f}%（社人研）',
+                    '児童発達支援・保育所等訪問支援など、年れいの低い子どもへのサービスにも広げられるようにしておく。'))
+    lvc = {"高": "red", "中": "yellow", "低": "green"}
+    h.append('<section class="pb"><h2>§リスクと打ち手</h2>'
+             '<p>開業でつまずきやすいことを、起こりやすさと、起きたときの影響（1年の利益の変化）で並べました。影響の数字は、標準の見通しからひとつだけ動かしたときの変化です。</p>'
+             + keypts([f'影響がいちばん大きいのは「{E(torn[0][0])}」です。', '多くのリスクは、開業前の確認（市・物件・紹介元・採用）で小さくできます。'])
+             + '<table class="small txt2 risk"><tr><th>リスク</th><th>起こりやすさ</th><th>影響</th><th>先にできる手</th></tr>'
+             + "".join(f'<tr><td><b>{a}</b></td><td><span class="dot {lvc[b]}"></span>{b}</td><td>{c_}</td><td>{d}</td></tr>' for a, b, c_, d in rsk)
+             + '</table><p class="note">起こりやすさは、この市の数字（求人倍率・新しく載った数・市の決まり）と一般的な目安から置いたもので、確率ではありません。</p></section>')
 
     # 経営の考え方から見る
     mc = ED["main"]
@@ -1782,6 +2119,33 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
           "b": ["働くよろこびと、地域とのつながりを、仕事を通して届ける。",
                 "一人ひとりの「できる仕事」を見つけ、工賃と自信を育てる。",
                 "地域に必要とされる仕事で、利用する人の暮らしを豊かにする。"]}[ed]
+    # 現地で確かめること
+    top_t = [cl["towns"][0] for _, _, cl, _, _ in cands[:3]]
+    rv0 = rivals(S, periods, cands[0][1], cands[0][2]["x"], cands[0][2]["y"], RADIUS.get(cands[0][1], 2.0))[:3] if cands else []
+    sps_n = [p_[2] for p_ in SCHOOLS["特別支援学校"] if p_[3] == pref and inside(rings, p_[0], p_[1])]
+    chk = [
+        (f'候補地（{E("・".join(top_t)) or "空白地"}）を、{"放課後の送迎の時間（14〜18時）" if child else "朝と夕方の通う時間" if ed == "b" else "夕方と夜"}に、車と歩きで回る',
+         '道の混み方、車を止められる場所、まわりの住宅の様子。地図の点数ではわからない「通いやすさ」がわかります。'),
+        ('近くの同じサービスの見学や説明会に行く' + (f'（たとえば {E("、".join(o["name"][:16] for _, _, o, _ in rv0))}）' if rv0 else ''),
+         '空き状況、待っている人がいるか、どんな人を受け入れているか。「競合」の章の一覧から選んでください。'),
+        ('相談支援事業所を2〜3か所訪ねる', f'{E(city)}に{ref:,}か所あります。「どんな人の受け皿が足りないか」「どんな事業所なら紹介したいか」を聞きます。最初の利用者の多くはここから来ます。'),
+        (('特別支援学校・小学校の放課後の動きを見る' if child else '特別支援学校の進路の先生や、ハローワークの障害者の窓口で話を聞く' if ed == "b" else '日中に通う先（生活介護・就労B型）と、病院・買い物の場所を確かめる'),
+         (f'市内の特別支援学校：{E("、".join(sps_n[:4]))}。' if child and sps_n else '') + '送迎の範囲と、利用する人の1日の流れが組めるかを見ます。'),
+        ('市の障害福祉課で、計画の量と事前協議の時期を聞く', '総量規制や、新しい指定の受け付けの時期は、物件の契約より前に確かめてください。'),
+        ('物件を3件以上くらべる', '広さ、用途（用途変更が要るか）、消防設備、段差。近くの貸店舗・事務所の募集家賃を、「投資の判断」の章の家賃の目安とくらべます。'),
+        ('近くの求人の給料を3件以上見る', f'{"保育士・児童指導員" if child else "生活支援員・職業指導員" if ed == "b" else "世話人・生活支援員"}の求人を、求人サイトやハローワークで。採用できる給料が試算の人件費に合うかを見ます。'),
+        ('送迎の道と車の台数を決める' if ed != "gh" else '近所への説明のしかたを考える',
+         '送迎の車の台数と運転する人で、受けられる人数が決まります。' if ed != "gh" else 'グループホームは住む場所なので、開く前に近所にあいさつし、困ったときの連絡先を伝えておくと安心です。'),
+        ('金融機関に資金の相談をする', f'投下資本の目安は、標準で約{sd["need"]:,.0f}万円、慎重で約{inv["慎重"]["need"]:,.0f}万円です。日本政策金融公庫や地元の信用金庫に、5年間の損益計画を持って相談します。'),
+        ('立て直しの基準を決めて書いておく', f'たとえば「開業から1年で{P_["word"]}が{be_u * 100:.0f}%（損益分岐）に届かなければ、受け入れる人・時間帯・場所を見直す」。'),
+    ]
+    h.append('<section class="pb"><h2>§現地で確かめること10項目</h2>'
+             '<p>このレポートは「どこから、何を確かめに行くか」を決めるための資料です。数字ではわからないことを、開業を決める前に、次の10項目で確かめてください。'
+             '上から順に、お金がかからず早くできるものから並べています。</p>'
+             '<table class="small txt2 chk"><tr><th></th><th>確かめること</th><th>見るところ・ねらい</th></tr>'
+             + "".join(f'<tr><td>□ {i}</td><td><b>{a}</b></td><td>{b}</td></tr>' for i, (a, b) in enumerate(chk, 1))
+             + '</table></section>')
+
     h.append('<section class="pb"><h2>§付録：経営理念・行動規範のひな形</h2>'
              '<p>経営理念は、迷ったときに立ち返る「判断の物差し」です。職員の採用や、相談支援専門員・家族に事業所を説明するときにも使います。'
              '下のひな形をもとに、あなたの言葉に直して使ってください。</p>'
@@ -1823,12 +2187,15 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 <li>求人倍率：{E(FACTS["hoiku_source"])}、{E(FACTS["all_source"])}。最低賃金：{E(FACTS["wage_source"])}。</li>
 <li>保育士の給料：{E(FACTS["pay_source"])}。家賃：{E(FACTS["rent_source"])}。</li>
 <li>学校と駅の位置：国土交通省「国土数値情報（学校 2021年、鉄道 2023年）」。</li>
+<li>町ごとの年れい別の人口：総務省統計局「令和2年国勢調査 小地域集計（町丁・字等別 年齢5歳階級別人口）」と同「町丁・字等別境界データ」（e-Stat）。</li>
+<li>候補地ごとの家賃の目安：国土交通省「国土数値情報（地価公示 2026年）」の、候補地のまわりと市全体の地価のちがいから ジモふくが推計。</li>
+<li>候補地の方法：Huff, D. L. (1963) "A Probabilistic Analysis of Shopping Center Trade Areas", <i>Land Economics</i> 39(1), 81–90／Luo, W. &amp; Wang, F. (2003) "Measures of spatial accessibility to health care in a GIS environment", <i>Environment and Planning B</i> 30(6), 865–884／Luo, W. &amp; Qi, Y. (2009) "An enhanced two-step floating catchment area (E2SFCA) method for measuring spatial accessibility to primary care physicians", <i>Health &amp; Place</i> 15(4), 1100–1107。</li>
 {"<li>放課後等デイの利用量：" + (E(hd["src"]) + "（" + E(hd["url"]) + "）" if hd else "市の公表資料で確認できませんでした") + "。</li>" if child else ""}
 {"<li>グループホームの収支：厚生労働省「令和5年 障害福祉サービス等経営実態調査」「令和7年 障害福祉サービス等経営概況調査」をもとに ジモふくが試算。</li>" if ed == "gh" else ""}
 <li>収支試算：{E(FACTS["other_source"])}をもとに ジモふくが試算。</li>
 <li>将来推計人口：国立社会保障・人口問題研究所『日本の地域別将来推計人口（令和5年推計）』。</li>
 </ul><p class="contact">このレポートの数字は自由に引用できます（「ジモふく調べ」と書いてください）。ほかのサービスの試算や、もっとくわしい調査のご相談は https://jimofuku.jp/ から。</p></section>''')
-    return number_sections("\n".join(h))
+    return number_sections("\n".join(h).replace("<!--EXEC-->", EXEC))
 
 
 def number_sections(doc):
@@ -1896,6 +2263,13 @@ figure { margin: 6px 0; break-inside: avoid; } figcaption { font-weight: 700; fo
 .theory h3 { margin: 0 0 4px; } .theory p { margin: 3px 0; font-size: 10pt; } .theory .idea { background: #f6faf5; padding: 4px 8px; border-radius: 4px; }
 .theory .srcl { font-size: 8.5pt; color: #5b6c60; } .theory .other { color: #4a5a4f; }
 .method ul { margin: 4px 0 0; padding-left: 1.2em; }
+.keyp { border: 1px solid #2d7a45; border-radius: 8px; padding: 6px 14px; margin: 8px 0 12px; font-size: 10pt; break-inside: avoid; }
+.keyp b { color: #2d7a45; } .keyp ul { margin: 4px 0 0; padding-left: 1.2em; }
+.exec { background: #f6faf5; border-left: 5px solid #2d7a45; padding: 8px 14px; margin: 8px 0 14px; }
+.exec ul { margin: 0; padding-left: 1.1em; } .exec li { margin: 5px 0; font-size: 10.5pt; }
+table.rv td, table.rv th { font-size: 8.5pt; } table.pl td { text-align: right; }
+table.exec-t td, table.exec-t th { font-size: 8.5pt; white-space: nowrap; } table.exec-t td:nth-child(2) { white-space: normal; text-align: left; }
+table.chk td:first-child { white-space: nowrap; } table.rv td { white-space: nowrap; } table.rv td:nth-child(1), table.rv td:nth-child(2) { white-space: normal; }
 .lead { font-size: 13pt; font-weight: 700; color: #1f4d3a; background: #fff2d6; padding: 10px 14px; border-radius: 8px; }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
 .tile { border: 1px solid #cfe2d2; border-radius: 10px; padding: 8px 12px; break-inside: avoid; }
