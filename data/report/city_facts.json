@@ -114,7 +114,22 @@
  "all_source": "厚生労働省 一般職業紹介状況（2026年8月、季節調整値）",
  "city": {
   "横浜市": {
-   "grade": "2"
+   "grade": "2",
+   "open": {
+    "where": "横浜市こども青少年局 障害児福祉保健課（障害児通所支援の指定）",
+    "tel": "045-671-4274",
+    "url": "https://www.city.yokohama.lg.jp/kosodate-kyoiku/oyakokenko/shogaihoken/tushoshinki.html",
+    "steps": [
+     "市の開設前説明会に出る（4月・7月・12月ごろ）",
+     "開きたい月の2か月前の月初に、個別相談を予約して相談する",
+     "開きたい月の前月1日〜15日に申請書を出す",
+     "現地確認のあと、毎月1日付で指定"
+    ],
+    "cautions": [
+     "地下・窓のない部屋・5階以上は不可。トイレは事業所の中に男女別で",
+     "風俗店などから200m以内は不可。1981年より前の建物は不可"
+    ]
+   }
   },
   "大阪市": {
    "grade": "2",
@@ -125,10 +140,39 @@
     "kind": "実績",
     "src": "大阪市 障がい福祉計画・障がい児福祉計画の進捗（2026年7月）",
     "url": "https://www.city.osaka.lg.jp/fukushi/cmsfiles/contents/0000065/65628/20260730shiryo4.pdf"
+   },
+   "open": {
+    "where": "大阪市福祉局 障がい者施策部 運営指導課（指定担当）",
+    "tel": "06-6241-6520",
+    "url": "https://www.city.osaka.lg.jp/fukushi/cmsfiles/contents/0000601/601804/tebiki-jidouR712.pdf",
+    "steps": [
+     "開きたい月の3か月前の月中に、事前協議の書類を市のオンラインシステムで出す",
+     "前月10日までに事前協議の審査が終わる",
+     "市が決める申請受付期間に、来庁予約をして窓口で申請",
+     "毎月1日付で指定"
+    ],
+    "caps": {
+     "46": {
+      "level": "stop",
+      "text": "就労B型は、2026年8月1日〜2027年7月1日の間、新しい指定と定員を増やすことを止めています（毎年見直し）。",
+      "url": "https://www.city.osaka.lg.jp/hodoshiryo/fukushi/0000676658.html"
+     }
+    }
    }
   },
   "名古屋市": {
-   "grade": "3"
+   "grade": "3",
+   "open": {
+    "where": "名古屋市（障害児通所支援の指定担当）",
+    "tel": "",
+    "url": "https://www.kaigo-wel.city.nagoya.jp/_files/00154789/0806tebiki.pdf",
+    "steps": [
+     "予約して事前相談をする（相談から受付までおよそ2か月）",
+     "図面の相談は、開きたい月の3か月前の10日までに予約",
+     "開きたい月の2か月前の月末までに申請",
+     "毎月1日付で指定"
+    ]
+   }
   },
   "札幌市": {
    "grade": "7",
@@ -139,6 +183,28 @@
     "kind": "計画の見込み",
     "src": "さっぽろ障がい者プラン2024 第5章",
     "url": "https://www.city.sapporo.jp/shogaifukushi/keikaku/documents/4_5_syougaiplanpc2024.pdf"
+   },
+   "open": {
+    "where": "札幌市保健福祉局 障がい保健福祉部（事業所指定担当）",
+    "tel": "",
+    "url": "https://www.city.sapporo.jp/shogaifukushi/siteisidou/r8senteibosyu.html",
+    "steps": [
+     "児発・放デイは年に1回の募集に申し込む（2026年度分は6月1日〜11日で締め切り済み）",
+     "選定委員会で選ばれた事業所だけが指定を受けられる（若干数）",
+     "選ばれたら、2026年10月1日〜2027年9月30日の間に開く"
+    ],
+    "caps": {
+     "65": {
+      "level": "limit",
+      "text": "2025年4月から、放課後等デイの新しい指定は募集で選ばれた事業所だけ（総量規制）。強度行動障害や重い知的障害に対応できると評価されやすく、重症心身障害児・医療的ケア児向けは対象外です。",
+      "url": "https://www.city.sapporo.jp/shogaifukushi/siteisidou/r8senteibosyu.html"
+     },
+     "63": {
+      "level": "limit",
+      "text": "2025年4月から、児童発達支援の新しい指定は募集で選ばれた事業所だけ（総量規制）。重症心身障害児・医療的ケア児向けは対象外です。",
+      "url": "https://www.city.sapporo.jp/shogaifukushi/siteisidou/r8senteibosyu.html"
+     }
+    }
    }
   },
   "福岡市": {
@@ -150,10 +216,34 @@
     "kind": "実績",
     "src": "第7期福岡市障がい福祉計画・第3期障がい児福祉計画（答申案）",
     "url": "http://www.city.fukuoka.lg.jp/fukushi/zaitakushien/shisei/documents/119417/siryou2.pdf"
+   },
+   "open": {
+    "where": "福岡市こども未来局 こども発達支援課（障がい児通所支援の指定）",
+    "tel": "092-711-4987",
+    "url": "https://www.city.fukuoka.lg.jp/kodomo-mirai/jigyosyo/health/syogaij-sien/index-1shiteishinsei.html",
+    "steps": [
+     "開きたい月の5か月前の月に、事前協議書をメールで出す",
+     "開きたい月の2か月前に申請書一式を出す",
+     "準備のできた事業所から順に指定"
+    ],
+    "cautions": [
+     "市街化調整区域では指定しません"
+    ]
    }
   },
   "川崎市": {
-   "grade": "2"
+   "grade": "2",
+   "open": {
+    "where": "川崎市健康福祉局 障害保健福祉部 障害計画課",
+    "tel": "044-200-2927",
+    "url": "https://www.city.kawasaki.jp/350/cmsfiles/contents/0000101/101552/annai.pdf",
+    "steps": [
+     "市の開設前説明会に出る（年に数回。開く時期に合う回）",
+     "開きたい月の2か月前の上旬に電話で予約し、図面を持って事前相談",
+     "開きたい月の前月15日までに申請書を出す",
+     "毎月1日付で指定"
+    ]
+   }
   },
   "神戸市": {
    "grade": "4",
@@ -164,6 +254,17 @@
     "kind": "実績",
     "src": "第7期神戸市障がい福祉計画・第3期障がい児福祉計画 資料",
     "url": "https://www.city.kobe.lg.jp/documents/58907/73honpenshiryou.pdf"
+   },
+   "open": {
+    "where": "神戸市福祉局 監査指導課",
+    "tel": "",
+    "url": "https://www.city.kobe.lg.jp/documents/11170/20260528192124.pdf",
+    "steps": [
+     "開きたい月の3か月前の10日ごろまでに、事前相談の資料を出す（3月・4月開始は早まる）",
+     "開きたい月の2か月前の10日ごろまでに申請書を出す（例：5月1日開始なら3月10日）",
+     "前月10日までに書類の不備をなくす",
+     "毎月1日付で指定"
+    ]
    }
   },
   "京都市": {
@@ -175,6 +276,33 @@
     "kind": "実績（3月）",
     "src": "京都市 第7・8期障害福祉計画等の令和6年度進捗",
     "url": "https://www.city.kyoto.lg.jp/templates/shingikai_kekka/cmsfiles/contents/0000346/346034/02_siryou1.pdf"
+   },
+   "open": {
+    "where": "京都市子ども若者はぐくみ局 子ども家庭支援課 発達支援担当",
+    "tel": "075-222-3937",
+    "url": "https://www.city.kyoto.lg.jp/hagukumi/cmsfiles/contents/0000355/355121/1youryou.pdf",
+    "steps": [
+     "物件を借りる・買う前に、予約して事前相談",
+     "放デイは年に1回の公募に申し込む（2026年度分は8月24日締め切り）",
+     "応募が枠より多いと、プレゼンで選ばれる",
+     "選ばれたら決まった期間の中で開く（2026年度分は2026年10月〜2027年3月）"
+    ],
+    "caps": {
+     "65": {
+      "level": "limit",
+      "text": "放課後等デイは総量規制。区・支所ごとに枠があり、2026年度は左京区4・山科区1・下京区2・南区2・右京区2・西京区1・洛西2・伏見区2・深草2か所（定員10の場合）。北区・上京区・中京区・東山区などは募集なし。重症心身障害児向けは対象外です。",
+      "url": "https://www.city.kyoto.lg.jp/hagukumi/cmsfiles/contents/0000355/355121/1youryou.pdf",
+      "wards": {
+       "左京区": 4,
+       "山科区": 1,
+       "下京区": 2,
+       "南区": 2,
+       "右京区": 2,
+       "西京区": 3,
+       "伏見区": 4
+      }
+     }
+    }
    }
   },
   "さいたま市": {
@@ -186,6 +314,17 @@
     "kind": "実績",
     "src": "さいたま市障害者総合支援計画2024～2026 第3章",
     "url": "https://www.city.saitama.lg.jp/002/003/004/001/005/p113957_d/fil/03_3syou-text.txt"
+   },
+   "open": {
+    "where": "さいたま市福祉局 障害福祉部 障害政策課 事業所係",
+    "tel": "048-829-1309",
+    "url": "https://www.city.saitama.lg.jp/002/003/004/003/007/p018259.html",
+    "steps": [
+     "市の手引きを読む",
+     "遅くとも開く2か月前までに、電話で予約して事前相談（1回50分まで）",
+     "開く月の前々月末までに書類をそろえる",
+     "毎月10日までに窓口へ申請すると、翌月1日付で指定"
+    ]
    }
   },
   "広島市": {
@@ -197,6 +336,17 @@
     "kind": "実績の見込み",
     "src": "第7期広島市障害福祉計画・第3期障害児福祉計画",
     "url": "https://www.city.hiroshima.lg.jp/_res/projects/default_project/_page_/001/022/229/395256_884778_misc.pdf"
+   },
+   "open": {
+    "where": "広島市健康福祉局 障害自立支援課 事業者指導・指定係",
+    "tel": "082-504-2841",
+    "url": "https://www.city.hiroshima.lg.jp/business/shogai/1026871/1026879/1015785.html",
+    "steps": [
+     "開きたい月の4か月前の月末までに、1回目の事前相談",
+     "3か月前の月末までに事前相談を終える",
+     "2か月前の月末までに申請書を出す（例：9月1日開始なら7月31日まで）",
+     "毎月1日付で指定"
+    ]
    }
   },
   "仙台市": {
@@ -208,6 +358,16 @@
     "kind": "実績",
     "src": "仙台市障害者施策推進協議会 資料（2026年9月）",
     "url": "https://www.city.sendai.jp/kenko-kikaku/shise/security/kokai/fuzoku/fuzokukikan/kenko/documents/r8_0902_02-3_shisakukyogikai.pdf"
+   },
+   "open": {
+    "where": "仙台市健康福祉局 障害福祉サービス指導課",
+    "tel": "",
+    "url": "https://www.city.sendai.jp/shogaishien-shido/jigyosha/fukushi/fukushi/shogai/shidokansa/documents/shitei.pdf",
+    "steps": [
+     "建築・消防の担当と事前協議をする（協議書がないと申請を受け付けない）",
+     "開きたい日の2か月前の15日までに申請書を出す（必着）",
+     "毎月1日付で指定"
+    ]
    }
   },
   "千葉市": {
@@ -219,10 +379,36 @@
     "kind": "実績",
     "src": "第3期千葉市障害児福祉計画 第2章",
     "url": "https://www.city.chiba.jp/hokenfukushi/koreishogai/jiritsu/keikaku/documents/yonnbunishou.pdf"
+   },
+   "open": {
+    "where": "千葉市保健福祉局 高齢障害部 障害福祉サービス課",
+    "tel": "043-245-5227",
+    "url": "https://www.city.chiba.jp/hokenfukushi/koreishogai/shogaifukushi/syougaiji.html",
+    "steps": [
+     "物件の契約前に、電話で予約して事前相談（開く2か月半前の15日まで。例：4月1日開始なら1月15日）",
+     "事業計画書・図面・収支予算書を持っていく",
+     "開く月の前々月末までに、予約して対面で申請",
+     "毎月1日付で指定"
+    ]
    }
   },
   "世田谷区": {
-   "grade": "1"
+   "grade": "1",
+   "open": {
+    "where": "世田谷区 障害福祉部 障害保健福祉課 事業者指定・指導担当",
+    "tel": "03-5432-2243",
+    "url": "https://www.city.setagaya.lg.jp/03655/2884.html",
+    "steps": [
+     "東京都の指定協議説明会に出る",
+     "区のフォームで事前調査票を出す",
+     "開きたい月の4か月前までに、区と何回か面談",
+     "開きたい月の前々月末（午後5時）までに申請書を出す",
+     "前月に区の現地確認、毎月1日付で指定"
+    ],
+    "cautions": [
+     "区は重症心身障害児・医療的ケア児を受け入れる事業所を特に求めています"
+    ]
+   }
   },
   "北九州市": {
    "grade": "7",
@@ -233,6 +419,16 @@
     "kind": "実績（推計）",
     "src": "第7期北九州市障害福祉計画・第3期障害児福祉計画",
     "url": "https://www.city.kitakyushu.lg.jp/files/001084608.pdf"
+   },
+   "open": {
+    "where": "北九州市保健福祉局 障害福祉部 障害者支援課 指定指導係",
+    "tel": "093-582-2727",
+    "url": "https://www.city.kitakyushu.lg.jp/ho-huku/17600414.html",
+    "steps": [
+     "開く6か月前ごろに、予約して事前相談",
+     "開きたい月の前々月16日までに申請書を出す（例：12月1日開始なら10月16日）",
+     "毎月1日付で指定"
+    ]
    }
   },
   "堺市": {
@@ -244,6 +440,16 @@
     "kind": "実績",
     "src": "堺市 障害福祉サービス等の利用状況",
     "url": "https://www.city.sakai.lg.jp/kenko/fukushikaigo/shogaifukushi/toukei/service.html"
+   },
+   "open": {
+    "where": "堺市子ども青少年局（障害児通所支援の指定担当）",
+    "tel": "",
+    "url": "https://www.city.sakai.lg.jp/kosodate/hughug/shogai/jigyoshashitei/jizenkyougi.html",
+    "steps": [
+     "開く3か月前までに、事前協議の書類をメール（jigyo-shosui@city.sakai.lg.jp）で出す（例：11月1日開始なら8月1日まで）",
+     "審査はおよそ1か月半",
+     "申請書を出して、毎月1日付で指定"
+    ]
    }
   },
   "浜松市": {
@@ -255,6 +461,19 @@
     "kind": "実績の見込み",
     "src": "浜松市障がい者計画 8-3",
     "url": "https://www.city.hamamatsu.shizuoka.jp/syoghuku/welfare/obstacle/plan/r6-11/8-3.html"
+   },
+   "open": {
+    "where": "浜松市 障害保健福祉課 指導グループ",
+    "tel": "",
+    "url": "https://www.city.hamamatsu.shizuoka.jp/documents/149245/202404jitsusyo_tebiki.pdf",
+    "steps": [
+     "開きたい月の3か月前の月末までに、新規開設等事前相談票をメール（syoghuku-shidou@city.hamamatsu.shizuoka.jp）で出す",
+     "開きたい月の前々月末までに、不備のない申請書を出す",
+     "毎月1日付で指定"
+    ],
+    "cautions": [
+     "定員を増やす変更は、県の計画との兼ね合いで認められないことがあります"
+    ]
    }
   },
   "新潟市": {
@@ -266,18 +485,121 @@
     "kind": "実績の見込み",
     "src": "第7期新潟市障がい福祉計画・第3期障がい児福祉計画（案）",
     "url": "https://www.city.niigata.lg.jp/shisei/kocho/public/publiccomment/fukushi/shogai/shogai_wl20240228.files/dai7kidai3kikeikaku.pdf"
+   },
+   "open": {
+    "where": "新潟市 障がい福祉課（事業所指定担当）",
+    "tel": "",
+    "url": "https://www.city.niigata.lg.jp/iryo/shofuku/yoshikisyu/jigyousyamuke/sinseitodokedekankei.files/tebiki_ji.pdf",
+    "steps": [
+     "開きたい月の3か月前の月末までに、事業実施計画書を出す",
+     "開きたい月の前々月末までに申請書を出す",
+     "定員は10人以上",
+     "毎月1日付で指定"
+    ],
+    "caps": {
+     "65": {
+      "level": "watch",
+      "text": "市の計画の量に届いていると、放課後等デイの新しい指定を断ることがあります（手引きに明記）。",
+      "url": "https://www.city.niigata.lg.jp/iryo/shofuku/yoshikisyu/jigyousyamuke/sinseitodokedekankei.files/tebiki_ji.pdf"
+     },
+     "63": {
+      "level": "watch",
+      "text": "市の計画の量に届いていると、児童発達支援の新しい指定を断ることがあります（手引きに明記）。",
+      "url": "https://www.city.niigata.lg.jp/iryo/shofuku/yoshikisyu/jigyousyamuke/sinseitodokedekankei.files/tebiki_ji.pdf"
+     }
+    }
    }
   },
   "練馬区": {
-   "grade": "1"
+   "grade": "1",
+   "open": {
+    "where": "東京都（東京都福祉保健財団が窓口）。開く前に練馬区の担当課にも相談",
+    "tel": "",
+    "url": "https://www.shougaifukushi.metro.tokyo.lg.jp/",
+    "steps": [
+     "東京都の事業説明会を見て、チェックリストを出す（開きたい日の4か月前）",
+     "練馬区の担当課に開設の相談をする",
+     "3か月前の月末までに、東京都福祉保健財団で対面相談",
+     "2か月前の月末までに申請書を出す",
+     "毎月1日付で指定"
+    ]
+   }
   },
   "大田区": {
-   "grade": "1"
+   "grade": "1",
+   "open": {
+    "where": "東京都（東京都福祉保健財団が窓口）。開く前に大田区の担当課にも相談",
+    "tel": "",
+    "url": "https://www.shougaifukushi.metro.tokyo.lg.jp/",
+    "steps": [
+     "東京都の事業説明会を見て、チェックリストを出す（開きたい日の4か月前）",
+     "大田区の担当課に開設の相談をする",
+     "3か月前の月末までに、東京都福祉保健財団で対面相談",
+     "2か月前の月末までに申請書を出す",
+     "毎月1日付で指定"
+    ]
+   }
   },
   "熊本市": {
    "grade": "0",
-   "note": "熊本市は、放課後等デイサービスと児童発達支援の新しい指定を、区ごとに決めた必要量の範囲でしか行っていません（総量規制）。開く前に市の募集要項を必ず確認してください。",
-   "note_url": "https://www.city.kumamoto.jp/kiji00354487/index.html"
+   "open": {
+    "where": "熊本市 健康福祉局 障がい保健福祉課（総量規制の募集）",
+    "tel": "電話は受け付けず、メール shougaiservice@city.kumamoto.lg.jp",
+    "url": "https://www.city.kumamoto.jp/kiji00361576/index.html",
+    "steps": [
+     "年に1回の募集に電子申請で申し込む（2026年度分は2025年8月1日〜18日）",
+     "面談の予約は先着順",
+     "選ばれたら11月ごろにメールが来て、指定申請書を出した時点で枠が決まる",
+     "決まった年度の中で開く"
+    ],
+    "caps": {
+     "65": {
+      "level": "limit",
+      "text": "放課後等デイは区ごとの枠の中だけ。2026年度の枠は東区8・北区5・中央区3・西区3・南区3か所（定員10）。",
+      "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf",
+      "wards": {
+       "東区": 8,
+       "北区": 5,
+       "中央区": 3,
+       "西区": 3,
+       "南区": 3
+      }
+     },
+     "63": {
+      "level": "limit",
+      "text": "児童発達支援は区ごとの枠の中だけ。2026年度の枠は北区2・中央区1・東区1・西区1・南区1か所。",
+      "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf",
+      "wards": {
+       "北区": 2,
+       "中央区": 1,
+       "東区": 1,
+       "西区": 1,
+       "南区": 1
+      }
+     },
+     "46": {
+      "level": "limit",
+      "text": "就労B型は2026年度、東区の1か所だけ。ほかの区は募集なし。",
+      "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf",
+      "wards": {
+       "東区": 1
+      }
+     },
+     "45": {
+      "level": "limit",
+      "text": "就労A型は2026年度、東区の1か所だけ。",
+      "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf",
+      "wards": {
+       "東区": 1
+      }
+     },
+     "22": {
+      "level": "stop",
+      "text": "生活介護は2026年度、新しい指定の募集なし。",
+      "url": "https://www.city.kumamoto.jp/kiji00361576/3_61576_466944_up_ktd8a0s2.pdf"
+     }
+    }
+   }
   },
   "船橋市": {
    "grade": "4",
@@ -288,7 +610,41 @@
     "kind": "実績",
     "src": "船橋市 障害福祉計画の令和6年度実績",
     "url": "https://www.city.funabashi.lg.jp/kenkou/shougaisha/010/p124345.html"
+   },
+   "open": {
+    "where": "船橋市 指導監査課 指導監査第一係（障害福祉担当）",
+    "tel": "047-436-2425",
+    "url": "https://www.city.funabashi.lg.jp/jigyou/fukushi_kosodate/002/01/p020132_d/fil/shinkishitei.pdf",
+    "steps": [
+     "予約して事前相談",
+     "開きたい月の前々月15日までに、消防法令の適合確認を申し込む",
+     "前月15日までに書類を出して受理してもらう",
+     "前月末ごろに現地確認、毎月1日付で指定"
+    ]
    }
   }
- }
+ },
+ "open_note": "グループホーム（共同生活援助）は、2027年4月1日から全国で総量規制の対象にできるようになります。開く市の計画を確認してください。",
+ "open_source": "各市・区・都の指定の手引きと募集要項（2026年10月に確認）",
+ "unit_price_b": {
+  "1": 11.14,
+  "2": 10.91,
+  "3": 10.86,
+  "4": 10.68,
+  "5": 10.57,
+  "6": 10.34,
+  "7": 10.17,
+  "0": 10.0
+ },
+ "unit_price_gh": {
+  "1": 11.6,
+  "2": 11.28,
+  "3": 11.2,
+  "4": 10.96,
+  "5": 10.8,
+  "6": 10.48,
+  "7": 10.24,
+  "0": 10.0
+ },
+ "other_source": "福祉医療機構「2024年度 児童発達支援の経営状況」「2024年度 就労継続支援B型の経営状況」、厚生労働省「令和7年度 障害福祉サービス等経営概況調査」"
 }
