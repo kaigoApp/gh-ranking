@@ -7,7 +7,7 @@
   /p/<都道府県>/<市区町村>/<サービス>/  市区町村 × サービスの事業所一覧
   /f/<事業所番号>/          事業所ページ（全サービス）
   /report/<時点>/           レポート（データの時点ごとに1本）
-  /data/                    お仕事で使う方へ（地域のくらべ表・半年の動き・CSV ダウンロード）
+  /data/                    お仕事で使う方へ（地域の比較表・半年の動き・CSV ダウンロード）
 
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
 """
@@ -76,7 +76,7 @@ PREF_ABBR = [(p[:-1] if p[-1] in "都府県" else p)[:2] for p in PREFS]
 NEW_CHIP = '<span class="chip hot">新規掲載</span>'
 CORP_CHIP = '<span class="chip hot">新規参入</span>'
 
-# トップページの「目的からさがす」。行政の分類（訪問系など）ではなく、探す人の言葉で分ける。
+# トップページの「目的から探す」。行政の分類（訪問系など）ではなく、探す人の言葉で分ける。
 # (見出し, 説明, アイコンの SVG パス, サービスコード)
 PURPOSES = [
     ("暮らす場所", "グループホームや入所施設、ショートステイ", "M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z", ["33", "32", "24", "61", "34"]),
@@ -132,7 +132,7 @@ CORP_FORMS = ["株式会社", "社会福祉法人", "合同会社", "特定非�
 
 
 def corp_form(name: str) -> str:
-    """運営法人の種類を法人名に含まれる言葉で分ける（おおよそ）。"""
+    """運営法人の種類を法人名に含まれる言葉で分ける（およそ）。"""
     return next((k for k in CORP_FORMS if k in name), "その他")
 
 
@@ -306,7 +306,7 @@ def tilemap(values: dict, links: dict, titles: dict, caption: str, legend_lo: st
 
 
 SEARCH_FORM = """<form class="search" id="search" role="search">
-  <label for="q">施設名・法人名・市区町村名でさがす</label>
+  <label for="q">施設名・法人名・市区町村名で探す</label>
   <div class="field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
   <input id="q" type="search" placeholder="例：フレンド、江別市、社会福祉法人〇〇" autocomplete="off" enterkeyhint="search"></div>
   <p class="status" aria-live="polite"></p>
@@ -347,7 +347,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <body>
 <header class="site-head"><div class="container">
   <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
-  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a href="{rel}report/">レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
+  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的から探す</a><a href="{rel}#prefs">地域から探す</a><a href="{rel}data/">データ</a><a href="{rel}report/">レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>探す</a></nav>
 </div></header>
 <div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
@@ -379,7 +379,7 @@ def muni_path(pi, name):
     return f"p/{PREF_SLUGS[pi]}/{name}/"
 
 
-FAC_PAGES: set = set()    # 事業所ページを作る事業所番号（最新時点に載っている全サービスの事業所）
+FAC_PAGES: set = set()    # 事業所ページを作る事業所番号（最新時点に登録されている全サービスの事業所）
 
 
 def fac_path(no):
@@ -393,7 +393,7 @@ def ms_path(pi, name, code):
 
 
 def display_name(o):
-    """グループホームは住居ごとに名前が違うことがあるので、いちばん多い名前を事業所名にする。"""
+    """グループホームは住居ごとに名前が違うことがあるので、最も多い名前を事業所名にする。"""
     names = [h[0] for h in o["houses"]] or [o["name"]]
     return collections.Counter(names).most_common(1)[0][0]
 
@@ -550,7 +550,7 @@ def build():
   {SEARCH_FORM}
 </div>
 <div class="hero-map">
-  <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
+  <div class="map-h"><b>地図から探す</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
   {tilemap(rates, links, titles, "都道府県を押すと、その地域のページへ移ります。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}
 </div>"""
 
@@ -592,12 +592,12 @@ def build():
         + '</div></div>' for r, rng in regions)
     body = f"""
 {stats}
-<section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
+<section id="purpose"><span id="services"></span><h2>目的から探す</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
 <div class="purposes">{"".join(purpose_html)}</div></section>
-<a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
+<a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとの比較表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新規に登録された事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 <a class="pro-link" href="report/{latest}/"><span class="eyebrow">レポート</span><b>障害福祉の事業所はどう変わったか（{E(LATEST_LABEL)}）</b><span>増え方、地域の差、入れ替わり、運営法人の変化を、国の公表データからまとめました。データが新しくなるたびに更新します。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
-<section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
+<section id="prefs"><h2>地域から探す</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
 <section class="data-zone"><div class="data-h"><span class="eyebrow">データで見る</span><h2>障害福祉の事業所は、いまも増えています</h2>
 <p class="sec-sub">全サービスの延べ事業所数の推移。{E(label(periods[first_i]))}から<b>{ratio:.2f}倍</b>になりました。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p></div>
 {trend_chart(periods, total_series)}
@@ -674,7 +674,7 @@ def build():
                 for pi in rng if by_pref_m[pi])
             for rname, rng in REGIONS)
         body = f"""
-<section id="area"><h2>{E(short)}を地域からさがす</h2><p class="sec-sub">都道府県を開いて、市区町村を選んでください。数字は事業所の数です。<a href="{href(rel, "data/near/")}?s={c}">いまいる場所や住所から、近い順にさがす</a></p>
+<section id="area"><h2>{E(short)}を地域から探す</h2><p class="sec-sub">都道府県を開いて、市区町村を選んでください。数字は事業所の数です。<a href="{href(rel, "data/near/")}?s={c}">いまいる場所や住所から、近い順に探す</a></p>
 <div class="dir area">{area}</div></section>
 <section><div class="kpis">{kpi_html}</div></section>
 <section><h2>ランキング</h2>
@@ -704,7 +704,7 @@ def build():
              f"{name}の事業所は全国に{cur:,}件（{LATEST_LABEL}時点）。都道府県・市区町村・運営法人別の事業所数と半年間の増減、新規掲載の事業所を毎回更新。",
              hero, body, scripts, split=True,
              og=og_image(f"s/{slug}", group, f"{name}の事業所", cur, "か所",
-                         [f"半年で{cur - pv:+,}" if pv is not None else "", f"いちばん多いのは{PREFS[max(range(47), key=lambda i: L['pref'].get(i, 0))]}", "都道府県・市区町村・法人別"]))
+                         [f"半年で{cur - pv:+,}" if pv is not None else "", f"最も多いのは{PREFS[max(range(47), key=lambda i: L['pref'].get(i, 0))]}", "都道府県・市区町村・法人別"]))
 
     # ---------- 都道府県
     for pi in range(47):
@@ -831,7 +831,7 @@ def build():
                 items = "".join(fresh_li(no, o) for no, o in fr)
                 fresh_sec = (f'<section id="fresh"><h2>最近できた{E(pref)}のグループホーム</h2>'
                              f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームです（{len(fr):,}件）。できたばかりの事業所は入居者を募集していることが多いため、入居先を探す手がかりになります。空き状況は各事業所にお問い合わせください。</p>'
-                             + (f'<div class="dir"><details open><summary>1年以内に新規掲載<span class="c">{len(fr):,}件</span></summary><ul>{items}</ul></details></div>' if fr else '<p class="note">この1年で新しく載ったグループホームはありません。</p>')
+                             + (f'<div class="dir"><details open><summary>1年以内に新規掲載<span class="c">{len(fr):,}件</span></summary><ul>{items}</ul></details></div>' if fr else '<p class="note">この1年で新規登録グループホームはありません。</p>')
                              + '</section>')
             gone_html = "".join(office_li(o) for _, o in gone_here)
             others = "".join(
@@ -1005,7 +1005,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                            for m in within if m != mk)
             others = "".join(f'<a href="{href(rel, ms_path(pi, mname, x))}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["muni"][mk]:,}</span></a>'
                              for x in codes if x != c and S[x][latest]["muni"].get(mk))
-            fresh_note = "「新規掲載」の印がある事業所は最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。" if c == GH else "「新規掲載」の印は、この半年で新しく公表データに載った事業所です。"
+            fresh_note = "「新規掲載」の印がある事業所は最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。" if c == GH else "「新規掲載」の印は、この半年で新しく公表データに登録された事業所です。"
             near_url = f'{href(rel, "data/near/")}?s={c}&amp;p={pi}&amp;m={urllib.parse.quote(mname)}'
             tools = (f'<div class="list-tools">'
                      + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if len(offs) > 10 else '')
@@ -1017,8 +1017,8 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
 {area_box(rel, pi, mname, c)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
-{f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所をすべて見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
-            new_txt = f"この半年で{n_new}か所が新しく載りました。" if n_new else ""
+{f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所を全て見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
+            new_txt = f"この半年で{n_new}か所が新規に登録されました。" if n_new else ""
             page(ms_path(pi, mname, c), f"{mname}（{pref}）の{name}一覧（{cur:,}か所）",
                  f"{pref}{mname}の{name}の事業所{cur:,}か所の一覧（{LATEST_LABEL}時点）。{new_txt}事業所名・運営法人・所在地と、電話番号や地図のある事業所ページ。",
                  hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if len(offs) > 10 else "", og=muni_og(pi, mname))
@@ -1146,9 +1146,9 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p></section>
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
-{f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
+{f'<section><h2>公表データに登録されている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データに全ての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
-{f'<section><h2>{E(mk[1])}のほかの{E(short)}</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{muni_n}件</span></summary><ul>{muni_html}</ul></details></div><p class="note"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}をすべて見る</a></p></section>' if muni_html else ''}"""
+{f'<section><h2>{E(mk[1])}のほかの{E(short)}</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{muni_n}件</span></summary><ul>{muni_html}</ul></details></div><p class="note"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}を全て見る</a></p></section>' if muni_html else ''}"""
         if list(cs) == [GH]:
             title = f"{name}（{place}）のグループホーム情報"
         else:
@@ -1201,7 +1201,7 @@ def write_csv(path: pathlib.Path, note: str, header, rows) -> int:
 
 
 def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
-    """お仕事で使う方へのページ。くらべ表のもとデータ、半年の動き、CSV を書き出す。"""
+    """お仕事で使う方へのページ。比較表のもとデータ、半年の動き、CSV を書き出す。"""
     path = "data/"
     rel = "../"
     dd = OUT / "data"
@@ -1229,14 +1229,14 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
             out.append(sum(v) if v else None)
         return out
 
-    # 都道府県のくらべ表：サービスごとに [最新, 半年前, 1年前, 運営法人数]
+    # 都道府県の比較表：サービスごとに [最新, 半年前, 1年前, 運営法人数]
     T = {}
     for c in codes:
         T[c] = [[counts(c, latest, "pref", pi), counts(c, prev, "pref", pi), counts(c, ya, "pref", pi), len(corp_pref[c].get(pi, ()))]
                 for pi in range(47)]
     T["all"] = [sum4([T[c][pi] for c in codes]) + [all_corps(corp_pref, pi)] for pi in range(47)]
 
-    # 市区町村のくらべ表は都道府県ごとのファイルにして、選んだときだけ読み込む
+    # 市区町村の比較表は都道府県ごとのファイルにして、選んだときだけ読み込む
     munis_by_pref = collections.defaultdict(set)
     for c in codes:
         for p in (latest, prev):
@@ -1258,7 +1258,7 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(rows, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
-    # 半年の動き：新しく載った事業所・載らなくなった事業所。都道府県ごとのファイルにする。
+    # 半年の動き：新規に登録された事業所・載らなくなった事業所。都道府県ごとのファイルにする。
     corps_prev = {c: {o["corp_key"] for o in S[c][prev]["offices"].values()} if prev in S[c] else None for c in codes}
     corps_cur = {c: {o["corp_key"] for o in S[c][latest]["offices"].values()} for c in codes}
     moves = collections.defaultdict(dict)
@@ -1283,7 +1283,7 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
                 r[6] = r[6] or fac
                 move_rows.append([("新規掲載" if kind else "掲載終了"), SERVICES[c][0], PREFS[o["p"]], mk[1] if mk else "", no, name, o["corp"],
                                   o["corp_key"] if o["corp_key"].isdigit() else "",
-                                  ("この法人が初めて行うサービス" if kind else "この法人がこのサービスをすべてやめた") if first else ""])
+                                  ("この法人が初めて行うサービス" if kind else "この法人がこのサービスを全てやめた") if first else ""])
     for pi in range(47):
         rows = sorted(moves[pi].values(), key=lambda r: (-r[0], r[2], r[3]))
         (dd / "mv" / f"{PREF_SLUGS[pi]}.json").parent.mkdir(parents=True, exist_ok=True)
@@ -1309,8 +1309,8 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
          write_csv(dd / "todofuken.csv", cnote, ["都道府県", f"人口（{POP_ASOF[0]}）", "サービス"] + plabels, pref_rows), len(pref_rows)),
         ("shikuchoson.csv", f"市区町村別・サービス別の事業所数（{plabels[0]}〜{plabels[-1]}）", "市区町村ごと・サービスごとに、各時点の事業所数を並べた表です。事業所が1か所もない組み合わせは省いています。",
          write_csv(dd / "shikuchoson.csv", cnote + "市区町村は事業所の所在地。", ["都道府県", "市区町村", f"人口（{POP_ASOF[0]}）", "サービス"] + plabels, muni_rows), len(muni_rows)),
-        (f"ugoki-{span}.csv", f"半年間に新しく載った事業所・載らなくなった事業所（{label(prev)}→{label(latest)}）", "事業所名・運営法人・所在地の一覧です。その法人が初めて行うサービスかどうかの印もつけています。",
-         write_csv(dd / f"ugoki-{span}.csv", f"{label(prev)}と{label(latest)}の公表データをくらべ、掲載の有無で判定。実際の開設・廃止日とは一致しない場合がある。掲載終了には休止や番号の変更も含む。",
+        (f"ugoki-{span}.csv", f"半年間に新規に登録された事業所・載らなくなった事業所（{label(prev)}→{label(latest)}）", "事業所名・運営法人・所在地の一覧です。その法人が初めて行うサービスかどうかの印もつけています。",
+         write_csv(dd / f"ugoki-{span}.csv", f"{label(prev)}と{label(latest)}の公表データを比べ、掲載の有無で判定。実際の開設・廃止日とは一致しない場合がある。掲載終了には休止や番号の変更も含む。",
                    ["区分", "サービス", "都道府県", "市区町村", "事業所番号", "事業所名", "運営法人", "法人番号", "法人のようす"], move_rows), len(move_rows)),
         ("nai.csv", f"そのサービスが1か所もない市区町村（{LATEST_LABEL}時点）", "サービスごとに、事業所が1か所もない市区町村を並べた表です。",
          write_csv(dd / "nai.csv", f"{LATEST_LABEL}時点で、なんらかの障害福祉サービスの事業所がある市区町村のうち、そのサービスの事業所が所在地にない市区町村。近くの市区町村の事業所を使える場合もある。",
@@ -1340,10 +1340,10 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
   <h1>お仕事で使う方へ</h1>
   <p class="lede">事業所の運営、相談支援、自治体の計画づくりなどに使えるよう、地域ごとの事業所の数と増え方、半年間の動きをまとめました。表はそのままダウンロードできます。</p>
   <div class="big"><div><span class="n">{n_new:,}</span><span class="u">件</span></div>
-    <div class="meta"><span>この半年に新しく載った事業所</span><span>うち <b>{n_first:,}件</b> は、その法人が初めて行うサービス</span></div></div>
+    <div class="meta"><span>この半年に新規に登録された事業所</span><span>うち <b>{n_first:,}件</b> は、その法人が初めて行うサービス</span></div></div>
 </div>"""
     body = f"""
-<section id="compare"><h2>地域のくらべ表</h2>
+<section id="compare"><h2>地域の比較表</h2>
 <p class="sec-sub">地域とサービスを選ぶと、事業所の数と、半年前・1年前からの増え方を一覧にします。表の見出しを押すと並べ替えられます。</p>
 <div class="controls">
   <select id="cp-area" aria-label="地域"><option value="-1">全国（都道府県ごと）</option>{pref_opts}</select>
@@ -1361,12 +1361,12 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
 <p class="note">運営法人は、その地域でそのサービスを行う法人の数です（{E(LATEST_LABEL)}時点）。市区町村は事業所の所在地で数えています。{f"人口1万人あたりは、{E(POP_ASOF[0])}の人口で割った数です（{POP_SOURCE}）。" if POP_PREF else ""}</p>
 </section>
 <section id="moves"><h2>半年の動き</h2>
-<p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに載った事業所と、載らなくなった事業所です。「初めて」の印は、その法人がそのサービスを全国でまだ行っていなかった（新しく始めた）ことを示します。</p>
+<p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに登録された事業所と、載らなくなった事業所です。「初めて」の印は、その法人がそのサービスを全国でまだ行っていなかった（新しく始めた）ことを示します。</p>
 <div class="controls">
   <select id="mv-pref" aria-label="都道府県"><option value="">都道府県を選んでください</option>{pref_opts}</select>
   <select id="mv-svc" aria-label="サービス"><option value="all">全サービス</option>{svc_opts}</select>
   <div class="seg" id="mv-kind" role="group" aria-label="区分">
-    <button data-kind="1" aria-pressed="true">新しく載った</button>
+    <button data-kind="1" aria-pressed="true">新規登録</button>
     <button data-kind="0" aria-pressed="false">載らなくなった</button>
   </div>
   <label class="check"><input type="checkbox" id="mv-first"> 初めての法人だけ</label>
@@ -1393,14 +1393,14 @@ def build_data(S, codes, periods, latest, prev, year_ago, new_nos):
 <div class="howto"><h3>使うときのお願い</h3>
 <p>資料や会議などで使うときは、出典として次のように書いてください。ファイルの1行目にも同じ文が入っています。</p>
 <p class="cite">{E(CSV_SOURCE)}</p>
-<p>事業所ごとの住所・電話番号などすべての項目が必要な場合は、国のもとのデータ（<a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>）を使ってください。</p></div>
+<p>事業所ごとの住所・電話番号など全ての項目が必要な場合は、国のもとのデータ（<a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>）を使ってください。</p></div>
 </section>"""
     scripts = f'<script id="data-data" type="application/json">{blob}</script>\n<script src="{rel}assets/data.js" defer></script>'
-    page(path, "お仕事で使う方へ｜障害福祉の事業所データ（地域のくらべ表・ダウンロード）",
-         f"障害福祉サービス事業所の数を、都道府県・市区町村・サービスごとにくらべられる表と、半年間に新しく載った事業所の一覧。CSV でダウンロードできます（{LATEST_LABEL}時点）。",
+    page(path, "お仕事で使う方へ｜障害福祉の事業所データ（地域の比較表・ダウンロード）",
+         f"障害福祉サービス事業所の数を、都道府県・市区町村・サービスごとに比べられる表と、半年間に新規に登録された事業所の一覧。CSV でダウンロードできます（{LATEST_LABEL}時点）。",
          hero, body, scripts,
          og=og_image("data", "お仕事で使う方へ", "障害福祉の事業所データ", n_new, "件",
-                     ["この半年に新しく載った事業所", "地域のくらべ表", "CSV でダウンロード"]))
+                     ["この半年に新規に登録された事業所", "地域の比較表", "CSV でダウンロード"]))
     print(f"データページ: 動き {len(move_rows):,}件、市区町村CSV {len(muni_rows):,}行")
 
 
@@ -1497,12 +1497,12 @@ def build_matome(S, codes, periods, latest, prev, year_ago, new_nos):
 {f'<p class="note"><b>{E(mname)}に事業所がないサービス：</b>{E("、".join(missing))}</p>' if missing else ''}</section>
 <section><h2>事業所の多い運営法人</h2><p class="sec-sub">{E(mname)}で運営している事業所の数（サービスごとに数えた延べ数）の多い順です。</p>
 <div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>法人</th><th class="r">事業所</th></tr></thead><tbody>{top_rows}</tbody></table></div></section>
-<section><h2>この半年の動き</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに載った事業所と、載らなくなった事業所です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
-<div class="dir"><details open><summary>新しく載った<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>
+<section><h2>この半年の動き</h2><p class="sec-sub">{E(label(prev))}から{E(LATEST_LABEL)}までに、新しく公表データに登録された事業所と、載らなくなった事業所です。掲載の有無で判定しているため、実際の開設・廃止日とは一致しない場合があります。</p>
+<div class="dir"><details open><summary>新規登録<span class="c">{len(new_here):,}件</span></summary>{f"<ul>{new_html}</ul>" if new_html else ""}</details>
 <details{" open" if len(gone[mk]) <= 20 else ""}><summary>載らなくなった<span class="c">{len(gone[mk]):,}件</span></summary>{f"<ul>{gone_html}</ul>" if gone_html else ""}</details></div></section>
 <p class="note">{E(CSV_SOURCE)}（{E(LATEST_LABEL)}時点）。{E(POP_SOURCE) + "（" + E(POP_ASOF[0]) + "）。" if mpop else ""}</p>"""
         page(matome_path(pi, mname), f"{pref}{mname}の障害福祉のまとめ（事業所数・増減・運営法人）",
-             f"{pref}{mname}の障害福祉サービス事業所は延べ{tot:,}件（{LATEST_LABEL}時点）。サービス別の事業所数と増減、県内順位、事業所の多い運営法人、半年間に新しく載った事業所。",
+             f"{pref}{mname}の障害福祉サービス事業所は延べ{tot:,}件（{LATEST_LABEL}時点）。サービス別の事業所数と増減、県内順位、事業所の多い運営法人、半年間に新規に登録された事業所。",
              hero, body, og=muni_og(pi, mname))
     print(f"まとめページ: {len(munis):,}")
 
@@ -1564,7 +1564,7 @@ def build_corps(S, codes, periods, latest, prev, new_nos):
 <section><h2>行っているサービス</h2><p class="sec-sub">サービスごとの事業所数です。増減は{E(label(prev))}との比較です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{srows}</tbody></table></div></section>
 <section><h2>事業所のある都道府県</h2><div class="pref-grid">{pref_links}</div></section>
-<section><h2>事業所の一覧</h2><p class="sec-sub">所在地ごとにまとめています。「新規掲載」の印は、この半年で新しく公表データに載った事業所です。</p><div class="dir">{"".join(dirs)}</div></section>
+<section><h2>事業所の一覧</h2><p class="sec-sub">所在地ごとにまとめています。「新規掲載」の印は、この半年で新しく公表データに登録された事業所です。</p><div class="dir">{"".join(dirs)}</div></section>
 {f'<section><h2>この半年で載らなくなった事業所</h2><p class="sec-sub">廃止のほか、休止や事業所番号の変更も含みます。</p><div class="dir"><details><summary>載らなくなった<span class="c">{len(gone[k]):,}件</span></summary><ul>{gone_html}</ul></details></div></section>' if gone_html else ''}"""
         page(corp_path(k), f"{name}が運営する障害福祉事業所（{len(offs):,}か所）",
              f"{name}（法人番号{k}）が運営する障害福祉サービスの事業所{len(offs):,}か所の一覧。サービス別の事業所数、事業所のある都道府県、半年間の増減（{LATEST_LABEL}時点）。",
@@ -1583,14 +1583,14 @@ def build_privacy():
 <p>{SITE_NAME}では、どのページがよく見られているかを知り、サイトをよくするために、Google LLC の「Google アナリティクス」を使っています。</p>
 <div class="table-wrap"><table class="info"><tbody>
 <tr><th scope="row">送る先</th><td>Google LLC</td></tr>
-<tr><th scope="row">送る情報</th><td>見たページの住所、前に見ていたページ、日時、お使いのブラウザや端末の種類、おおよその地域、Cookie などで作られる識別番号</td></tr>
+<tr><th scope="row">送る情報</th><td>見たページの住所、前に見ていたページ、日時、お使いのブラウザや端末の種類、およその地域、Cookie などで作られる識別番号</td></tr>
 <tr><th scope="row">使いみち</th><td>アクセス数や、よく見られるページを数えるため。名前や連絡先など、個人を特定する情報は集めていません。</td></tr>
 </tbody></table></div>
 <p>送られた情報は Google のプライバシーポリシーに沿って扱われます：<a href="https://policies.google.com/technologies/partner-sites?hl=ja" rel="noopener" target="_blank">Google のサービスを使用するサイトやアプリから収集した情報の Google による使用</a></p>
 <p>送りたくない場合は、<a href="https://tools.google.com/dlpage/gaoptout?hl=ja" rel="noopener" target="_blank">Google アナリティクス オプトアウト アドオン</a>を使うか、ブラウザの設定で Cookie を止めてください。</p></section>""" if GA_ID else ""
     body = f"""{ga}
 <section><h2>「近くの事業所」での位置情報</h2>
-<p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」さがすときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
+<p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」探すときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
 <section><h2>掲載している情報</h2>
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",
@@ -1602,7 +1602,7 @@ AREA_PATH = "report/area/"
 
 
 def area_report_for(pi, mname):
-    """市区町村（政令市の区もふくむ）に地域レポートがあれば、その市の設定を返す。"""
+    """市区町村（政令市の区も含む）に地域レポートがあれば、その市の設定を返す。"""
     for x in SHOP["cities"]:
         if PREFS[pi] == x["pref"] and (mname == x["city"] or mname.startswith(x["city"]) and mname.endswith("区")):
             return x
@@ -1635,14 +1635,14 @@ def build_area_reports():
         for e in SHOP["editions"])
     rows = "".join(
         f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small></th>'
-        '<td>放デイ・児発／グループホーム／就労B型</td>'
+        '<td>放課後等デイ・児発／グループホーム／就労B型</td>'
         f'<td>{buy(x, "BOOTH で買う")}</td></tr>'
         for x in SHOP["cities"])
     sample = SHOP.get("sample_pdf")
     hero = f"""<div>
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
   <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
-  <h1>開設するならどこが良いか、がわかる地域レポート</h1>
+  <h1>開設するならどこが良いか、が分かる地域レポート</h1>
   <p class="lede">障害福祉の事業所を開設しようとしている方に向けて、人口の多い20市区と船橋市について、国勢調査と国の公表データから「どの町で開設するか」「いくら入れて、いくら返ってくるか」「経営の考え方から見てどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
 </div>"""
     body = f"""
@@ -1654,15 +1654,15 @@ def build_area_reports():
 {f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を開く（船橋市・前半）</a>' if sample else ''}</section>
 <section><h2>3つの版の中身</h2><div class="report-cols area-eds">{eds}</div>
 <h3>どの版にも入っているもの</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
-<section><h2>専門家に頼む場合とのくらべ</h2><p class="sec-sub">役割がちがうので、どちらかの代わりになるものではありません。このレポートは、専門家に相談する前の「どこで、いくらで、勝てるか」の下調べに使うものです。</p>
+<section><h2>専門家に頼む場合との比較</h2><p class="sec-sub">役割が違うので、どちらかの代わりになるものではありません。このレポートは、専門家に相談する前の「どこで、いくらで、勝てるか」の下調べに使うものです。</p>
 <div class="cmp-wrap"><table class="cmp-table"><thead><tr><th></th><th>このレポート</th><th>開業支援の専門家（行政書士・開業コンサル）</th></tr></thead><tbody>
 <tr><th>値段</th><td><b>{one:,}円</b>（3つの版のセット {st:,}円）</td><td>{"<br>".join(f"{E(a)}：{E(b)}" for a, b in SHOP["compare"]["items"])}</td></tr>
-<tr><th>市場の分析・立地</th><td>市の中のすべての町を、人口と定員の需給でくらべる。数の推移、競合、大手の割合</td><td>頼めば調べてもらえるが、料金表の多くは申請の代行が中心</td></tr>
+<tr><th>市場の分析・立地</th><td>市の中の全ての町を、人口と定員の需給で比べる。数の推移、競合、大手の割合</td><td>頼めば調べてもらえるが、料金表の多くは申請の代行が中心</td></tr>
 <tr><th>お金の見通し</th><td>投下資本・ROI・回収・IRR・NPV、3つの見通しと感応度</td><td>事業計画や融資の書類づくりで一緒に作ることが多い</td></tr>
 <tr><th>申請・物件・融資の手続き</th><td>しない</td><td>代わりにやってもらえる</td></tr>
 <tr><th>あなたの事情に合わせた助言</th><td>しない（どの市・どの人にも同じ中身）</td><td>してもらえる</td></tr>
 </tbody></table></div>
-<p class="note">専門家の料金は、障害福祉の開業支援をしている行政書士事務所など3か所が公開している料金表を、{E(SHOP["compare"]["checked"])}に確かめた幅です。事務所によって中身と値段はちがいます。</p></section>
+<p class="note">専門家の料金は、障害福祉の開業支援をしている行政書士事務所など3か所が公開している料金表を、{E(SHOP["compare"]["checked"])}に確かめた幅です。事務所によって中身と値段は違います。</p></section>
 <section><h2>市区の一覧</h2><p class="sec-sub">ボタンを押すと BOOTH の商品ページに移ります。版はそこで選べます。</p>
 <div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th>版</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
 <section><h2>このレポートについて</h2><ul>
@@ -1670,7 +1670,7 @@ def build_area_reports():
 <li>町ごとの人口は、総務省統計局「令和2年国勢調査」の町丁・字ごとの年齢別人口です。総量規制は各市の資料を2026年10月に確かめたものです。動き出す前に、必ず市の最新の案内を確かめてください。</li>
 <li>収支の試算は、全国の平均的な事業所の数字を市の単価・給料・家賃に合わせた、判断のたたき台です。</li>
 <li>レポートの数字は、出典（ジモふく）を書いていただければ引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
-    page(AREA_PATH, "地域レポート｜開設するならどこが良いか、がわかる市区ごとのレポート",
+    page(AREA_PATH, "地域レポート｜開設するならどこが良いか、が分かる市区ごとのレポート",
          f"障害福祉の事業所を開設する方へ。人口の多い20市区と船橋市について、開設するならどの町が良いか・投下資本とROI・経営の考え方から見た読み方をまとめた PDF（{SHOP['period']}のデータ）。",
          hero, body)
 
@@ -1680,7 +1680,7 @@ def report_path(p):
 
 
 def build_reports(S, codes, periods):
-    """データが新しくなるたびに1本ずつ増える「レポート」。各時点を前の時点・最初の時点とくらべる。"""
+    """データが新しくなるたびに1本ずつ増える「レポート」。各時点を前の時点・最初の時点と比べる。"""
     start = periods[0]
     made = []
     for i in range(1, len(periods)):
@@ -1752,7 +1752,7 @@ def build_report(S, codes, ps, p, q, start):
 <div class="report-cols"><div><h3>多い</h3><ol>{plist(dens[:5], lambda v: f"{v:.1f}")}</ol></div>
 <div><h3>少ない</h3><ol>{plist(dens[-5:][::-1], lambda v: f"{v:.1f}")}</ol></div>
 <div><h3>{E(ls)}から増えた割合が大きい</h3><ol>{plist(rate[:5], lambda v: f"{v:.2f}倍")}</ol></div></div>
-<p class="note">いちばん多い{PREFS[dens[0][1]]}と少ない{PREFS[dens[-1][1]]}では、約{dens[0][0] / dens[-1][0]:.1f}倍の差があります。</p></section>"""
+<p class="note">最も多い{PREFS[dens[0][1]]}と少ない{PREFS[dens[-1][1]]}では、約{dens[0][0] / dens[-1][0]:.1f}倍の差があります。</p></section>"""
 
     # 入れ替わり：事業所番号で重ねずに数える
     def nos(per):
@@ -1787,9 +1787,9 @@ def build_report(S, codes, ps, p, q, start):
     g1 = grow[0] if grow else None
     points = [f"全国の事業所（全サービスの延べ）は<b>{n_p:,}か所</b>。前回（{E(lq)}）から{delta(n_p - n_q)}、{E(label(ps[first_i]))}の{n_s:,}か所から<b>{n_p / n_s:.2f}倍</b>になりました。"]
     if g1:
-        points.append(f"いちばん増えたのは<b>{E(SERVICES[g1[0]][1])}</b>で、{E(ls)}から{g1[1] - g1[3]:+,}か所（{g1[1] / g1[3]:.2f}倍）。")
-    points.append(f"前回から新しく載った事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は約{n_gone:,}か所（事業所番号で重ねずに数えた数）。")
-    points.append(f"運営法人の種類では<b>{E(top_form)}</b>がいちばん多く、全体の{ct_p[top_form] / kk * 100:.0f}%です。")
+        points.append(f"最も増えたのは<b>{E(SERVICES[g1[0]][1])}</b>で、{E(ls)}から{g1[1] - g1[3]:+,}か所（{g1[1] / g1[3]:.2f}倍）。")
+    points.append(f"前回から新規に登録された事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は約{n_gone:,}か所（事業所番号で重ねずに数えた数）。")
+    points.append(f"運営法人の種類では<b>{E(top_form)}</b>が最も多く、全体の{ct_p[top_form] / kk * 100:.0f}%です。")
     if gaps:
         n, c = gaps[0]
         points.append(f"{E(SERVICES[c][1])}は、{len(munis):,}の市区町村のうち<b>{n:,}</b>（{n / len(munis) * 100:.0f}%）で事業所が1か所もありません。")
@@ -1807,15 +1807,15 @@ def build_report(S, codes, ps, p, q, start):
 <section><h2>サービス別</h2><p>事業所の多い順です。サービス名を押すと、そのサービスの事業所をさがせます。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="num">{E(lp)}</th><th class="num">前回から</th><th class="num">{E(ls)}から</th><th class="num">何倍</th></tr></thead><tbody>{svc_rows}</tbody></table></div></section>
 {region_html}
-<section><h2>入れ替わり</h2><p>前回（{E(lq)}）から今回までに、新しく載った事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は<b>約{n_gone:,}か所</b>でした。差し引き{delta(n_new - n_gone)}です。新しく載った事業所の一覧は<a href="{href(rel, "data/")}#moves">お仕事で使う方へ</a>で見られます（最新の時点だけ）。</p></section>
-<section><h2>運営法人の種類</h2><p>法人名に含まれる言葉（「株式会社」など）で分けた、おおよその数です（延べ）。</p>
+<section><h2>入れ替わり</h2><p>前回（{E(lq)}）から今回までに、新規に登録された事業所は<b>約{n_new:,}か所</b>、載らなくなった事業所は<b>約{n_gone:,}か所</b>でした。差し引き{delta(n_new - n_gone)}です。新規に登録された事業所の一覧は<a href="{href(rel, "data/")}#moves">お仕事で使う方へ</a>で見られます（最新の時点だけ）。</p></section>
+<section><h2>運営法人の種類</h2><p>法人名に含まれる言葉（「株式会社」など）で分けた、およその数です（延べ）。</p>
 <div class="table-wrap"><table><thead><tr><th>種類</th><th class="num">{E(ls)}</th><th class="num">{E(lp)}</th><th class="num">増減</th></tr></thead><tbody>{ct_rows}</tbody></table></div></section>
 <section><h2>サービスがない市区町村</h2><p>この時点のデータに出てくる{len(munis):,}の市区町村のうち、そのサービスの事業所が1か所もない市区町村の数です。データに出てこない市区町村は数えていないので、実際はもう少し多い可能性があります。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="num">ない市区町村</th><th class="num">割合</th></tr></thead><tbody>{gap_rows}</tbody></table></div></section>
 <section><h2>注意点・出典</h2><ul>
 <li>事業所数はサービスごとの延べ数です。1つの事業所が複数のサービスを行うと、それぞれで数えています。</li>
-<li>「新しく載った」「載らなくなった」は公表データに載ったかどうかで判断しています。実際の開所日・廃止日とはずれることがあります。</li>
-<li>運営法人の種類は法人名の言葉で分けたおおよその分類です。</li>
+<li>「新規登録」「載らなくなった」は公表データに載ったかどうかで判断しています。実際の開所日・廃止日とはずれることがあります。</li>
+<li>運営法人の種類は法人名の言葉で分けたおよその分類です。</li>
 <li>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>、{E(POP_SOURCE)}。集計は{SITE_NAME}。引用するときは「{SITE_NAME}（jimofuku.jp）調べ」と書いてください。</li>
 </ul></section>"""
     page(path, title, f"{lp}時点の国の公表データから。全国{n_p:,}か所の障害福祉の事業所の増え方、地域の差、入れ替わり、運営法人の変化。",
@@ -1876,7 +1876,7 @@ def build_near(S, codes, latest):
   {crumbs(rel, [("お仕事で使う方へ", href(rel, "data/")), ("近くの事業所", None)])}
   <div class="eyebrow" style="margin-top:12px">{E(LATEST_LABEL)}時点</div>
   <h1>近くの事業所を、近い順に</h1>
-  <p class="lede">住所や市区町村、いまいる場所から、近い事業所を距離つきで並べます。距離はまっすぐ測ったもので、道のりとは違います。</p>
+  <p class="lede">住所や市区町村、いまいる場所から、近い事業所を距離つきで並べます。距離は直線距離で測ったもので、道のりとは違います。</p>
 </div>"""
     body = f"""
 <section><h2>場所を決める</h2>
@@ -1891,8 +1891,8 @@ def build_near(S, codes, latest):
 <p class="note" id="nr-note">場所を決めると一覧が出ます。</p>
 <div class="dir"><ul id="nr-list" class="mv-list"></ul></div>
 <button class="more" id="nr-more" hidden>さらに表示</button>
-<p class="note">位置は国の公表データにある緯度・経度です。まれに位置がずれている事業所があります。おおよそ半径40km以内の事業所を出しています。</p></section>"""
-    page("data/near/", "近くの障害福祉事業所を近い順にさがす（住所・市区町村・現在地から）",
+<p class="note">位置は国の公表データにある緯度・経度です。まれに位置がずれている事業所があります。およそ半径40km以内の事業所を出しています。</p></section>"""
+    page("data/near/", "近くの障害福祉事業所を近い順に探す（住所・市区町村・現在地から）",
          "住所や市区町村、現在地から、近くの障害福祉サービス事業所を距離の近い順に一覧にします。グループホーム、就労支援、放課後等デイサービスなどサービスで絞り込めます。",
          hero, body, f'<script id="near-data" type="application/json">{blob}</script>\n<script src="{rel}assets/near.js" defer></script>',
          og=og_image("near", "住所・市区町村・いまいる場所から", "近くの事業所を、近い順に", None, "",
