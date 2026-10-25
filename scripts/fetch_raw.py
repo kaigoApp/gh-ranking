@@ -28,9 +28,21 @@ def main():
             print("NG", name, e, file=sys.stderr)
             continue
         with tempfile.TemporaryDirectory() as d:
-            src = pathlib.Path(d) / ("f.xlsx" if url.endswith(".xlsx") else "f.pdf")
+            kind = "xlsx" if data[:2] == b"PK" else "xls" if data[:4] == b"\xd0\xcf\x11\xe0" else "pdf"
+            src = pathlib.Path(d) / ("f." + kind)
             src.write_bytes(data)
-            if src.suffix == ".xlsx":
+            if kind == "xls":
+                import xlrd
+                wb = xlrd.open_workbook(src)
+                lines = []
+                for sh in wb.sheets():
+                    lines.append(f"=== {sh.name}")
+                    for i in range(sh.nrows):
+                        v = sh.row_values(i)
+                        if any(x != "" for x in v):
+                            lines.append("\t".join(str(x) for x in v))
+                text = "\n".join(lines)
+            elif kind == "xlsx":
                 wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
                 lines = []
                 for ws in wb.worksheets:
