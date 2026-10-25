@@ -1,9 +1,1 @@
-# 利用率の数字を探すために、市・区の資料を GitHub Actions で取りに行く一覧（名前 URL）。
-# 取った資料は文字にして data/report/raw/ に置く（調べ終わったら消す）。
-yokohama_syosai https://www.city.yokohama.lg.jp/kenko-iryo-fukushi/fukushi-kaigo/fukushi/plan/sho-plan/syoplan4th.files/syosai1.pdf
-nagoya_sanbu https://www.city.nagoya.jp/_res/projects/default_project/_page_/001/010/474/04sanbu.pdf
-nagoya_nibu https://www.city.nagoya.jp/_res/projects/default_project/_page_/001/010/474/03nibu.pdf
-kawasaki_mirai_soan https://www.city.kawasaki.jp/980/cmsfiles/contents/0000175/175701/20251121-2(1)-2.pdf
-kawasaki_mirai_an https://www.city.kawasaki.jp/templates/prs/cmsfiles/contents/0000184/184576/siryou3.pdf
-ota_aramashi_2026 https://www.city.ota.tokyo.jp/seikatsu/fukushi/shougai/aramashi.files/2026_shougai_aramashi_zentai.pdf
-setagaya_gaiyou_r6 https://www.city.setagaya.lg.jp/documents/6082/r6jigyougaiyou.pdf
+# 取り寄せる資料はいまはなし

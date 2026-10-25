@@ -3,7 +3,7 @@ name: レポート用データ（将来推計人口）
 on:
   push:
     branches: [regional-report]
-    paths: [scripts/fetch_child_proj.py, scripts/fetch_raw.py, data/report/raw_urls.txt, .github/workflows/report-data.yml]
+    paths: [scripts/fetch_child_proj.py, scripts/fetch_raw.py, scripts/fetch_places.py, data/report/raw_urls.txt, .github/workflows/report-data.yml]
   workflow_dispatch:
 
 permissions:
@@ -17,14 +17,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install openpyxl==3.1.5 && sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+      - run: pip install openpyxl==3.1.5 pyshp==2.3.1 && sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
       - name: 子どもの将来推計人口を取得
         run: python scripts/fetch_child_proj.py
+      - name: 学校と駅の位置を取得
+        run: python scripts/fetch_places.py
       - name: 市・区の資料を取得
         run: python scripts/fetch_raw.py
       - name: 保存
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/report/child_proj.csv data/report/child_proj_layout.txt data/report/raw
+          git add data/report/schools.csv data/report/stations.csv data/report/places_layout.txt data/report/child_proj.csv data/report/child_proj_layout.txt data/report/raw
           git diff --cached --quiet || (git commit -m "レポート用の資料を取得" && git push)
