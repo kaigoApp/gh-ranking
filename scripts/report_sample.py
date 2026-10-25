@@ -22,13 +22,17 @@ def main():
         if m and "（つづき）" not in m.group(1):
             rest.append(m.group(1))
     cover = cover.replace('<p class="eyebrow">ジモふく 地域レポート</p>',
-                          '<p class="eyebrow">ジモふく 地域レポート　<span class="stamp">無料見本（前半）</span></p>')
+                          '<p class="eyebrow">ジモふく 地域レポート　<span class="stamp">無料見本（前半・大事な数字はぼかしています）</span></p>')
     end = ('<section class="pb"><h2>この先の章（製品版）</h2>'
-           '<p>見本はここまでです。製品版には、このあとに次の章が入っています。</p><ul>'
+           '<p>見本はここまでです。見本でぼかした場所と数字は、製品版ではすべて読めます。製品版には、このあとに次の章が入っています。</p><ul>'
            + "".join(f"<li>{t}</li>" for t in rest) + "</ul>"
            '<p class="contact">ほかの市区のレポートと、グループホーム版・就労継続支援B型版は '
            'https://jimofuku.jp/report/area/ から。</p></section>')
-    style = "<style>.stamp{background:#ffb93f;color:#1f4d3a;padding:2px 10px;border-radius:4px;margin-left:8px}</style>"
+    # 見本では、大事な数字（第一候補の場所、点数と理由、まとめの数字）をぼかす
+    style = ("<style>.stamp{background:#ffb93f;color:#1f4d3a;padding:2px 10px;border-radius:4px;margin-left:8px}"
+             ".lead b,.tv,table.rank td:nth-child(3),table.rank td:nth-child(5),ol.points li:first-child b,.chart .lab,.chart .val,"
+             "table.cl td:nth-child(2){filter:blur(4.5px)}"
+             "</style>")
     out = head.replace("</head>", style + "</head>") + "<body>" + cover + "".join(
         '<section class="pb">' + c for c in chapters[:keep]) + end + "</body>" + tail
     open(dst, "w", encoding="utf-8").write(out)
