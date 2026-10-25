@@ -1,6 +1,1 @@
-# 市・区・国の資料を GitHub Actions で取りに行く一覧（名前 URL）。取った資料は文字にして data/report/raw/ に置く（調べ終わったら消す）。
-wage_r7_a https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421195&fileKind=4
-wage_r7_b https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421196&fileKind=4
-wage_r7_c https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421197&fileKind=4
-wage_r7_d https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040421198&fileKind=4
-rent_r5_113 https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040210048&fileKind=0
+# 取り寄せる資料はいまはなし
