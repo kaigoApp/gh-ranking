@@ -388,3 +388,24 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
 .report-cols ol { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
 .report-cols .num { color: var(--muted); margin-left: 4px; }
 .pro-link + .pro-link { margin-top: 10px; }
+
+/* 地域レポート（有料）の売り場と案内枠 */
+.area-box { margin: 0 0 28px; padding: 18px 20px; background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); }
+.area-box .eyebrow { color: var(--hot); margin: 0; }
+.area-box h2 { margin: 4px 0 6px; font-size: 18px; }
+.area-box p { margin: 0 0 12px; font-size: 14px; }
+.area-btn { display: inline-block; padding: 10px 18px; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.area-btn:hover { filter: brightness(1.06); }
+.area-btn.off { background: var(--line); color: var(--muted); }
+.area-promo { display: grid; gap: 4px; padding: 18px 20px; background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); text-decoration: none; color: var(--fg); }
+.area-promo b { font-size: 17px; color: var(--hot); }
+.area-promo span { font-size: 14px; }
+.price-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.price-row > div { flex: 1 1 200px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; }
+.price-row .n { font-family: var(--f-num); font-weight: 700; font-size: 36px; }
+.price-row .u { margin-left: 2px; }
+.price-row p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.area-eds ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 14px; display: grid; gap: 4px; }
+.area-table th small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.area-table td:last-child { text-align: right; }
+.area-table tr:target { background: var(--sun-soft); }
