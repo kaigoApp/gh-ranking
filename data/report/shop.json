@@ -1,8 +1,8 @@
 {
   "note": "地域別レポート（有料）の売り場の設定。booth に BOOTH の商品ページの URL を入れると、サイトの「購入する」ボタンがそのページへ移る。空のあいだは「準備中」と出る。",
   "period": "2026年3月末",
-  "price_one": 4980,
-  "price_set": 9800,
+  "price_one": 3300,
+  "price_set": 8800,
   "shop_url": "",
   "sample_pdf": "assets/report/sample-funabashi.pdf",
   "editions": [
