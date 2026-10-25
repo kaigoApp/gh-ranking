@@ -1617,7 +1617,7 @@ def area_box(rel, pi, mname, c):
         return ""
     return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}を開く方へ</p>'
             f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
-            f'<p>開設するならどの町が良いか、市の手続きと総量規制、収支と要る手元資金までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
+            f'<p>開設するならどの町が良いか、投下資本と回収の見通し、経営の考え方から見た読み方までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
             f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">中身と値段を見る</a></aside>')
 
 
@@ -1643,26 +1643,35 @@ def build_area_reports():
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
   <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
   <h1>開設するならどこが良いか、がわかる地域レポート</h1>
-  <p class="lede">障害福祉の事業所を開こうとしている方に向けて、人口の多い20市区と船橋市について、国の公表データと市の資料から「どの町で開くか」「いくら要るか」「市の決まりはどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
+  <p class="lede">障害福祉の事業所を開こうとしている方に向けて、人口の多い20市区と船橋市について、国勢調査と国の公表データから「どの町で開くか」「いくら入れて、いくら返ってくるか」「経営の考え方から見てどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
 </div>"""
     body = f"""
 <section><h2>値段</h2>
 <div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市・1つの版</p></div>
 <div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市・3つの版のセット</p></div></div>
 <p class="note">BOOTH（ピクシブのお店のサービス）でお支払いのあと、すぐに PDF をダウンロードできます。税こみの値段です。</p></section>
-<section><h2>まずは無料の見本を</h2><p class="sec-sub">船橋市の放課後等デイ・児童発達支援版の前半（まとめ・結論・開業までにやること など）を、そのまま読めます。</p>
+<section><h2>まずは無料の見本を</h2><p class="sec-sub">船橋市の放課後等デイ・児童発達支援版の前半（まとめ・結論 など）を読めます。見本では、第一候補の場所と大事な数字をぼかしています。</p>
 {f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を開く（船橋市・前半）</a>' if sample else ''}</section>
 <section><h2>3つの版の中身</h2><div class="report-cols area-eds">{eds}</div>
 <h3>どの版にも入っているもの</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
+<section><h2>専門家に頼む場合とのくらべ</h2><p class="sec-sub">役割がちがうので、どちらかの代わりになるものではありません。このレポートは、専門家に相談する前の「どこで、いくらで、勝てるか」の下調べに使うものです。</p>
+<div class="cmp-wrap"><table class="cmp-table"><thead><tr><th></th><th>このレポート</th><th>開業支援の専門家（行政書士・開業コンサル）</th></tr></thead><tbody>
+<tr><th>値段</th><td><b>{one:,}円</b>（3つの版のセット {st:,}円）</td><td>{"<br>".join(f"{E(a)}：{E(b)}" for a, b in SHOP["compare"]["items"])}</td></tr>
+<tr><th>市場の分析・立地</th><td>市の中のすべての町を、人口と定員の需給でくらべる。数の推移、競合、大手の割合</td><td>頼めば調べてもらえるが、料金表の多くは申請の代行が中心</td></tr>
+<tr><th>お金の見通し</th><td>投下資本・ROI・回収・IRR・NPV、3つの見通しと感応度</td><td>事業計画や融資の書類づくりで一緒に作ることが多い</td></tr>
+<tr><th>申請・物件・融資の手続き</th><td>しない</td><td>代わりにやってもらえる</td></tr>
+<tr><th>あなたの事情に合わせた助言</th><td>しない（どの市・どの人にも同じ中身）</td><td>してもらえる</td></tr>
+</tbody></table></div>
+<p class="note">専門家の料金は、障害福祉の開業支援をしている行政書士事務所など3か所が公開している料金表を、{E(SHOP["compare"]["checked"])}に確かめた幅です。事務所によって中身と値段はちがいます。</p></section>
 <section><h2>市区の一覧</h2><p class="sec-sub">ボタンを押すと BOOTH の商品ページに移ります。版はそこで選べます。</p>
 <div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th>版</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
 <section><h2>このレポートについて</h2><ul>
 <li>事業所の数と場所は、福祉医療機構 WAM NET のオープンデータ（2021年11月から半年ごと）をもとにしています。</li>
-<li>手続き・総量規制は、各市の手引きと募集要項を2026年10月に確かめたものです。動き出す前に、必ず市の最新の案内を確かめてください。</li>
+<li>町ごとの人口は、総務省統計局「令和2年国勢調査」の町丁・字ごとの年齢別人口です。総量規制は各市の資料を2026年10月に確かめたものです。動き出す前に、必ず市の最新の案内を確かめてください。</li>
 <li>収支の試算は、全国の平均的な事業所の数字を市の単価・給料・家賃に合わせた、判断のたたき台です。</li>
 <li>レポートの数字は、出典（ジモふく）を書いていただければ引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
     page(AREA_PATH, "地域レポート｜開設するならどこが良いか、がわかる市区ごとのレポート",
-         f"障害福祉の事業所を開く方へ。人口の多い20市区と船橋市について、開設するならどの町が良いか・市の手続きと総量規制・収支と要る手元資金をまとめた PDF（{SHOP['period']}のデータ）。",
+         f"障害福祉の事業所を開く方へ。人口の多い20市区と船橋市について、開設するならどの町が良いか・投下資本とROI・経営の考え方から見た読み方をまとめた PDF（{SHOP['period']}のデータ）。",
          hero, body)
 
 
@@ -1689,7 +1698,7 @@ def build_reports(S, codes, periods):
 </div>"""
     page("report/", "レポート｜障害福祉の事業所はどう変わったか",
          "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
-         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>開設するならどの町が良いか・市の手続き・収支を、市区ごとに1冊に。人口の多い20市区と船橋市。無料の見本あり。</span></a></section>'
+         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>開設するならどの町が良いか・投下資本とROIを、市区ごとに1冊に。人口の多い20市区と船橋市。無料の見本あり。</span></a></section>'
          f'<section><ul class="report-list">{items}</ul></section>')
     build_area_reports()
 

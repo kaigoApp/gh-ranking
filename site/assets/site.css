@@ -409,3 +409,15 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
 .area-table th small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
 .area-table td:last-child { text-align: right; }
 .area-table tr:target { background: var(--sun-soft); }
+.cmp-wrap { overflow: visible; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.cmp-table th, .cmp-table td { white-space: normal; text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.cmp-table thead th { font-size: 13px; color: var(--muted); }
+.cmp-table tbody th { width: 9em; }
+@media (max-width: 640px) {
+  .cmp-table thead { display: none; }
+  .cmp-table tr { display: block; border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .cmp-table th, .cmp-table td { display: block; border: 0; padding: 4px 4px; width: auto; }
+  .cmp-table tbody td:nth-of-type(1)::before { content: "このレポート："; color: var(--muted); font-size: 12px; display: block; }
+  .cmp-table tbody td:nth-of-type(2)::before { content: "専門家に頼む場合："; color: var(--muted); font-size: 12px; display: block; }
+}
