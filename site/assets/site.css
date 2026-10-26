@@ -421,3 +421,4 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
   .cmp-table tbody td:nth-of-type(1)::before { content: "このレポート："; color: var(--muted); font-size: 12px; display: block; }
   .cmp-table tbody td:nth-of-type(2)::before { content: "専門家に頼む場合："; color: var(--muted); font-size: 12px; display: block; }
 }
+.area-q { padding-left: 1.4em; display: grid; gap: 8px; }

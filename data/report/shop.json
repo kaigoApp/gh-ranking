@@ -1,10 +1,11 @@
 {
-  "note": "地域別レポート（有料）の売り場の設定。booth に BOOTH の商品ページの URL を入れると、サイトの「購入する」ボタンがそのページへ移る。空のあいだは「準備中」と出る。",
+  "note": "地域別レポート（有料）の売り場の設定。booth に BOOTH の商品ページの URL を入れると、サイトの「購入する」ボタンがそのページへ移る。空のあいだは「準備中」と出る。order_form に注文の Google フォームの URL を入れると、一覧にない市区町村の注文ボタンがつながる。",
   "period": "2026年3月末",
   "price_one": 3300,
   "price_set": 8800,
   "shop_url": "https://jimofuku.booth.pm/",
   "sample_pdf": "assets/report/sample-funabashi.pdf",
+  "order_form": "",
   "editions": [
     {
       "key": "child",
