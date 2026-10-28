@@ -75,7 +75,24 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .site-nav a.find { color: var(--on-brand); background: var(--brand); display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; }
 .site-nav a.find:hover { filter: brightness(1.06); background: var(--brand); color: var(--on-brand); }
 .site-nav a.find svg { width: 15px; height: 15px; }
-@media (max-width: 640px) { .site-nav a:not(.find) { display: none; } }
+.site-nav a.rep { color: #3a2a00; background: var(--sun); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; }
+.site-nav a.rep:hover { filter: brightness(1.05); background: var(--sun); color: #3a2a00; }
+.site-nav a.rep svg { width: 16px; height: 16px; }
+@media (max-width: 640px) {
+  .site-nav a:not(.find):not(.rep) { display: none; }
+  .site-nav { gap: 4px; }
+  .site-nav a.rep, .site-nav a.find { padding: 8px 11px; font-size: 13px; white-space: nowrap; }
+  .brand .wm { font-size: 20px; }
+}
+@media (max-width: 380px) { .site-nav a.find svg { display: none; } }
+@media (max-width: 340px) { .brand .wm { display: none; } }
+/* トップの帯の中の、地域レポートの入口 */
+.rep-card { position: relative; display: grid; gap: 4px; margin-top: 18px; padding: 16px 48px 16px 18px; background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); text-decoration: none; color: var(--fg); }
+.rep-card .eyebrow { color: var(--hot); }
+.rep-card b { color: var(--fg); font-family: var(--f-display); font-weight: 900; font-size: clamp(16px, 4.2vw, 19px); line-height: 1.4; }
+.rep-card span:last-of-type { color: var(--muted); font-size: 13.5px; }
+.rep-card i { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 22px; color: var(--hot); }
+.rep-card:hover { border-color: var(--hot); }
 
 /* ---- 帯（ヒーロー） ---- */
 .band {

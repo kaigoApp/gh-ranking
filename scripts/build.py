@@ -351,7 +351,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <body>
 <header class="site-head"><div class="container">
   <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
-  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a href="{rel}report/">レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
+  <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a class="rep" href="{rel}report/area/"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h7l3.5 3.5v11.5h-10.5z M12 2.5v3.5h3.5 M7.5 10h5 M7.5 13h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>地域レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
 </div></header>
 <div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
@@ -554,6 +554,7 @@ def build():
   <h1>地元の障害福祉を、<br>ちゃんと見つける。</h1>
   <p class="lede">グループホーム、就労支援、放課後等デイサービスまで。国の公表データをもとに、全国{tot:,}か所の事業所を地域とサービスからさがせます。</p>
   {SEARCH_FORM}
+  <a class="rep-card" href="report/area/"><span class="eyebrow">開設を検討している方へ</span><b>開設を、データで判断するための地域レポート</b><span>{len(SHOP["cities"])}市区で販売しています。開設候補地の評価、競合の状況、収支試算をまとめた PDF です。1版{SHOP["price_one"]:,}円（税込）から。</span><i aria-hidden="true">→</i></a>
 </div>
 <div class="hero-map">
   <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
