@@ -695,7 +695,7 @@ SOCIAL = 0.164  # 社会保険料などの会社負担（厚生年金9.15%、健
 LEAD = {"65": "管理者兼児童発達支援管理責任者", "63": "管理者兼児童発達支援管理責任者", "46": "管理者兼サービス管理責任者", "33": "管理者兼サービス管理責任者"}
 # グループホーム（介護サービス包括型）。売上は報酬の単位から、人件費は職種ごとに積み上げる
 GH_HOUSE = 10  # 1住居の定員
-GH_HOUSES = 2  # 試算の住居の数（サービス管理責任者は入居者30人までに1人なので、2住居で1人を共有する）
+GH_HOUSES = 1  # 試算の住居の数（定員10人の1住居が基本。2住居・3住居は広げた場合として示す）
 GH_UTIL = 0.9  # 入居率
 GH_UNITS = {"6": 600, "5": 456, "4": 372, "3": 297, "2": 188, "1": 171}  # 基本報酬（2024年度改定後、世話人6:1、1人1日の単位）
 GH_SUP = {"6": 2.5, "5": 4, "4": 6, "3": 9}  # 生活支援員の配置（入居者何人に1人、指定の基準）
@@ -706,8 +706,16 @@ SHIFT_DAY = 9  # 夜勤（16時〜翌9時）のうち、夕方と朝の世話人
 GH_OTHER = 27  # 家賃のほかの費用（定員1人あたり年、万円。経営概況調査の「その他」と委託費から、入居者が払う利用料の分を引いた）
 GH_RENT = 360  # 1住居の建物の家賃（年、万円。月30万円、全国平均の家賃のとき）。入居者が払う家賃で回収する
 GH_OPEN = 600  # 1住居の開業費用（改修・消防設備・敷金・開業前の人件費）
-GH_MIX = [("軽い人が中心", {"1": .3, "2": .4, "3": .3}), ("区分3〜4が中心（試算の前提）", {"2": .2, "3": .4, "4": .4}),
-          ("重い人が中心", {"4": .3, "5": .4, "6": .3})]
+GH_MIX = [("区分の軽い入居者が中心", {"1": .3, "2": .4, "3": .3}), ("区分3〜4が中心（試算の前提）", {"2": .2, "3": .4, "4": .4}),
+          ("区分の重い入居者が中心", {"4": .3, "5": .4, "6": .3})]
+# グループホーム（日中サービス支援型）。日中も職員を置き、夜勤は必須、短期入所の併設が要る
+GHD_CAP = 20  # 定員（定員10人の住居×2を1つの建物で運営する前提）
+GHD_UNITS = {"6": 997, "5": 860, "4": 771, "3": 524}  # 基本報酬（2024年度改定後、世話人5:1、1人1日の単位）
+GHD_MIX = {"3": .2, "4": .4, "5": .25, "6": .15}  # 入居者の区分（重い人が中心）
+GHD_DIRECT = (4.13 + 3.09 + 0.79) / 15  # 生活支援員・世話人・夜間支援従事者の常勤換算（定員1人あたり。令和7年 経営概況調査 第18表、定員15人で8.01人）
+GHD_OTHER = 48  # 家賃のほかの費用（定員1人あたり年、万円。経営概況調査のその他・委託費・減価償却から利用料の分を引いた）
+GHD_OPEN = 1500  # 開業費用（2住居分の改修・消防設備・敷金・短期入所の部屋・開業前の人件費）
+GHD_NAT = dict(rv=3952, st=38375 / 15, bal=0.051, cap=15, staff=9.28, n=236)  # 全国平均（定員1人あたり千円、収支差率）
 OPEN = 900  # 開業費用（万円）
 RAMP = [.3] * 3 + [.5] * 3 + [.7] * 3 + [.8] * 3 + [.85] * 6  # 開業からの利用率の伸び（その後は標準の利用率）
 
@@ -814,15 +822,39 @@ def gh_model(houses, mix, util, pr, w, w_chiba, rent_house):
     shifts = 365 * houses * NIGHT_SHIFT * w / w_chiba
     need = res / 6 + sum(v * res / GH_SUP[k] for k, v in mix.items() if k in GH_SUP)  # 世話人6:1＋生活支援員（常勤換算）
     by_shift = houses * SHIFT_DAY * 365 / FTE_H  # 夜勤の人が夕方・朝に世話人・生活支援員として働く分
-    extra = max(0.0, need - by_shift)
-    rows = [("管理者兼サービス管理責任者", 1, lead), (f"夜勤（毎晩{houses}人、1回{NIGHT_SHIFT * w / w_chiba:.1f}万円）", round(by_shift, 1), shifts),
+    n_lead = 1 if res <= 30 else 2
+    spare = max(0.0, n_lead - res / 30)  # サービス管理責任者は入居者30人に1人。残りの時間は世話人として働く
+    extra = max(0.0, need - by_shift - spare)
+    rows = [(f"管理者兼サービス管理責任者（うち{spare:.1f}人分は世話人として勤務）", n_lead, lead), (f"夜勤（毎晩{houses}人、1回{NIGHT_SHIFT * w / w_chiba:.1f}万円）", round(by_shift, 1), shifts),
             ("世話人・生活支援員（夜勤で足りない分）", round(extra, 1), extra * per)]
     st = round(sum(r[2] for r in rows) * (1 + SOCIAL))
     ct = st + round(GH_OTHER * cap) + round(rent_house * houses)
     rv = fee + rent_in
     return dict(cap=cap, util=util, days=365, rv=rv, fee=fee, st=st, ct=ct, rent=round(rent_house * houses), bal=rv - ct,
                 pd=rv * 1e4 / (cap * 365 * util), be=ct / (rv / util), open=GH_OPEN * houses, pr=pr, rows=rows, per=per,
-                need=need, by_shift=by_shift, houses=houses, units=base / (res * 365), night_u=night / (houses * 365))
+                need=need, by_shift=by_shift, spare=spare, houses=houses, units=base / (res * 365), night_u=night / (houses * 365),
+                lead=lead, shifts=shifts, night_fee=night * pr / 1e4 * (1 + GH_SHOGU))
+
+
+def gh_day_model(util, pr, w, rent_house):
+    """グループホーム（日中サービス支援型）の1年の収支（万円）。売上は報酬の単位から、職員は経営概況調査の全国平均の配置から。"""
+    cap = GHD_CAP
+    res = cap * util
+    units = sum(v * GHD_UNITS[k] for k, v in GHD_MIX.items())
+    fee = units * res * 365 * pr / 1e4 * (1 + GH_SHOGU)
+    houses = cap // GH_HOUSE
+    rent_in = rent_house * houses * util
+    lead = PAY_SAB * 12 * RAISE * w / 1e4
+    ft = PAY_FT["33"] * 12 * RAISE * w / 1e4
+    pt = PAY_PT["33"] * FTE_H * RAISE * w / 1e4
+    per = ft * FT_RATE["33"] + pt * (1 - FT_RATE["33"])
+    direct = GHD_DIRECT * cap
+    rows = [("管理者兼サービス管理責任者", 1, lead), ("生活支援員・世話人・夜勤者（日中の常駐と毎晩の夜勤を含む）", round(direct, 1), direct * per)]
+    st = round(sum(r[2] for r in rows) * (1 + SOCIAL))
+    ct = st + round(GHD_OTHER * cap) + round(rent_house * houses)
+    rv = fee + rent_in
+    return dict(cap=cap, util=util, days=365, rv=rv, fee=fee, st=st, ct=ct, rent=round(rent_house * houses), bal=rv - ct,
+                pd=rv * 1e4 / (cap * 365 * util), be=ct / (rv / util), open=GHD_OPEN, pr=pr, rows=rows, houses=houses, units=units, direct=direct)
 
 
 def load_child():
@@ -1158,6 +1190,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     gh_pr = FACTS["unit_price_gh"][grade]
     gh_rent_h = round(GH_RENT * cf["rent"] / nf["rent"])
     gh = gh_model(GH_HOUSES, GH_MIX[1][1], GH_UTIL, gh_pr, wage_r, wage_chiba, gh_rent_h)
+    ghd = gh_day_model(GH_UTIL, gh_pr, wage_r, gh_rent_h)
     oth["46"]["open"] = OTHERS["46"]["open"]
     # この版の中心の試算
     if ed == "child":
@@ -1300,7 +1333,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              '<h3>サービス別の評価</h3><table class="small sig"><tr><th>サービス</th><th>評価</th><th>人口当たり（県平均比）</th><th>年間収支（標準ケース）</th></tr>'
              + "".join(sig) + '</table><p class="note">色の意味は、緑が「事業所が少なく有望」、黄が「競争が激しい、または市の規制に注意が必要」、赤が「市が新規指定を停止中」である。'
              + (f'収支は、定員{"10人" if ed == "child" else "20人"}で開設し、全国平均並みに運営した場合の年間の試算である。</p>' if ed != "gh" else
-              f'収支は、定員{GH_HOUSE}人の住居を{GH_HOUSES}か所開設し、毎晩夜勤者を配置した場合の年間の試算である。</p>')
+              f'収支は、定員{GH_HOUSE}人の住居を{GH_HOUSES}か所（介護サービス包括型）開設し、毎晩夜勤者を配置した場合の年間の試算である。</p>')
              + '</section>')
     h.append('<!--EXEC-->')
 
@@ -1757,22 +1790,62 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                 + "</table>")
         if ed == "gh":
             nshift = NIGHT_SHIFT * wage_r / wage_chiba
-            pre = (f'<tr><td>定員・営業日数</td><td>定員{m_["cap"]}人（定員{GH_HOUSE}人の住居×{m_["houses"]}か所）、年365日</td></tr>'
+            pre = (f'<tr><td>類型・定員・営業日数</td><td>介護サービス包括型。定員{m_["cap"]}人（' + (f'1住居' if m_["houses"] == 1 else f'定員{GH_HOUSE}人の住居×{m_["houses"]}か所') + '）、年365日</td></tr>'
                    f'<tr><td>報酬</td><td>基本報酬（区分3〜4中心、1人1日平均{m_["units"]:.0f}単位）と夜間支援等体制加算(Ⅰ)（1住居1晩約{m_["night_u"]:,.0f}単位）に'
                    f'{E(city)}の単価{m_["pr"]:.2f}円を乗じ、福祉・介護職員等処遇改善加算(Ⅰ)（{GH_SHOGU * 100:.1f}%）を加えた。年{m_["fee"]:,.0f}万円</td></tr>'
                    f'<tr><td>家賃</td><td>建物の賃料は1住居月{m_["rent"] / m_["houses"] / 12:.0f}万円（{E(city)}の家賃水準）。同額を入居者から家賃として受け取る前提で、収入と費用の双方に計上した。'
                    f'空室分は事業者の負担となる</td></tr>'
                    f'<tr><td>1人1日当たり収入</td><td>{m_["pd"]:,.0f}円（報酬と入居者の家賃の合計）</td></tr>'
-                   f'<tr><td>人件費</td><td>年{m_["st"]:,}万円。管理者兼サービス管理責任者1人（{m_["houses"]}住居で兼務）、毎晩の夜勤（1回{nshift:.1f}万円×{m_["houses"]}住居）、'
-                   f'夜勤者でまかなえない分の世話人・生活支援員。内訳は下表のとおり</td></tr>'
+                   f'<tr><td>人件費</td><td>年{m_["st"]:,}万円。管理者兼サービス管理責任者1人（サービス管理責任者の配置基準は入居者30人に1人のため、残りの時間は世話人として勤務する前提）、'
+                   f'毎晩の夜勤（1回{nshift:.1f}万円' + (f'×{m_["houses"]}住居' if m_["houses"] > 1 else '') + '）、不足分の世話人・生活支援員。内訳は下表のとおり</td></tr>'
                    f'<tr><td>その他の費用</td><td>年{m_["ct"] - m_["st"]:,}万円（建物の賃料のほか、水道光熱費・消耗品・保険・修繕・車両など定員1人当たり年{GH_OTHER}万円）</td></tr>'
                    f'<tr><td>開業費用</td><td>{m_["open"]:,}万円（1住居{GH_OPEN}万円：改修工事、消防設備、敷金、開業前の人件費）</td></tr>')
             src = ("厚生労働省「令和7年 障害福祉サービス等経営概況調査」（介護サービス包括型、2024年度決算）、同「令和6年度 障害福祉サービス等従事者処遇状況等調査」、"
                    "2024年度報酬改定の単位数、夜勤の給与は首都圏の求人（1回1.6〜2.0万円）")
             nat_rv, nat_st, nat_bal = 2482, 1538, 0.069  # 経営概況調査の定員1人あたり収入・給与費（千円）と収支差率
-            extra = (f'<p>夜勤者は各住居に毎晩1人配置する前提とした。夜勤（16時〜翌9時）のうち、夕方と朝の{SHIFT_DAY}時間は世話人・生活支援員の勤務として数え、'
-                     f'残りの夜間の時間を夜間支援等体制加算の対象とした。夜勤1回の費用は社会保険料込みで約{nshift * (1 + SOCIAL):.1f}万円かかる一方、'
-                     f'加算収入は1住居1晩当たり約{m_["night_u"] * m_["pr"] * (1 + GH_SHOGU) / 1e4:.1f}万円にとどまる。夜間体制は単独では採算が合わない。</p>'
+            g1 = gh_model(1, GH_MIX[1][1], GH_UTIL, gh_pr, wage_r, wage_chiba, gh_rent_h)
+            base_fee = g1["fee"] - g1["night_fee"]
+            n_loss = g1["shifts"] * (1 + SOCIAL) - g1["night_fee"]
+            res1 = GH_HOUSE * GH_UTIL
+            oth1 = g1["ct"] - g1["st"] - g1["rent"]
+            why = ('<h3>利益が出にくい理由</h3>'
+                   f'<p>1住居（定員{GH_HOUSE}人、入居率{GH_UTIL * 100:.0f}%）の年間の収入と費用は次のとおりである。</p>'
+                   '<table class="small"><tr><th>収入</th><th>年額</th><th>費用</th><th>年額</th></tr>'
+                   f'<tr><td>基本報酬（処遇改善加算を含む）</td><td>{base_fee:,.0f}万円</td><td>管理者兼サービス管理責任者</td><td>{g1["lead"] * (1 + SOCIAL):,.0f}万円</td></tr>'
+                   f'<tr><td>夜間支援等体制加算（同）</td><td>{g1["night_fee"]:,.0f}万円</td><td>夜勤（毎晩1人）</td><td>{g1["shifts"] * (1 + SOCIAL):,.0f}万円</td></tr>'
+                   f'<tr><td>入居者の家賃</td><td>{g1["rent"] * GH_UTIL:,.0f}万円</td><td>世話人・生活支援員（不足分）</td><td>{(g1["st"] - (g1["lead"] + g1["shifts"]) * (1 + SOCIAL)):,.0f}万円</td></tr>'
+                   f'<tr><td></td><td></td><td>建物の賃料</td><td>{g1["rent"]:,}万円</td></tr>'
+                   f'<tr><td></td><td></td><td>その他の費用</td><td>{oth1:,}万円</td></tr>'
+                   f'<tr><th>収入の合計</th><th>{g1["rv"]:,.0f}万円</th><th>費用の合計</th><th>{g1["ct"]:,}万円</th></tr></table>'
+                   '<p class="note">人件費は社会保険料などの事業主負担を含む。</p><ul>'
+                   f'<li><b>夜勤の費用が加算を上回る：</b>夜勤の費用は年{g1["shifts"] * (1 + SOCIAL):,.0f}万円かかる一方、夜間支援等体制加算は年{g1["night_fee"]:,.0f}万円にとどまり、'
+                   f'1住居当たり年約{n_loss:,.0f}万円の持ち出しとなる。</li>'
+                   f'<li><b>サービス管理責任者の給与が固定費になる：</b>年約{g1["lead"] * (1 + SOCIAL):,.0f}万円で、入居者1人当たり月約{g1["lead"] * (1 + SOCIAL) / res1 / 12:.1f}万円の負担となる。'
+                   '住居を増やしても1人で兼務できる（入居者30人まで）ため、住居数が多いほど負担は軽くなる。</li>'
+                   f'<li><b>給与水準が高い：</b>{E(pref)}の介護職員の年収は全国平均の{wage_r:.2f}倍で、その分、人件費が全国平均より重くなる。</li>'
+                   '<li><b>区分の軽い入居者が多いと報酬が低い：</b>区分3〜4中心の入居者構成では、基本報酬は1人1日約3,300円（区分6なら約6,600円）にとどまる。</li></ul>'
+                   '<p>このため、包括型で利益を確保するには、住居を2か所以上に増やす、区分の重い入居者を受け入れる、加算を取得する、のいずれかが必要となる（「投資判断」の章の住居数・区分別の試算を参照）。</p>')
+            dmx = "・".join(f"区分{k} {int(v * 100)}%" for k, v in GHD_MIX.items())
+            day = ('<h3>日中サービス支援型との比較</h3>'
+                   '<p>グループホームには、主に「介護サービス包括型」と「日中サービス支援型」がある。日中サービス支援型は、重度の入居者を対象に、日中も職員が常駐し、夜勤者を必ず配置する類型で、'
+                   '短期入所（ショートステイ）の併設が義務付けられている。基本報酬は包括型より高いが、職員の配置も手厚くなる。</p>'
+                   '<table class="small"><tr><th>項目</th><th>介護サービス包括型</th><th>日中サービス支援型</th></tr>'
+                   f'<tr><td>定員</td><td>{m_["cap"]}人（1住居）</td><td>{ghd["cap"]}人（定員{GH_HOUSE}人の住居×{ghd["houses"]}）</td></tr>'
+                   f'<tr><td>入居者の区分（想定）</td><td>区分2 20%・区分3 40%・区分4 40%</td><td>{dmx}</td></tr>'
+                   f'<tr><td>基本報酬（1人1日の平均）</td><td>{m_["units"]:.0f}単位</td><td>{ghd["units"]:.0f}単位</td></tr>'
+                   f'<tr><td>年間売上（家賃を含む）</td><td>{m_["rv"]:,.0f}万円</td><td>{ghd["rv"]:,.0f}万円</td></tr>'
+                   f'<tr><td>人件費</td><td>{m_["st"]:,}万円</td><td>{ghd["st"]:,}万円（常勤換算{ghd["direct"] + 1:.1f}人）</td></tr>'
+                   f'<tr><td>その他の費用（建物の賃料を含む）</td><td>{m_["ct"] - m_["st"]:,}万円</td><td>{ghd["ct"] - ghd["st"]:,}万円</td></tr>'
+                   f'<tr><td><b>年間収支</b></td><td><b>{m_["bal"]:+,.0f}万円</b>（{m_["bal"] / m_["rv"] * 100:+.1f}%）</td><td><b>{ghd["bal"]:+,.0f}万円</b>（{ghd["bal"] / ghd["rv"] * 100:+.1f}%）</td></tr>'
+                   f'<tr><td>損益分岐点の入居率</td><td>約{m_["be"] * 100:.0f}%</td><td>約{ghd["be"] * 100:.0f}%</td></tr>'
+                   f'<tr><td>開業費用</td><td>{m_["open"]:,}万円</td><td>{ghd["open"]:,}万円（短期入所の部屋を含む）</td></tr>'
+                   f'<tr><td>全国平均の収支差率</td><td>+6.9%（定員16人）</td><td>+{GHD_NAT["bal"] * 100:.1f}%（定員{GHD_NAT["cap"]}人、常勤換算{GHD_NAT["staff"]}人）</td></tr></table>'
+                   f'<p class="note">日中サービス支援型の職員数は、令和7年 障害福祉サービス等経営概況調査（第18表、2024年度決算、{GHD_NAT["n"]}事業所）の定員1人当たりの常勤換算'
+                   f'（生活支援員・世話人・夜間支援従事者で{GHD_DIRECT:.2f}人）を定員{ghd["cap"]}人に当てはめた。基本報酬は2024年度改定後の日中サービス支援型サービス費(Ⅰ)（世話人5:1）。'
+                   '併設する短期入所の収入と費用、夜勤職員加配加算などの加算は含めていない。日中サービス支援型の指定には、市の協議会への報告など独自の手続きがあるため、事前に市に確認する必要がある。</p>')
+            extra = why + (f'<p>夜勤者は各住居に毎晩1人配置する前提とした。夜勤（16時〜翌9時）のうち、夕方と朝の{SHIFT_DAY}時間は世話人・生活支援員の勤務として数え、'
+                     f'残りの夜間の時間を夜間支援等体制加算の対象とした。夜勤1回の費用は社会保険料込みで約{nshift * (1 + SOCIAL):.1f}万円、'
+                     f'加算収入は1住居1晩当たり約{m_["night_u"] * m_["pr"] * (1 + GH_SHOGU) / 1e4:.1f}万円である。</p>'
                      '<h3>全国平均との比較（定員1人当たり年額）</h3>'
                      '<table class="small"><tr><th></th><th>本試算</th><th>全国平均（介護サービス包括型）</th></tr>'
                      f'<tr><td>収入（報酬＋入居者の利用料）</td><td>{m_["rv"] / m_["cap"]:,.0f}万円</td><td>{nat_rv / 10:,.0f}万円</td></tr>'
@@ -1780,7 +1853,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                      f'<tr><td>収支差率</td><td>{m_["bal"] / m_["rv"] * 100:+.1f}%</td><td>+{nat_bal * 100:.1f}%（赤字事業所の割合39.0%）</td></tr></table>'
                      '<p class="note">全国平均は令和7年 障害福祉サービス等経営概況調査による（2024年度決算、1事業所当たり定員16人、常勤換算職員6.2人、集計341事業所）。'
                      '全国平均では夜間支援従事者が常勤換算0.41人にとどまり、毎晩の夜勤を置かない事業所（宿直や連絡体制のみの事業所）が多く含まれるとみられる。'
-                     '本試算は毎晩夜勤者を置く分だけ人件費が重く、全国平均より厳しめの見積もりである。</p>')
+                     '本試算は毎晩夜勤者を置く分だけ人件費が重く、全国平均より厳しめの見積もりである。</p>' + day)
         else:
             pre = (f'<tr><td>定員・営業日数</td><td>定員{m_["cap"]}人、年{m_["days"]}日</td></tr>'
                    f'<tr><td>1人1日当たり報酬</td><td>{m_["pd"]:,.0f}円。全国平均9,126円（4級地相当）を{E(city)}の単価{m_["pr"]:.2f}円で補正した。報酬は平均工賃の水準によって変わる</td></tr>'
@@ -1793,7 +1866,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                      '<p class="contact"><b>試算に含まれていない要素：</b>B型の基本報酬は、障害支援区分ではなく<b>平均工賃の水準</b>と<b>人員配置（7.5:1または6:1）</b>で決まる。'
                      '本試算は全国平均の1人1日当たり報酬を用いているため、工賃を引き上げられる仕事の有無や人員配置の厚さによって、収入は上下する。</p>')
         h.append(f'<section class="pb"><h2>§{E(lname(mc))}の収支試算</h2>'
-                 f'<p>定員{m_["cap"]}人の{E(lname(mc))}を{E(city)}で開設した場合の年間収支を試算した。{E(city)}の地域区分は<b>{grade_txt}</b>である。</p>'
+                 f'<p>定員{m_["cap"]}人の' + (f'{E(short(mc))}（介護サービス包括型、1住居）' if ed == "gh" else E(lname(mc))) + f'を{E(city)}で開設した場合の年間収支を試算した。{E(city)}の地域区分は<b>{grade_txt}</b>である。</p>'
                  f'<table><tr><th>ケース</th><th>{word}</th><th>1人1日当たり収入</th><th>年間売上</th><th>年間費用</th><th>年間収支</th></tr>{rows_m}</table>'
                  f'<ul><li>損益分岐点の{word}は<b>約{est["be"] * 100:.0f}%</b>である。</li>'
                  f'<li>開業費用、立ち上げ期の赤字、報酬の入金が2か月遅れる分を合わせると、<b>必要資金は約{-est["low"]:,.0f}万円</b>である。'
@@ -2383,7 +2456,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 <li>候補地ごとの家賃の目安：国土交通省「国土数値情報（地価公示 2026年）」をもとに、候補地周辺と市全体の地価の差から ジモふくが推計。</li>
 <li>候補地の評価方法：Huff, D. L. (1963) "A Probabilistic Analysis of Shopping Center Trade Areas", <i>Land Economics</i> 39(1), 81–90／Luo, W. &amp; Wang, F. (2003) "Measures of spatial accessibility to health care in a GIS environment", <i>Environment and Planning B</i> 30(6), 865–884／Luo, W. &amp; Qi, Y. (2009) "An enhanced two-step floating catchment area (E2SFCA) method for measuring spatial accessibility to primary care physicians", <i>Health &amp; Place</i> 15(4), 1100–1107。</li>
 {"<li>放課後等デイの利用量：" + (E(hd["src"]) + "（" + E(hd["url"]) + "）" if hd else "市の公表資料では確認できなかった") + "。</li>" if child else ""}
-{"<li>収支試算：厚生労働省「令和7年 障害福祉サービス等経営概況調査」（共同生活援助）と、2024年度報酬改定の単位数をもとに ジモふくが試算。</li>" if ed == "gh" else "<li>収支試算：" + E(FACTS["other_source"]) + "をもとに ジモふくが試算。</li>"}
+{"<li>収支試算：厚生労働省「令和7年 障害福祉サービス等経営概況調査」（共同生活援助 介護サービス包括型・日中サービス支援型）と、2024年度報酬改定の単位数をもとに ジモふくが試算。</li>" if ed == "gh" else "<li>収支試算：" + E(FACTS["other_source"]) + "をもとに ジモふくが試算。</li>"}
 <li>将来推計人口：国立社会保障・人口問題研究所『日本の地域別将来推計人口（令和5年推計）』。</li>
 </ul><p class="contact">本レポートの数値は、「ジモふく調べ」と明記すれば自由に引用できる。他のサービスの試算や詳細な調査のご相談は、https://jimofuku.jp/ まで。</p></section>''')
     return number_sections(arrange("\n".join(h).replace("<!--EXEC-->", EXEC + ISSUE)))
