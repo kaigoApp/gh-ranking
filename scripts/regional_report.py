@@ -250,10 +250,10 @@ def map_labels(geo_dir, pi, city, rings):
         if pr["N03_003"] == city and pr["N03_004"]:
             gm = ft["geometry"]
             for poly in (gm["coordinates"] if gm["type"] == "MultiPolygon" else [gm["coordinates"]]):
-                wards[pr["N03_004"]].append(poly[0])
+                wards[HAMAMATSU_WARD.get(pr["N03_004"], pr["N03_004"]) if city == "浜松市" else pr["N03_004"]].append(poly[0])
     out = []
     for w, rs in wards.items():
-        r = max(rs, key=len)
+        r = max(rs, key=len) if city != "浜松市" else [q for x in rs for q in x]   # 浜松市は旧区の境界を合わせた中心に書く
         out.append((sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r), w, "ward"))
     load_small()
     areas = collections.defaultdict(lambda: [0, 0.0, 0.0])
@@ -534,6 +534,10 @@ DEM_WHO = {"65": "6〜17歳の子ども", "63": "0〜5歳の子ども", "46": "1
 RADIUS = {"65": 2.0, "63": 2.0, "46": 3.0, "33": 3.0}  # 通える範囲（km）。放課後等デイ・児発は送迎、B型・GHは電車・バスも使う
 NEWCAP = {"65": 10, "63": 10, "46": 20, "33": 1}  # 新しく開設する受け皿（グループホームは定員のデータがないので1か所＝1）
 SMALL = []
+HAMAMATSU_OLD = {"22131": "中央区", "22132": "中央区", "22133": "中央区", "22134": "中央区", "22135": "浜名区", "22136": "浜名区", "22137": "天竜区"}
+HAMAMATSU_WARD = {"中区": "中央区", "東区": "中央区", "西区": "中央区", "南区": "中央区", "北区": "浜名区", "浜北区": "浜名区"}   # 境界データ（2021年）の旧区名 → 2024年の区名
+HAMAMATSU_NEW = {"中央区": "22138", "浜名区": "22139", "天竜区": "22140"}
+MIKATAHARA = {"初生町", "三方原町", "東三方町", "豊岡町", "三幸町", "大原町", "根洗町"}   # 旧北区のうち中央区に移った三方原地区
 ADJ = set()   # 令和7年国勢調査で補正した市区町村コード
 
 
@@ -570,6 +574,12 @@ def load_small():
         for r in csv.DictReader(f):
             SMALL.append(dict(code=r["key"][:5], muni=r["muni"], town=r["town"], x=float(r["lng"]), y=float(r["lat"]),
                               v={k: int(r[k]) for k in r if k.endswith("歳") or k.endswith("以上")}))
+    for t in SMALL:   # 浜松市は2024年1月に区を再編した（令和2年の町丁データは旧区のまま）
+        if t["code"] in HAMAMATSU_OLD:
+            new = HAMAMATSU_OLD[t["code"]]
+            if t["code"] == "22135" and re.sub(r"[0-9０-９一二三四五六七八九十]+丁目$", "", t["town"]) in MIKATAHARA:
+                new = "中央区"
+            t["muni"], t["code"] = "浜松市" + new, HAMAMATSU_NEW[new]
     r7 = load_r7()
     tot = collections.defaultdict(lambda: collections.Counter())
     for t in SMALL:
