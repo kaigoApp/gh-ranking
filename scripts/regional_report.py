@@ -534,16 +534,51 @@ DEM_WHO = {"65": "6〜17歳の子ども", "63": "0〜5歳の子ども", "46": "1
 RADIUS = {"65": 2.0, "63": 2.0, "46": 3.0, "33": 3.0}  # 通える範囲（km）。放課後等デイ・児発は送迎、B型・GHは電車・バスも使う
 NEWCAP = {"65": 10, "63": 10, "46": 20, "33": 1}  # 新しく開設する受け皿（グループホームは定員のデータがないので1か所＝1）
 SMALL = []
+ADJ = set()   # 令和7年国勢調査で補正した市区町村コード
+
+
+def load_r7():
+    """令和7年国勢調査の市区町村別・年齢5歳階級別人口（年齢不詳を按分）。{市区町村コード: {年齢: 人}}"""
+    p = B.ROOT / "data" / "report" / "raw" / "r7_age5.txt"
+    out = {}
+    if not p.exists():
+        return out
+    head = None
+    for line in p.read_text(encoding="utf-8").splitlines():
+        c = line.split("\t")
+        if len(c) > 30 and c[8] == "項目名":
+            head = [re.sub(r"^\d+_", "", x) for x in c]
+        if head is None or len(c) < 30 or not c[0].startswith("0_") or not c[1].startswith("0_") or c[2] == "a":
+            continue
+        v = {head[i]: int(c[i]) for i in range(9, len(c)) if c[i].isdigit() and "再掲" not in head[i]}
+        known = v.get("総数", 0) - v.get("年齢「不詳」", 0)
+        if not known:
+            continue
+        k = v["総数"] / known
+        ages = {a: v[a] * k for a in v if a.endswith("歳") and a != "年齢「不詳」" and not a.startswith(("75", "80", "85", "90", "95"))}
+        ages["75歳以上"] = sum(v.get(a, 0) for a in ("75～79歳", "80～84歳", "85～89歳", "90～94歳", "95～99歳", "100歳以上")) * k
+        out[c[7]] = ages
+    return out
 
 
 def load_small():
+    """町丁別・年齢別人口。町丁ごとの割合は令和2年国勢調査、市区町村の年齢別の合計は令和7年国勢調査に合わせる。"""
     p = B.ROOT / "data" / "report" / "smallarea.csv"
     if SMALL or not p.exists():
         return
     with p.open(encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            SMALL.append(dict(muni=r["muni"], town=r["town"], x=float(r["lng"]), y=float(r["lat"]),
+            SMALL.append(dict(code=r["key"][:5], muni=r["muni"], town=r["town"], x=float(r["lng"]), y=float(r["lat"]),
                               v={k: int(r[k]) for k in r if k.endswith("歳") or k.endswith("以上")}))
+    r7 = load_r7()
+    tot = collections.defaultdict(lambda: collections.Counter())
+    for t in SMALL:
+        tot[t["code"]].update(t["v"])
+    for t in SMALL:
+        new, old = r7.get(t["code"]), tot[t["code"]]
+        if new:
+            t["v"] = {a: n * new[a] / old[a] if old[a] and a in new else n for a, n in t["v"].items()}
+            ADJ.add(t["code"])
 
 
 def area_name(muni, town, city):
@@ -1410,7 +1445,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                      f'{"・".join(sorted({f"{v:.0f}km" for v in (RADIUS[k] for k in SITE)}))}で0）を用い、新規事業所が「定員×距離の重み」の比率で需要を獲得すると仮定した。</li>'
                      '<li><b>計算手順：</b>①町丁ごとに、周辺事業所の「定員×距離の重み」を合計する。②候補地に新規の定員を置き、周辺の町丁の需要のうち新規事業所の獲得分を合算する。'
                      '③獲得見込みを新規の定員で割り、市全体の「需要÷定員」を1.0として指数化する。④近隣で最近開設された事業所の廃止・休止率が市平均を上回る場合は減点する。</li>'
-                     '<li><b>需要：</b>国勢調査（2020年）の町丁別・年齢別人口を用いた。障害のある人の割合は地域で異なるが、町丁別の数値は公表されていないため、市内では一律とした。</li>'
+                     '<li><b>需要：</b>国勢調査の町丁別・年齢別人口を用いた。町丁別の数値は令和2年（2020年）調査が最新のため、町丁ごとの割合は令和2年、市区町村の年齢別の合計は令和7年（2025年）調査に合わせて補正した（年齢不詳は年齢別に按分）。障害のある人の割合は地域で異なるが、町丁別の数値は公表されていないため、市内では一律とした。</li>'
                      + ('<li><b>グループホーム：</b>公表データに定員がないため、供給は事業所数で数えた。また、住まいであるため市外や遠方からの入居も多く、他のサービスに比べて距離の影響は小さい。</li>' if "33" in SITE else '')
                      + '<li><b>供給：</b>WAM NETに登録された事業所の定員で、市外の近隣事業所も含む。一方、市外に住む人の需要は含まないため、市境に近い地区は低めに出る。</li>'
                      '<li><b>限界：</b>実際の利用は、送迎範囲、事業所の評判、相談支援専門員や学校からの紹介によっても大きく変わる。'
@@ -2455,7 +2490,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
 <li>{"保育士の給与：" + E(FACTS["pay_source"]) if child else "地域の給与水準：" + E(FACTS["care_source"])}。家賃：{E(FACTS["rent_source"])}。</li>
 <li>人件費：厚生労働省「令和6年度 障害福祉サービス等従事者処遇状況等調査」（職種別・サービス別の平均給与）、同「令和7年 障害福祉サービス等経営概況調査」（常勤・非常勤の割合）。</li>
 <li>学校と駅の位置：国土交通省「国土数値情報（学校 2021年、鉄道 2023年）」。</li>
-<li>町丁別・年齢別人口：総務省統計局「令和2年国勢調査 小地域集計（町丁・字等別 年齢5歳階級別人口）」と同「町丁・字等別境界データ」（e-Stat）。</li>
+<li>町丁別・年齢別人口：総務省統計局「令和2年国勢調査 小地域集計（町丁・字等別 年齢5歳階級別人口）」と同「町丁・字等別境界データ」（e-Stat）を、同「令和7年国勢調査 人口等基本集計（第2-7表 市区町村別 年齢5歳階級別人口）」で補正。</li>
 <li>候補地ごとの家賃の目安：国土交通省「国土数値情報（地価公示 2026年）」をもとに、候補地周辺と市全体の地価の差から ジモふくが推計。</li>
 <li>候補地の評価方法：Huff, D. L. (1963) "A Probabilistic Analysis of Shopping Center Trade Areas", <i>Land Economics</i> 39(1), 81–90／Luo, W. &amp; Wang, F. (2003) "Measures of spatial accessibility to health care in a GIS environment", <i>Environment and Planning B</i> 30(6), 865–884／Luo, W. &amp; Qi, Y. (2009) "An enhanced two-step floating catchment area (E2SFCA) method for measuring spatial accessibility to primary care physicians", <i>Health &amp; Place</i> 15(4), 1100–1107。</li>
 {"<li>放課後等デイの利用量：" + (E(hd["src"]) + "（" + E(hd["url"]) + "）" if hd else "市の公表資料では確認できなかった") + "。</li>" if child else ""}
