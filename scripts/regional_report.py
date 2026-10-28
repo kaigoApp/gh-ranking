@@ -510,12 +510,13 @@ def irr(fl, lo=-0.99, hi=1.0):
 
 
 def invest(cap, days, util, perday, cost, open_):
-    fl = month_flows(cap, days, util, perday, cost, open_)
+    fl = month_flows(cap, days, util, perday, cost, open_, months=360)  # 回収の月は30年まで探す
     cum, c = [], 0.0
     for v in fl:
         c += v
         cum.append(c)
-    need = -min(cum)
+    fl = fl[:121]
+    need = -min(cum[:121])
     profit = cap * days * util * perday / 1e4 - cost
     back = next((i for i, v in enumerate(cum) if i > 12 and v >= 0), None)
     r = 0.05
@@ -729,15 +730,16 @@ def sim_year(util, perday, cost):
     return CAP10 * DAYS * util * perday / 1e4 - cost
 
 
-def cash_path(util, perday, cost, months=120, cap=CAP10, days=DAYS, open_=OPEN):
-    """手元資金の動き。報酬は2か月遅れて入る。最も減ったところと、元が取れる月。"""
+def cash_path(util, perday, cost, months=360, cap=CAP10, days=DAYS, open_=OPEN):
+    """手元資金の動き。報酬は2か月遅れて入る。最も減ったところ（10年まで）と、元が取れる月（30年まで）。"""
     cash, low, back = -open_, -open_, None
     rev = []
     for m in range(months):
         u = min(RAMP[m], util) if m < len(RAMP) else util
         rev.append(cap * days / 12 * u * perday / 1e4)
         cash += (rev[m - 2] if m >= 2 else 0) - cost / 12
-        low = min(low, cash)
+        if m < 120:
+            low = min(low, cash)
         if back is None and m > 12 and cash >= 0:
             back = m + 1
     return low, back
@@ -1308,14 +1310,14 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         tile("障害福祉サービス事業所", f"{total[-1]:,}件", f"{l0}比 {(total[-1] - total[0]) / total[0] * 100:+.0f}%"),
         tile(f"{short(mc)}の事業所", f"{now[mc]:,}件", f"人口当たり県平均の{svc_view[mc][0]:.2f}倍／2021年比 {svc_view[mc][1] * 100:+.0f}%" if svc_view[mc][1] is not None else ""),
         tile(f"年間収支（定員{est['cap']}人）", f"{est['bal']:+,.0f}万円", f"損益分岐の{'入居率' if ed == 'gh' else '利用率'} 約{est['be'] * 100:.0f}%"),
-        tile("必要資金", f"約{-est['low']:,.0f}万円", f"ROI 約{est['bal'] / -est['low'] * 100:.0f}%／回収 約{est['back'] // 12}年{est['back'] % 12}か月" if est["back"] else "10年以内の回収は困難"),
+        tile("必要資金", f"約{-est['low']:,.0f}万円", f"ROI 約{est['bal'] / -est['low'] * 100:.0f}%／回収 約{est['back'] // 12}年{est['back'] % 12}か月" if est["back"] else "赤字のため回収できない"),
         tile("有効求人倍率（全職種）", f"{pf['all']:.2f}倍", f"{E(pref)}（全国 {nf['all']:.2f}倍）"),
         tile("借家の平均家賃", f"月{cf['rent'] / 1e4:.1f}万円", f"全国 月{nf['rent'] / 1e4:.1f}万円（住宅・土地統計調査）"),
     ] if not child else [
         tile("障害福祉サービス事業所", f"{total[-1]:,}件", f"{l0}比 {(total[-1] - total[0]) / total[0] * 100:+.0f}%"),
         tile("放課後等デイの利用率", f"約{util * 100:.0f}%" if util else "—", ("定員を上回る計算（利用率の章を参照）" if util > 1.2 else "全国平均 89%") if util else "市の公表値なし（全国平均89%で試算）"),
         tile("年間収支（放課後等デイ 定員10人）", f"{sim_year(*per['標準'], cost):+,.0f}万円", f"損益分岐の利用率 約{be * 100:.0f}%"),
-        tile("必要資金", f"約{-low:,.0f}万円", f"ROI 約{sim_year(*per['標準'], cost) / -low * 100:.0f}%／回収 約{back // 12}年{back % 12}か月" if back else "10年以内の回収は困難"),
+        tile("必要資金", f"約{-low:,.0f}万円", f"ROI 約{sim_year(*per['標準'], cost) / -low * 100:.0f}%／回収 約{back // 12}年{back % 12}か月" if back else "赤字のため回収できない"),
         tile("保育士の有効求人倍率", f"{pf['hoiku']:.2f}倍", f"{E(pref)}（全国 {nf['hoiku']:.2f}倍）"),
         tile("6〜17歳人口（2035年）", f"{(dem['65']['k35'] / dem['65']['k25'] - 1) * 100:+.0f}%" if "65" in dem else "—", "2025年比（社人研推計）"),
     ]
@@ -1327,9 +1329,10 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         col = "red" if (rule and rule["level"] == "stop") else "yellow" if rule or "激しい" in verdict else "green" if "少ない" in verdict else "plain"
         sig.append(f'<tr><th><span class="dot {col}"></span>{E(short(c))}</th><td style="text-align:left">{E(verdict)}</td>'
                    f'<td>{ratio:.2f}倍</td><td>年{bal:+,.0f}万円</td></tr>')
-    first = (f'<b>{E("・".join(cands[0][2]["towns"][:2]))}</b>周辺での{E("・".join(short(x) for x in cands[0][3]))}の開設' if cands else "立地よりサービス内容で差別化する")
+    first = (f'{E(city)}は、<b>{E("・".join(cands[0][2]["towns"][:2]))}</b>周辺での{E("・".join(short(x) for x in cands[0][3]))}の開設が最適と考える' if cands
+             else f'{E(city)}では、立地よりもサービス内容での差別化を優先すべきと考える')
     h.append('<section class="pb"><h2>§結論</h2>'
-             f'<p class="lead">第一候補：{first}</p><div class="tiles">' + "".join(tiles) + '</div>'
+             f'<p class="lead">結論：{first}</p><div class="tiles">' + "".join(tiles) + '</div>'
              '<h3>サービス別の評価</h3><table class="small sig"><tr><th>サービス</th><th>評価</th><th>人口当たり（県平均比）</th><th>年間収支（標準ケース）</th></tr>'
              + "".join(sig) + '</table><p class="note">色の意味は、緑が「事業所が少なく有望」、黄が「競争が激しい、または市の規制に注意が必要」、赤が「市が新規指定を停止中」である。'
              + (f'収支は、定員{"10人" if ed == "child" else "20人"}で開設し、全国平均並みに運営した場合の年間の試算である。</p>' if ed != "gh" else
@@ -1755,7 +1758,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  f'<table><tr><th>ケース</th><th>利用率</th><th>1人1日当たり報酬</th><th>年間売上</th><th>年間費用</th><th>年間収支</th></tr>{rows_sim}</table>'
                  f'<ul><li>損益分岐点の利用率は、標準単価で<b>約{be * 100:.0f}%</b>である。</li>'
                  f'<li>開業費用、立ち上げ期の赤字、報酬の入金が2か月遅れる分を合わせると、<b>必要資金は約{-low:,.0f}万円</b>である。'
-                 + (f'標準ケースでは、開業から約{back // 12}年{back % 12}か月で投資を回収できる。</li>' if back else '標準ケースでも、10年以内の回収は難しい。</li>')
+                 + (f'標準ケースでは、開業から約{back // 12}年{back % 12}か月で投資を回収できる。</li>' if back else '標準ケースでは年間収支が赤字のため、投資を回収できない。</li>')
                  + '</ul><h3>利用率・単価別の年間収支（万円）</h3>' + grid
                  + f'<h3>前提</h3><table class="small txt2"><tr><th>項目</th><th>設定</th></tr>'
                  f'<tr><td>営業日数</td><td>年{DAYS}日（福祉医療機構の経営分析の平均280.4日）</td></tr>'
@@ -1870,7 +1873,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
                  f'<table><tr><th>ケース</th><th>{word}</th><th>1人1日当たり収入</th><th>年間売上</th><th>年間費用</th><th>年間収支</th></tr>{rows_m}</table>'
                  f'<ul><li>損益分岐点の{word}は<b>約{est["be"] * 100:.0f}%</b>である。</li>'
                  f'<li>開業費用、立ち上げ期の赤字、報酬の入金が2か月遅れる分を合わせると、<b>必要資金は約{-est["low"]:,.0f}万円</b>である。'
-                 + (f'標準ケースでは、開業から約{est["back"] // 12}年{est["back"] % 12}か月で投資を回収できる。</li>' if est["back"] else '標準ケースでも、10年以内の回収は難しい。</li>')
+                 + (f'標準ケースでは、開業から約{est["back"] // 12}年{est["back"] % 12}か月で投資を回収できる。</li>' if est["back"] else '標準ケースでは年間収支が赤字のため、投資を回収できない。</li>')
                  + '</ul>' + extra + f'<h3>{word}・1人1日当たり収入別の年間収支（万円）</h3>' + grid
                  + '<h3>前提</h3><table class="small txt2"><tr><th>項目</th><th>設定</th></tr>' + pre
                  + f'<tr><td>開業後の{word}</td><td>3か月ごとに30%→50%→70%→80%と推移し、その後の半年は85%、以降は標準の{word}</td></tr></table>'
@@ -1908,7 +1911,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         return f"{v * 100:.0f}%" if v is not None else "—"
 
     def yrs(m):
-        return f"約{m // 12}年{m % 12}か月" if m else "10年では回収できない"
+        return f"約{m // 12}年{m % 12}か月" if m else "回収できない（赤字）"
     rows_i = "".join(
         f'<tr{" class=\"me\"" if k == "標準" else ""}><th>{k}</th><td>{u * 100:.0f}%</td><td>{v["need"]:,.0f}万円</td><td>{v["profit"]:+,.0f}万円</td>'
         f'<td><b>{pct(v["roi"])}</b></td><td>{yrs(v["back"])}</td><td>{v["c5"]:+,.0f}万円</td><td>{pct(v["irr"])}</td><td>{v["npv"]:+,.0f}万円</td></tr>'
@@ -1977,7 +1980,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              f'<p>{E(city)}で{E(short(ED["main"]))}（定員{P_["cap"]}人）を開設する場合の<b>必要資金と投資の回収見通し</b>を、'
              f'収支試算の章と同じ前提で、10年間の月次の資金収支から算出した。</p>'
              + keypts([f'必要資金は、標準ケースで約{sd["need"]:,.0f}万円、慎重ケースで約{inv["慎重"]["need"]:,.0f}万円である。',
-                       (f'標準ケースのROIは約{sd["roi"] * 100:.0f}%で、{yrs(sd["back"])}で回収できる。' if sd["back"] else '標準ケースでは、10年以内に回収できない。'),
+                       (f'標準ケースのROIは約{sd["roi"] * 100:.0f}%で、{yrs(sd["back"])}で回収できる。' if sd["back"] else '標準ケースでは年間収支が赤字のため、回収できない。'),
                        f'利益への影響が最も大きい要因は「{E(torn[0][0])}」である。'])
              + f'<div class="tiles"><div class="tile"><p class="tl">投下資本（必要資金）</p><p class="tv">{sd["need"]:,.0f}<small>万円</small></p></div>'
              f'<div class="tile"><p class="tl">ROI（年間利益÷投下資本）</p><p class="tv">{pct(sd["roi"])}</p></div>'
@@ -2081,8 +2084,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     else:
         concl.append('<b>立地：</b>市の規制により新規開設ができないか、需要に対して供給が明らかに不足している地区がない。他のサービスや近隣の市区町村での開設も検討の余地がある。')
     concl.append(f'<b>資金：</b>{E(short(mc))}（定員{P_["cap"]}人）の投下資本は、標準ケースで約{sd["need"]:,.0f}万円である。'
-                 + (f'ROIは約{sd["roi"] * 100:.0f}%、回収期間は{yrs(sd["back"])}である。' if sd["back"] else '10年以内には回収できない。')
-                 + (f'慎重ケースでは約{inv["慎重"]["need"]:,.0f}万円が必要となる。' if inv["慎重"]["back"] else '慎重ケースでは10年後も回収できないため、資金には十分な余裕を持たせる必要がある。'))
+                 + (f'ROIは約{sd["roi"] * 100:.0f}%、回収期間は{yrs(sd["back"])}である。' if sd["back"] else '年間収支が赤字のため、回収できない。')
+                 + (f'慎重ケースでは約{inv["慎重"]["need"]:,.0f}万円が必要となる。' if inv["慎重"]["back"] else '慎重ケースでは回収できないため、資金には十分な余裕を持たせる必要がある。'))
     concl.append(f'<b>最大のリスク：</b>利益への影響が最も大きいのは「{E(torn[0][0])}」で、年間約{max(abs(torn[0][1]), abs(torn[0][2])):,.0f}万円の差が出る。'
                  f'損益分岐点の{P_["word"]}は約{be_u * 100:.0f}%である。')
     concl.append('<b>次の手順：</b>' + ('下表の上位の候補地から順に、「現地確認チェックリスト」の10項目を確認する。' if cands else 'まず市の障害福祉課で、新規指定の受付再開の時期を確認する。'))
@@ -2144,7 +2147,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
         MSG["児童発達支援を併設する場合の収支試算"] = (f'児童発達支援（定員10人）の年間収支は{oth["63"]["bal"]:+,.0f}万円、'
                                           f'損益分岐点の利用率は約{oth["63"]["be"] * 100:.0f}%である')
     MSG["投資判断"] = (f'必要資金は約{sd["need"]:,.0f}万円である。'
-                   + (f'ROIは約{sd["roi"] * 100:.0f}%で、約{sd["back"] // 12}年で回収できる' if sd["back"] else '標準ケースでは10年以内に回収できない'))
+                   + (f'ROIは約{sd["roi"] * 100:.0f}%で、約{sd["back"] // 12}年で回収できる' if sd["back"] else '標準ケースでは赤字のため回収できない'))
     MSG["5年間の損益計画"] = (f'1年目の利益は{pl[0]["pr"]:+,.0f}万円で、' + (f'{first_black}年目に黒字化する見込みである' if first_black else '5年以内には黒字化しない'))
     MSG["リスクと対策"] = f'最大のリスクは「{E(torn[0][0].split("（")[0])}」である。多くのリスクは開設前の確認で軽減できる'
     MSG["現地確認チェックリスト"] = 'データだけでは分からない点を、開設を決める前に10項目で確認する'
@@ -2165,7 +2168,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     else:
         q2, a2 = "×", "需要に対して供給が明らかに不足している地区はない。サービス内容での差別化が必要である。"
     q3 = "○" if sd["back"] and sd["roi"] >= 0.15 else "△" if sd["back"] else "×"
-    a3 = (f'必要資金は約{sd["need"]:,.0f}万円。' + (f'ROIは約{sd["roi"] * 100:.0f}%、回収期間は{yrs(sd["back"])}。' if sd["back"] else '標準ケースでは10年以内に回収できない。')
+    a3 = (f'必要資金は約{sd["need"]:,.0f}万円。' + (f'ROIは約{sd["roi"] * 100:.0f}%、回収期間は{yrs(sd["back"])}。' if sd["back"] else '標準ケースでは赤字のため回収できない。')
           + ('慎重ケースでは回収の見込みが立たない。' if not inv["慎重"]["back"] else ''))
     rule0 = caps_open.get(mc)
     q4 = "×" if rule0 and rule0["level"] == "stop" else "△" if rule0 or jobr0[0] >= 2 or ed == "gh" else "○"
@@ -2258,7 +2261,7 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
          "投資の分野では、見通しが外れても損失を抑えられる余裕（安全域）を確保して判断するという考え方が近い。",
          "松下幸之助『実践経営哲学』PHP研究所、1978年。ベンジャミン・グレアム『賢明なる投資家』1949年",
          f'標準ケースの投下資本は約{sd["need"]:,.0f}万円だが、慎重ケースでは'
-         + (f'約{slow["need"]:,.0f}万円が必要となる' if slow["back"] else f'10年後も回収できず、資金は減り続ける')
+         + (f'約{slow["need"]:,.0f}万円が必要となる' if slow["back"] else f'回収できず、資金は減り続ける')
          + '。資金計画は標準ケースではなく慎重ケースを前提に立て、運転資金の借入枠も開業前に確保しておくのが安全である。',
          "借入が過大になると、利息と返済の負担が重くなる。手元資金の水準は、開業後1年間の実績を見て見直すのが現実的である。")
     card("5. 事業の目的は顧客の創造（ピーター・ドラッカー）",
@@ -2356,8 +2359,8 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
     for i, c in enumerate(SV):
         m = maps[c]
         h.append(f'<section class="pb"><h2>{"§事業所の空白地域" if i == 0 else "§§事業所の空白地域（続き）"}</h2>'
-                 f'<h3>{E(SERVICES[c][0])}</h3>'
-                 f'<p>色は、最寄りの{E(short(c))}までの直線距離を示す。点は{E(short(c))}の事業所である（市外の近隣事業所を含む）。'
+                 f'<h3>{E(city)}の地図：{E(SERVICES[c][0])}</h3>'
+                 f'<p>下の地図は{E(city)}の全域である（黒い線が市の境界、上が北）。色は、最寄りの{E(short(c))}までの直線距離を示す。点は{E(short(c))}の事業所である（市外の近隣事業所を含む）。'
                  '<b style="color:#b3392c">赤い数字</b>は「候補地の評価」の章の順位、点線の丸（A、B…）は、住宅地でありながら事業所から1km以上離れている地域である。</p>'
                  f'<div class="mapbox">{map_svg(*m["args"], labels=LABELS.get((pi, city), ()), picks=[(j, cl) for j, (_, c0, cl, cs0, _) in enumerate(cands, 1) if c in cs0])}</div><p class="legend">'
                  + "".join(f'<span class="lg"><i style="background:{col}"></i>{lab}</span>' for _, col, lab in BANDS)
