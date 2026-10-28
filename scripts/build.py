@@ -165,6 +165,9 @@ def summarize(path: pathlib.Path, keep: bool):
                 nos={no: o["rows"] for no, o in offices.items()})
 
 
+# 公表データの内容が古いとわかった事業所の訂正（事業所番号 → 項目）。いまはホームページの URL だけ。
+FIXES = json.loads((ROOT / "data" / "fixes.json").read_text(encoding="utf-8"))["offices"]
+
 POP_PREF: dict = {}
 POP_MUNI: dict = collections.defaultdict(dict)
 POP_ASOF = [""]
@@ -1066,7 +1069,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
         name = names[no]
         place = pref + (mk[1] if mk else "")
         tel = next((x["tel"] for x in cs.values() if x["tel"]), "")
-        url = next((x["url"] for x in cs.values() if x["url"].startswith(("http://", "https://"))), "")
+        url = FIXES.get(no, {}).get("url") or next((x["url"] for x in cs.values() if x["url"].startswith(("http://", "https://"))), "")
         items = [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/"))]
         if mk:
             items.append((mk[1], href(rel, muni_path(*mk))))
