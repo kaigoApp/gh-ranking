@@ -1,0 +1,11 @@
+{
+  "note": "公表データ（WAM NET）の内容が古い・まちがっているとわかった事業所の訂正。サイトではこちらを優先して表示する。",
+  "offices": {
+    "1321903740": {
+      "name": "ともがき板橋",
+      "url": "https://tomogaki.jala.co.jp/",
+      "date": "2026-10-28",
+      "why": "公表データのホームページ（third-stage.co.jp/tomogaki-itabashi/）が古い"
+    }
+  }
+}
