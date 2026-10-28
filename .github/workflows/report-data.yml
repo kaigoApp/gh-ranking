@@ -2,7 +2,7 @@ name: レポート用データ（将来推計人口）
 
 on:
   push:
-    branches: [regional-report, wording-kaisetsu]
+    branches: [regional-report, wording-kaisetsu, report-202609]
     paths: [scripts/fetch_landprice.py, scripts/fetch_smallarea.py, scripts/fetch_child_proj.py, scripts/fetch_raw.py, scripts/fetch_places.py, data/report/raw_urls.txt, .github/workflows/report-data.yml]
   workflow_dispatch:
 
