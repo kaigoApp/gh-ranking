@@ -415,9 +415,11 @@ def href(rel, path):
 
 PAGES: list[str] = []
 OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
+# BOOTH へのボタンが押されたら booth_click として記録する（city は売り場の表の行の市区名）
 GA_TAG = """
 <script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');</script>"""
+<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');
+document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[href*="booth.pm"]');if(!a)return;var r=a.closest('tr[id]');gtag('event','booth_click',{{link_url:a.href,city:r?r.id:'',transport_type:'beacon'}});}});</script>"""
 OG_META = """
 <meta property="og:image" content="{url}">
 <meta property="og:image:width" content="1200">
