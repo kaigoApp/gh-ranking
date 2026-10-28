@@ -8,6 +8,7 @@
   /f/<事業所番号>/          事業所ページ（全サービス）
   /report/<時点>/           レポート（データの時点ごとに1本）
   /data/                    お仕事で使う方へ（地域のくらべ表・半年の動き・CSV ダウンロード）
+  /contact/                 お問い合わせ（送信はエックスサーバーの PHP、site/contact/send.php）
 
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
 """
@@ -354,7 +355,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <footer class="site-foot"><div class="container">
   <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
   <div>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>を加工して作成。最新データ：{E(LATEST_LABEL)}時点。</div>
-  <div><a href="{rel}report/">レポート</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
+  <div><a href="{rel}report/">レポート</a>　<a href="{rel}contact/">お問い合わせ</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
 {scripts}
@@ -928,6 +929,7 @@ def build():
     build_corps(S, codes, periods, latest, prev, new_nos)
     build_near(S, codes, latest)
     build_privacy()
+    build_contact()
     build_reports(S, codes, periods)
 
     # ---------- 事業所ページ
@@ -1591,10 +1593,64 @@ def build_privacy():
     body = f"""{ga}
 <section><h2>「近くの事業所」での位置情報</h2>
 <p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」さがすときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
+<section><h2>お問い合わせで送られた情報</h2>
+<p><a href="{rel}contact/">お問い合わせ</a>で入力されたお名前・メールアドレス・内容は、メールで{SITE_NAME}の運営者に届きます。お返事をするためだけに使い、ほかの目的には使いません。続けて大量に送られるのを防ぐため、送った日時と、IP アドレスを元に戻せない形に変えたものを3日間だけ残します。</p></section>
 <section><h2>掲載している情報</h2>
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",
          f"{SITE_NAME}のアクセス解析（Google アナリティクス）で送る情報と、位置情報の扱いについて。", hero, body)
+
+
+CONTACT_KINDS = ["掲載内容のまちがい", "サイトの使い方", "レポートについて", "取材・お仕事のご相談", "その他"]  # send.php の KINDS と同じにする
+
+
+def build_contact():
+    """お問い合わせフォーム。送信は send.php（PHP）がメールにして運営者へ届ける。"""
+    rel = "../"
+    hero = f"""<div>
+  {crumbs(rel, [("お問い合わせ", None)])}
+  <h1>お問い合わせ</h1>
+  <p class="lede">{SITE_NAME}へのご意見・ご質問は、こちらからお送りください。</p>
+</div>"""
+    opts = "".join(f"<option>{E(k)}</option>" for k in CONTACT_KINDS)
+    body = f"""<section><h2>入力してください</h2>
+<p class="callout"><b>事業所の空き状況・利用料・見学のご相談は、各事業所へ直接お問い合わせください。</b>{SITE_NAME}は国の公表データをまとめたサイトで、事業所の運営はしていません。電話番号は各事業所のページに載っています。</p>
+<form class="form" method="post" action="send.php" id="contact-form">
+  <label><span>お問い合わせの種類<span class="req">必須</span></span>
+    <select name="kind" required><option value="">選んでください</option>{opts}</select></label>
+  <label><span>お名前<span class="opt">任意</span></span><input name="name" maxlength="60" autocomplete="name"></label>
+  <label><span>メールアドレス<span class="req">必須</span></span><input name="email" type="email" maxlength="254" required autocomplete="email" inputmode="email"></label>
+  <label><span>内容<span class="req">必須</span></span><textarea name="body" maxlength="4000" required placeholder="掲載内容のまちがいの場合は、ページの住所（URL）か事業所名も書いてください。"></textarea></label>
+  <div class="hp" aria-hidden="true"><label>空けておいてください<input name="website" tabindex="-1" autocomplete="off"></label></div>
+  <input type="hidden" name="e" value="0">
+  <p class="note">お返事は、入力されたメールアドレスにお送りします。数日かかることがあります。入力された情報の扱いは<a href="{rel}privacy/">プライバシーについて</a>をご覧ください。</p>
+  <button class="btn" type="submit">送る</button>
+  <noscript><p class="callout">送るには、ブラウザの JavaScript を有効にしてください。</p></noscript>
+</form></section>"""
+    script = """<script>
+(function () {
+  var f = document.getElementById("contact-form"), t0 = Date.now();
+  f.addEventListener("submit", function () {
+    f.elements.e.value = Date.now() - t0;
+    f.querySelector("button[type=submit]").disabled = true;
+  });
+  // 「もどる」で戻ったときにボタンが押せないままにならないように
+  window.addEventListener("pageshow", function () { f.querySelector("button[type=submit]").disabled = false; });
+})();
+</script>"""
+    page("contact/", "お問い合わせ", f"{SITE_NAME}へのご意見・ご質問・掲載内容のまちがいのお知らせはこちらから。", hero, body, script)
+    shutil.copy(ROOT / "site" / "contact" / "send.php", OUT / "contact" / "send.php")
+
+    rel = "../../"
+    hero = f"""<div>
+  {crumbs(rel, [("お問い合わせ", href(rel, "contact/")), ("送りました", None)])}
+  <h1>送りました</h1>
+</div>"""
+    body = f"""<section class="form-done"><p>お問い合わせありがとうございます。内容を確認して、入力されたメールアドレスにお返事します。数日かかることがありますので、お待ちください。</p>
+<p>数日たってもお返事が届かないときは、迷惑メールのフォルダもご確認ください。</p>
+<p><a href="{rel}">トップページへもどる</a></p></section>"""
+    page("contact/thanks/", "送りました", "お問い合わせを受け付けました。", hero, body)
+    PAGES.remove("contact/thanks/")   # サイトマップには載せない
 
 
 SHOP = json.loads((ROOT / "data" / "report" / "shop.json").read_text(encoding="utf-8"))
