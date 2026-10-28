@@ -1671,10 +1671,10 @@ def area_box(rel, pi, mname, c):
     ed = next((e for e in SHOP["editions"] if c in e["svcs"]), None)
     if not x or not ed:
         return ""
-    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}を開く方へ</p>'
+    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}の開設を検討している方へ</p>'
             f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
-            f'<p>開くならどの町か、市の手続きと総量規制、収支と要る手元資金までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
-            f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">中身と値段を見る</a></aside>')
+            f'<p>開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
+            f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">内容と価格を見る</a></aside>')
 
 
 def build_area_reports():
@@ -1695,30 +1695,39 @@ def build_area_reports():
         f'<td>{buy(x, "BOOTH で買う")}</td></tr>'
         for x in SHOP["cities"])
     sample = SHOP.get("sample_pdf")
+    contact = href(rel, "contact/")
     hero = f"""<div>
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
   <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
-  <h1>開くならどこか、がわかる地域レポート</h1>
-  <p class="lede">障害福祉の事業所を開こうとしている方に向けて、人口の多い20市区と船橋市について、国の公表データと市の資料から「どの町で開くか」「いくら要るか」「市の決まりはどうか」をまとめた PDF です。サービスごとに3つの版があります。</p>
+  <h1>障害福祉事業所の開設を検討する方のための地域レポート</h1>
+  <p class="lede">市区町村ごとに、開設候補地の評価、競合の状況、収支試算と回収期間をまとめた PDF です。国の公表データと国勢調査をもとに、全国の市区町村について作成できます。サービスごとに3つの版があります。</p>
 </div>"""
+    uses = [("開設・開業を検討している方", "どの地域に、どのサービスで開設するかを、需要と競合の数字で判断できます。収支試算と必要資金は、事業計画や融資の相談の下書きに使えます。"),
+            ("商圏分析をしたい法人の方", "既存の事業所の周辺や、新しい拠点の候補地について、需給指数と競合の状況を町丁目単位で確認できます。"),
+            ("セミナー・研修の資料を作る方", "地域の事業所数の推移や需給の状況を、出典つきのグラフと表で示せます。数字や図は、出典を明記すれば資料に引用できます。")]
+    uses_html = "".join(f"<div><h3>{E(h)}</h3><p>{E(t)}</p></div>" for h, t in uses)
     body = f"""
-<section><h2>値段</h2>
-<div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市・1つの版</p></div>
-<div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市・3つの版のセット</p></div></div>
-<p class="note">BOOTH（ピクシブのお店のサービス）でお支払いのあと、すぐに PDF をダウンロードできます。税こみの値段です。</p></section>
-<section><h2>まずは無料の見本を</h2><p class="sec-sub">船橋市の放課後等デイ・児童発達支援版の前半（まとめ・結論・開業までにやること など）を、そのまま読めます。</p>
-{f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を開く（船橋市・前半）</a>' if sample else ''}</section>
-<section><h2>3つの版の中身</h2><div class="report-cols area-eds">{eds}</div>
-<h3>どの版にも入っているもの</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
-<section><h2>市区の一覧</h2><p class="sec-sub">ボタンを押すと BOOTH の商品ページに移ります。版はそこで選べます。</p>
+<section><h2>こんな方に</h2><div class="report-cols area-eds">{uses_html}</div></section>
+<section><h2>価格</h2>
+<div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市区町村・1つの版</p></div>
+<div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市区町村・3つの版のセット</p></div></div>
+<p class="note">税込みの価格です。下の一覧にある市区は、BOOTH（ピクシブが運営するショップのサービス）で購入後すぐに PDF をダウンロードできます。</p></section>
+<section><h2>無料の見本</h2><p class="sec-sub">見本として、千葉県船橋市の放課後等デイ・児童発達支援版の前半を公開しています（数字の一部はぼかしています）。どの市区町村・どの版も、同じ構成で作成します。</p>
+{f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を見る</a>' if sample else ''}</section>
+<section><h2>3つの版の内容</h2><div class="report-cols area-eds">{eds}</div>
+<h3>どの版にも入っている内容</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
+<section><h2>すぐにダウンロードできる市区</h2><p class="sec-sub">作成済みの市区です。ボタンを押すと BOOTH の商品ページに移り、そこで版を選べます。</p>
 <div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th>版</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
+<section id="order"><h2>ほかの市区町村のレポート</h2>
+<p>上の一覧にない市区町村も作成できます。<a href="{contact}">お問い合わせ</a>から、種類で「レポートについて」を選び、市区町村名と版（放デイ・児発／グループホーム／就労B型）をお知らせください。作成できるかを確認したうえで、お届けの時期と購入方法をメールでご案内します。価格は上と同じです。</p>
+<a class="area-btn" href="{contact}">お問い合わせから注文する</a></section>
 <section><h2>このレポートについて</h2><ul>
-<li>事業所の数と場所は、福祉医療機構 WAM NET のオープンデータ（2021年11月から半年ごと）をもとにしています。</li>
-<li>手続き・総量規制は、各市の手引きと募集要項を2026年10月に確かめたものです。動き出す前に、必ず市の最新の案内を確かめてください。</li>
-<li>収支の試算は、全国の平均的な事業所の数字を市の単価・給料・家賃に合わせた、判断のたたき台です。</li>
-<li>レポートの数字は、出典（ジモふく）を書いていただければ引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
-    page(AREA_PATH, "地域レポート｜開くならどこか、がわかる市区ごとのレポート",
-         f"障害福祉の事業所を開く方へ。人口の多い20市区と船橋市について、開くならどの町か・市の手続きと総量規制・収支と要る手元資金をまとめた PDF（{SHOP['period']}のデータ）。",
+<li>事業所の数と場所は、福祉医療機構 WAM NET のオープンデータ（2021年11月から半年ごと）をもとにしています。町丁目ごとの人口は令和2年国勢調査です。</li>
+<li>総量規制の状況は、作成時点で市区町村の公表資料を確認したものです。開設の準備を始める前に、必ず市区町村の最新の案内を確認してください。</li>
+<li>収支試算は、全国の事業所の経営データを地域の報酬単価・給与水準・家賃に合わせたもので、開設を判断するためのたたき台です。</li>
+<li>レポートの数字や図は、出典（ジモふく）を明記すれば資料などに引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
+    page(AREA_PATH, "地域レポート｜障害福祉事業所の開設を検討する方へ",
+         f"障害福祉事業所の開設・商圏分析・セミナー資料に。全国の市区町村について、開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF（{SHOP['period']}のデータ）。",
          hero, body)
 
 
@@ -1745,7 +1754,7 @@ def build_reports(S, codes, periods):
 </div>"""
     page("report/", "レポート｜障害福祉の事業所はどう変わったか",
          "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
-         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>開くならどの町か・市の手続き・収支を、市区ごとに1冊に。人口の多い20市区と船橋市。無料の見本あり。</span></a></section>'
+         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>障害福祉事業所の開設を検討する方へ。開設候補地の評価・競合・収支試算を市区町村ごとに1冊に。全国の市区町村で作成できます。無料の見本あり。</span></a></section>'
          f'<section><ul class="report-list">{items}</ul></section>')
     build_area_reports()
 
