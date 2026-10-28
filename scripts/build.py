@@ -1619,8 +1619,8 @@ def build_contact():
   <label><span>お問い合わせの種類<span class="req">必須</span></span>
     <select name="kind" required><option value="">選んでください</option>{opts}</select></label>
   <label><span>お名前<span class="opt">任意</span></span><input name="name" maxlength="60" autocomplete="name"></label>
-  <label><span>メールアドレス<span class="req">必須</span></span><input name="email" type="email" maxlength="254" required autocomplete="email" inputmode="email"></label>
-  <label><span>内容<span class="req">必須</span></span><textarea name="body" maxlength="4000" required placeholder="掲載内容のまちがいの場合は、ページの住所（URL）か事業所名も書いてください。"></textarea></label>
+  <label class="wide"><span>メールアドレス<span class="req">必須</span></span><input name="email" type="email" maxlength="254" required autocomplete="email" inputmode="email"></label>
+  <label class="wide"><span>内容<span class="req">必須</span></span><textarea name="body" maxlength="4000" required placeholder="掲載内容のまちがいの場合は、ページの住所（URL）か事業所名も書いてください。"></textarea></label>
   <div class="hp" aria-hidden="true"><label>空けておいてください<input name="website" tabindex="-1" autocomplete="off"></label></div>
   <input type="hidden" name="e" value="0">
   <p class="note">お返事は、入力されたメールアドレスにお送りします。数日かかることがあります。入力された情報の扱いは<a href="{rel}privacy/">プライバシーについて</a>をご覧ください。</p>
