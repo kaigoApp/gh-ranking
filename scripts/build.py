@@ -33,6 +33,8 @@ import ogp  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SLIM = ROOT / "data" / "slim"
 ASSETS = ROOT / "site" / "assets"
+ROOT_FILES = ROOT / "site" / "root"      # ファビコンなど、公開フォルダのいちばん上に置くファイル（scripts/make_icons.py で作る）
+OG_SRC = ROOT / "site" / "og-src"        # シェア用画像に貼る素材（公開はしない）
 OUT = ROOT / "public"
 SITE_URL = os.environ.get("SITE_URL", "https://kaigoapp.github.io/gh-ranking").rstrip("/")
 SITE_NAME = "ジモふく"
@@ -343,6 +345,10 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:url" content="{E(canonical)}">{OG_META.format(url=E(SITE_URL + "/" + urllib.parse.quote(og))) if ogp.ENABLED and og else ""}
 <meta name="theme-color" content="#1f4d3a">
+<link rel="icon" href="{rel}favicon.ico" sizes="48x48">
+<link rel="icon" href="{rel}favicon.svg" type="image/svg+xml">
+<link rel="icon" href="{rel}icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="{rel}apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
@@ -427,10 +433,10 @@ OG_META = """
 <meta name="twitter:card" content="summary_large_image">"""
 
 
-def og_image(key: str, eyebrow: str, title: str, number=None, unit="", lines=()) -> str:
-    """シェア用画像を予約して、そのパスを返す。画像はページを全部作ったあとにまとめて描く。"""
+def og_image(key: str, eyebrow: str, title: str, number=None, unit="", lines=(), pic=None) -> str:
+    """シェア用画像を予約して、そのパスを返す。画像はページを全部作ったあとにまとめて描く。pic は右側に置く画像。"""
     path = f"og/{key}.png"
-    OG_JOBS[path] = (eyebrow, title, number, unit, tuple(lines), f"jimofuku.jp　{LATEST_LABEL}時点　国の公表データから")
+    OG_JOBS[path] = (eyebrow, title, number, unit, tuple(lines), f"jimofuku.jp　{LATEST_LABEL}時点　国の公表データから", pic)
     return path
 
 
@@ -439,8 +445,8 @@ def muni_og(pi, name):
 
 
 def _draw_og(job):
-    path, (eyebrow, title, number, unit, lines, foot) = job
-    ogp.make(OUT / path, eyebrow, title, number, unit, lines, foot)
+    path, (eyebrow, title, number, unit, lines, foot, pic) = job
+    ogp.make(OUT / path, eyebrow, title, number, unit, lines, foot, pic)
 
 
 def draw_og_images():
@@ -540,6 +546,7 @@ def build():
 
     OUT.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ASSETS, OUT / "assets", dirs_exist_ok=True)
+    shutil.copytree(ROOT_FILES, OUT, dirs_exist_ok=True)
 
     # ---------- トップ
     tot, tot0 = total_series[-1], total_series[-2]
@@ -1734,7 +1741,10 @@ def build_area_reports():
 <li>レポートの数字や図は、出典（ジモふく）を明記すれば資料などに引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
     page(AREA_PATH, "地域レポート｜障害福祉事業所の開設を検討する方へ",
          f"障害福祉事業所の開設・商圏分析・セミナー資料に。全国の市区町村について、開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF（{LATEST_LABEL}のデータ）。",
-         hero, body)
+         hero, body,
+         og=og_image("report-area", "数字ならジモふく", "地域レポート", None, "",
+                     ("開設候補地の評価・競合・収支試算を1冊に", "全国の市区町村に対応（PDF）", f"{len(SHOP['cities'])}市区はすぐにダウンロード"),
+                     pic=OG_SRC / "report-covers.png"))
 
 
 def report_path(p):

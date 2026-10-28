@@ -58,18 +58,25 @@ def _fit(d, text, kind, size, max_w, min_size=36):
     return font(kind, size)
 
 
-def make(dest: pathlib.Path, eyebrow: str, title: str, number=None, unit="", lines=(), foot="") -> bool:
-    """dest に PNG を書く。作れなかったら False。"""
+def make(dest: pathlib.Path, eyebrow: str, title: str, number=None, unit="", lines=(), foot="", pic=None) -> bool:
+    """dest に PNG を書く。作れなかったら False。pic は右側に置く画像（透明の PNG、レポートの表紙など）。"""
     if not ENABLED:
         return False
     im = _base()
     d = ImageDraw.Draw(im)
     x = 72
     y = 160
+    right = W - x
+    if pic:
+        p = Image.open(pic).convert("RGBA")
+        p.thumbnail((470, H - 64 - 40))
+        px = W - p.width - 40
+        im.paste(p, (px, H - 64 - p.height + 24), p)
+        right = px - 24
     if eyebrow:
         d.text((x, y), eyebrow, font=font("bold", 28), fill=LEAF)
         y += 50
-    f = _fit(d, title, "black", 72, W - 2 * x)
+    f = _fit(d, title, "black", 72, right - x)
     d.text((x, y), title, font=f, fill=ON)
     y += f.size + 34
     if number is not None:
@@ -80,11 +87,11 @@ def make(dest: pathlib.Path, eyebrow: str, title: str, number=None, unit="", lin
         lx = max(nx + d.textlength(unit, font=font("bold", 34)) + 48, 560)
         ly = y + 10
         for ln in lines[:3]:
-            d.text((lx, ly), ln, font=_fit(d, ln, "bold", 30, W - lx - 60, 20), fill=MUTED)
+            d.text((lx, ly), ln, font=_fit(d, ln, "bold", 30, right - lx, 20), fill=MUTED)
             ly += 46
     else:
         for ln in lines[:3]:
-            d.text((x, y), ln, font=_fit(d, ln, "bold", 34, W - 2 * x, 20), fill=MUTED)
+            d.text((x, y), ln, font=_fit(d, ln, "bold", 34, right - x, 20), fill=MUTED)
             y += 52
     d.rectangle((0, H - 64, W, H), fill=(22, 58, 43))
     d.text((x, H - 50), foot or "jimofuku.jp", font=font("bold", 24), fill=MUTED)
