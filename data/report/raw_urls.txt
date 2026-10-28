@@ -1,1 +1,3 @@
-# 取り寄せる資料はいまはなし
+# 名前 URL（Actions の report-data.yml が data/report/raw/<名前>.txt に文字にして置く）
+# 令和7年国勢調査 人口等基本集計 表2-7 男女，年齢（5歳階級及び3区分）別人口－全国，都道府県，市区町村
+r7_age5 https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040506431&fileKind=0

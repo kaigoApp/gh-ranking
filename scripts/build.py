@@ -1676,7 +1676,7 @@ def area_box(rel, pi, mname, c):
         return ""
     return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}の開設を検討している方へ</p>'
             f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
-            f'<p>開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめた PDF です（{E(SHOP["period"])}のデータ）。</p>'
+            f'<p>開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめた PDF です（{E(LATEST_LABEL)}のデータ）。</p>'
             f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">内容と価格を見る</a></aside>')
 
 
@@ -1701,7 +1701,7 @@ def build_area_reports():
     contact = href(rel, "contact/")
     hero = f"""<div>
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
-  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(SHOP["period"])}のデータ</div>
+  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(LATEST_LABEL)}のデータ</div>
   <h1>障害福祉事業所の開設を検討する方のための地域レポート</h1>
   <p class="lede">市区町村ごとに、開設候補地の評価、競合の状況、収支試算と回収期間をまとめた PDF です。国の公表データと国勢調査をもとに、全国の市区町村について作成できます。サービスごとに3つの版があります。</p>
 </div>"""
@@ -1730,7 +1730,7 @@ def build_area_reports():
 <li>収支試算は、全国の事業所の経営データを地域の報酬単価・給与水準・家賃に合わせたもので、開設を判断するためのたたき台です。</li>
 <li>レポートの数字や図は、出典（ジモふく）を明記すれば資料などに引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
     page(AREA_PATH, "地域レポート｜障害福祉事業所の開設を検討する方へ",
-         f"障害福祉事業所の開設・商圏分析・セミナー資料に。全国の市区町村について、開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF（{SHOP['period']}のデータ）。",
+         f"障害福祉事業所の開設・商圏分析・セミナー資料に。全国の市区町村について、開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF（{LATEST_LABEL}のデータ）。",
          hero, body)
 
 
