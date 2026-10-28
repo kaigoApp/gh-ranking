@@ -90,6 +90,7 @@ a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visib
 .rep-card { position: relative; display: grid; gap: 4px; margin-top: 18px; padding: 16px 48px 16px 18px; background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); text-decoration: none; color: var(--fg); }
 .rep-card .eyebrow { color: var(--hot); }
 .rep-card b { color: var(--fg); font-family: var(--f-display); font-weight: 900; font-size: clamp(16px, 4.2vw, 19px); line-height: 1.4; }
+.rep-card b em { font-style: normal; display: inline-block; }
 .rep-card span:last-of-type { color: var(--muted); font-size: 13.5px; }
 .rep-card i { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 22px; color: var(--hot); }
 .rep-card:hover { border-color: var(--hot); }
