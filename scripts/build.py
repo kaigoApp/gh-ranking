@@ -76,6 +76,50 @@ DESC = {
 }
 
 PREF_ABBR = [(p[:-1] if p[-1] in "都府県" else p)[:2] for p in PREFS]
+
+# 市区町村 × サービスのページ名に使う呼び名。正式名だけでなく、探す人がふだん検索する言葉も入れる
+SEARCH_NAME = {
+    "11": "居宅介護（ホームヘルプ）",
+    "15": "同行援護（ガイドヘルプ）",
+    "24": "短期入所（ショートステイ）",
+    "33": "グループホーム（共同生活援助）",
+    "45": "就労継続支援A型（A型作業所）",
+    "46": "就労継続支援B型（B型作業所）",
+    "52": "計画相談支援（相談支援事業所）",
+    "63": "児童発達支援（児発）",
+    "65": "放課後等デイサービス（放デイ）",
+    "70": "障害児相談支援（相談支援事業所）",
+}
+KIDS = {"63", "64", "65", "66", "67", "68", "69"}
+IDO_SLUG = "ido-shien"            # 移動支援のページ。WAM NET のサービスにはないので slug は SERVICES と重ならない名前
+IDO_CODES = ["15", "13", "12", "11"]  # 移動支援もあわせて行うことが多い訪問系のサービス
+
+
+def madoguchi(mname):
+    """利用の申し込み先。政令市の区と東京23区は区役所、ほかは市役所・町役場・村役場。"""
+    mname = re.sub(r"^.+?郡", "", mname)
+    if mname.endswith("区"):
+        return f"{mname}役所"
+    return mname + {"市": "役所", "町": "役場", "村": "役場"}.get(mname[-1], "役所")
+
+
+def flow_html(c, mname):
+    """使い始めるまでの流れ。サービスの種類で少し変える。"""
+    w = E(madoguchi(mname))
+    if c in ("52", "70"):
+        return (f"<p>相談支援の利用料はかかりません。事業所に電話で直接頼めるほか、{w}の障害福祉の窓口で紹介してもらうこともできます。"
+                "受給者証の申請の前でも相談できます。</p>")
+    if c in KIDS:
+        steps = [f"{w}の障害福祉（子ども）の窓口に相談し、「通所受給者証」を申請する。医師の意見書などが要る場合があります。",
+                 "障害児相談支援の事業所に「障害児支援利用計画」を作ってもらう（家族が自分で作ることもできます）。",
+                 "気になる事業所を見学・体験する。空き状況はこの段階で確かめます。",
+                 "受給者証が届いたら事業所と契約し、利用を始める。"]
+    else:
+        steps = [f"{w}の障害福祉の窓口に相談し、サービスの利用を申請する。",
+                 "障害支援区分の認定調査を受ける（サービスによっては不要です）。",
+                 "計画相談支援の事業所に「サービス等利用計画」を作ってもらう（自分で作ることもできます）。",
+                 "受給者証が届いたら、事業所を見学して契約し、利用を始める。"]
+    return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol><p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
 NEW_CHIP = '<span class="chip hot">新規掲載</span>'
 CORP_CHIP = '<span class="chip hot">新規参入</span>'
 
@@ -331,6 +375,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     rel = "../" * depth
     canonical = SITE_URL + "/" + urllib.parse.quote(path)
     full_title = title if title.startswith(SITE_NAME) else f"{title}｜{SITE_NAME}"
+    ld = breadcrumb_ld(hero, canonical)
     doc = f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -352,7 +397,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
-<link rel="stylesheet" href="{rel}assets/site.css">{GA_TAG.format(id=GA_ID) if GA_ID else ""}
+<link rel="stylesheet" href="{rel}assets/site.css">{ld}{GA_TAG.format(id=GA_ID) if GA_ID else ""}
 </head>
 <body>
 <header class="site-head"><div class="container">
@@ -375,6 +420,20 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(doc, encoding="utf-8")
     PAGES.append(path)
+
+
+def breadcrumb_ld(hero: str, canonical: str) -> str:
+    """パンくずを Google 向けの目印（構造化データ）にする。検索結果に「全国 › 県 › 市区町村」と出やすくなる。"""
+    m = re.search(r'<nav class="crumbs"[^>]*>(.*?)</nav>', hero)
+    if not m:
+        return ""
+    items = []
+    for h, a, b in re.findall(r'<a href="([^"]*)">([^<]*)</a>|<span>([^<]*)</span>', m.group(1)):
+        name = html.unescape(a or b)
+        items.append({"@type": "ListItem", "position": len(items) + 1, "name": name,
+                      "item": urllib.parse.urljoin(canonical, html.unescape(h)) if h else canonical})
+    data = {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": items}
+    return '\n<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + "</script>"
 
 
 def crumbs(rel: str, items) -> str:
@@ -920,9 +979,11 @@ def build():
                     dirs.append(f'<details><summary>{E(SERVICES[c][1])}<span class="c">{len(offs):,}件</span></summary><ul>{lis}</ul></details>')
         near = "".join(f'<a href="{href(rel, muni_path(*m))}"><span>{E(m[1])}</span><span class="c">{muni_total[latest][m]:,}</span></a>'
                        for m in sorted(siblings, key=lambda m: -muni_total[latest][m]) if m != mk)
+        ido_link = (f'<p class="sec-sub">外出の付きそいは<a href="{href(rel, path + IDO_SLUG + "/")}">{E(mname)}の移動支援（ガイドヘルプ）</a>のページにまとめています。</p>'
+                    if any(S[c][latest]["muni"].get(mk) for c in IDO_CODES if c in S) else "")
         body = f"""
 <section><h2>{E(mname)}の事業所一覧</h2><p class="sec-sub">事業所名を押すと、電話番号や地図のある詳しいページへ移れます。「新規掲載」の印があるグループホームは最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。ほかのサービスは、サービス名を押すと一覧が開きます。</p>
-<div class="dir">{"".join(dirs)}</div></section>
+<div class="dir">{"".join(dirs)}</div>{ido_link}</section>
 <section><h2>{E(mname)}のサービス別の事業所数</h2><p class="sec-sub">サービス名を押すと、{E(mname)}のそのサービスの事業所が見られます。増減は{E(label(prev))}との比較、順位は{E(pref)}内の市区町村の中での順位です。</p>
 <div class="table-wrap"><table><thead><tr><th>サービス</th><th class="r">事業所数</th><th class="r">半年の増減</th><th class="r">県内順位</th><th class="r">推移</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>
 <section><h2>{E(pref)}のほかの市区町村</h2><div class="pref-grid">{near}</div></section>"""
@@ -935,6 +996,7 @@ def build():
 
     # ---------- 市区町村 × サービス
     build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis)
+    build_ido(S, codes, latest)
 
     # ---------- お仕事で使う方へ（データ）
     build_data(S, codes, periods, latest, prev, year_ago, new_nos)
@@ -985,6 +1047,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
     count = 0
     for c in codes:
         name, short, slug = SERVICES[c]
+        sname = SEARCH_NAME.get(c, name)
         L, P_ = S[c][latest], S[c].get(prev)
         by_muni = collections.defaultdict(list)
         for no, o in L["offices"].items():
@@ -1011,7 +1074,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             hero = f"""<div>
   {crumbs(rel, [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/")), (mname, href(rel, muni_path(pi, mname))), (short, None)])}
   <div class="eyebrow" style="margin-top:12px">{E(pref)}{E(mname)}　{E(LATEST_LABEL)}時点</div>
-  <h1>{E(mname)}の{E(name)}</h1>
+  <h1>{E(mname)}の{E(sname)}</h1>
   <p class="lede">{E(DESC.get(c, ""))}</p>
   <div class="big"><div><span class="n">{cur:,}</span><span class="u">事業所</span></div>
     <div class="meta">{f'<span>半年で <b>{delta(cur - pv)}</b></span>' if pv is not None else ''}<span>{E(pref)}内 <b>{r_in}位</b> / {len(within)}</span></div></div>
@@ -1021,24 +1084,97 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             others = "".join(f'<a href="{href(rel, ms_path(pi, mname, x))}"><span>{E(SERVICES[x][1])}</span><span class="c">{S[x][latest]["muni"][mk]:,}</span></a>'
                              for x in codes if x != c and S[x][latest]["muni"].get(mk))
             fresh_note = "「新規掲載」の印がある事業所は最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。" if c == GH else "「新規掲載」の印は、この半年で新しく公表データに載った事業所です。"
+            # 人口あたりの数を県全体とくらべる一文。ページごとに中身が変わり、地域の様子もつかめる
+            mpop, ppop = pop_of(pi, mname), POP_PREF.get(pi)
+            density = ""
+            if mpop and ppop and L["pref"].get(pi):
+                a, b = cur / mpop * 10000, L["pref"][pi] / ppop * 10000
+                cmp_ = "より多め" if a > b * 1.15 else "より少なめ" if a < b * 0.85 else "と同じくらい"
+                density = (f'<p class="density">{E(mname)}の{E(short)}は、人口1万人あたり<b>{a:.1f}か所</b>です。'
+                           f'{E(pref)}全体（{b:.1f}か所）{cmp_}です。</p>')
+            ido = (f'<p class="sec-sub">外出の付きそいを探している方は、<a href="{href(rel, muni_path(pi, mname) + IDO_SLUG + "/")}">{E(mname)}の移動支援（ガイドヘルプ）</a>のページもご覧ください。</p>'
+                   if c in IDO_CODES else "")
             near_url = f'{href(rel, "data/near/")}?s={c}&amp;p={pi}&amp;m={urllib.parse.quote(mname)}'
             tools = (f'<div class="list-tools">'
                      + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if len(offs) > 10 else '')
                      + f'<a class="near-link" href="{near_url}">住所やいまいる場所から近い順に見る</a></div>')
             body = f"""
-<section><h2>{E(mname)}の{E(short)}の一覧</h2><p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>
+<section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>
 {tools}
-<div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div></section>
+<div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div>{ido}</section>
+<section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname)}</section>
 {area_box(rel, pi, mname, c)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
 {f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所をすべて見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
             new_txt = f"この半年で{n_new}か所が新しく載りました。" if n_new else ""
-            page(ms_path(pi, mname, c), f"{mname}（{pref}）の{name}一覧（{cur:,}か所）",
-                 f"{pref}{mname}の{name}の事業所{cur:,}か所の一覧（{LATEST_LABEL}時点）。{new_txt}事業所名・運営法人・所在地と、電話番号や地図のある事業所ページ。",
+            page(ms_path(pi, mname, c), f"{mname}の{sname}一覧 {cur:,}か所（{pref}）",
+                 f"{pref}{mname}の{sname}の事業所{cur:,}か所の一覧（{LATEST_LABEL}時点）。{new_txt}電話番号・地図・運営法人と、使い始めるまでの流れ。",
                  hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if len(offs) > 10 else "", og=muni_og(pi, mname))
             count += 1
     print(f"市区町村×サービスのページ: {count:,}")
+
+
+def build_ido(S, codes, latest):
+    """市区町村ごとの移動支援（ガイドヘルプ）のページ。
+
+    移動支援は市区町村の地域生活支援事業で、WAM NET の公表データには入っていない。
+    「〇〇区 移動支援」で探す人に、申し込み先と、移動支援もあわせて行うことが多い
+    訪問系の事業所（同行援護・行動援護・重度訪問介護・居宅介護）を案内する。
+    移動支援をしているかどうかはデータにないので、そう書いて事業所や窓口への確認をすすめる。
+    """
+    rel = "../../../../"
+    cs = [c for c in IDO_CODES if c in codes]
+    by_muni = collections.defaultdict(dict)
+    for c in cs:
+        for no, o in S[c][latest]["offices"].items():
+            for mk in o["munis"]:
+                by_muni[mk].setdefault(no, [o, []])[1].append(c)
+    count = 0
+    for mk, offs in by_muni.items():
+        pi, mname = mk
+        pref = PREFS[pi]
+        w = madoguchi(mname)
+        n = len(offs)
+        rows = sorted(offs.items(), key=lambda x: (min(cs.index(c) for c in x[1][1]), x[1][0]["munis"][mk][0]))
+
+        def li(no, o, svcs):
+            fp = fac_path(no)
+            t = E(o["munis"][mk][0])
+            tags = "".join(f'<span class="chip">{E(SERVICES[c][1])}</span>' for c in svcs)
+            return (f'<li><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{tags}</b>'
+                    f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span></li>')
+        items = "".join(li(no, o, sv) for no, (o, sv) in rows)
+        cnt = {c: S[c][latest]["muni"].get(mk, 0) for c in cs}
+        svc_links = "".join(f'<a href="{href(rel, ms_path(pi, mname, c))}"><span>{E(SERVICES[c][1])}</span><span class="c">{cnt[c]:,}</span></a>'
+                            for c in cs if cnt[c])
+        hero = f"""<div>
+  {crumbs(rel, [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/")), (mname, href(rel, muni_path(pi, mname))), ("移動支援", None)])}
+  <div class="eyebrow" style="margin-top:12px">{E(pref)}{E(mname)}　{E(LATEST_LABEL)}時点</div>
+  <h1>{E(mname)}の移動支援（ガイドヘルプ）</h1>
+  <p class="lede">一人での外出がむずかしい人に、ヘルパーが付きそって買い物や通院、余暇の外出などを手伝うサービスです。{E(mname)}で使うときの申し込み先と、近くの事業所をまとめました。</p>
+  <div class="big"><div><span class="n">{n:,}</span><span class="u">事業所</span></div>
+    <div class="meta"><span>外出の支援をしている訪問系の事業所</span></div></div>
+</div>"""
+        tools = (f'<div class="list-tools"><input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list">'
+                 f'<span class="note" id="flt-note" aria-live="polite"></span></div>' if n > 10 else "")
+        body = f"""
+<section><h2>{E(mname)}で移動支援を使うには</h2>
+<p>移動支援は、国の障害福祉サービスではなく、市区町村がそれぞれ決めて行う事業（地域生活支援事業）です。使える人、1か月に使える時間、利用料、使える外出の目的（通勤・通学などは対象外のことが多い）は、市区町村ごとに違います。</p>
+<ol class="flow"><li>{E(w)}の障害福祉の窓口に、移動支援を使いたいと相談し、申請する。</li><li>決まった時間数などが書かれた通知（受給者証など）を受け取る。</li><li>{E(mname)}に登録している移動支援の事業所と契約し、利用を始める。登録事業所の一覧は窓口でもらえます。</li></ol>
+<p class="note">市区町村によって「ガイドヘルプ」「外出支援」など呼び方が違うことがあります。</p></section>
+<section><h2>国のサービスで外出を支えるもの</h2>
+<p class="sec-sub">障害の種類によっては、移動支援のかわりに国の障害福祉サービスで外出の付きそいを受けられます。目が見えにくい人は<b>同行援護</b>、知的障害や精神障害で行動に危険がともなう人は<b>行動援護</b>、重い障害で常に介護が必要な人は<b>重度訪問介護</b>、通院の付きそいは<b>居宅介護</b>（通院等介助）が使えます。</p>
+<div class="pref-grid">{svc_links}</div></section>
+<section><h2>{E(mname)}の外出の支援をしている事業所</h2>
+<p class="sec-sub">同行援護・行動援護・重度訪問介護・居宅介護の事業所{n:,}か所です。こうした訪問系の事業所は、移動支援もあわせて行っていることが多くあります。ただし国の公表データには移動支援をしているかどうかは載っていないので、事業所か{E(w)}にお問い合わせください。</p>
+{tools}
+<div class="dir"><details open><summary>訪問系の事業所<span class="c">{n:,}件</span></summary><ul id="flt-list">{items}</ul></details></div></section>"""
+        page(muni_path(pi, mname) + IDO_SLUG + "/", f"{mname}の移動支援（ガイドヘルプ）申し込み先と事業所（{pref}）",
+             f"{pref}{mname}で移動支援（ガイドヘルプ）を使いたい方へ。申し込み先、使い始めるまでの流れ、外出の支援をしている同行援護・行動援護・居宅介護などの事業所{n:,}か所。",
+             hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if n > 10 else "", og=muni_og(pi, mname))
+        count += 1
+    print(f"移動支援のページ: {count:,}")
 
 
 def build_facilities(S, codes, periods, latest, new_nos):

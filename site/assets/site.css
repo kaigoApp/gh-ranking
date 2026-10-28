@@ -152,6 +152,10 @@ section > h2, .sec-h { font-family: var(--f-display); font-weight: 900; font-siz
 .sec-sub { margin: 0 0 16px; color: var(--muted); font-size: 14px; max-width: 46em; }
 .sec-sub b { color: var(--fg); }
 .note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.density { margin: 6px 0 12px; padding: 10px 14px; border-left: 4px solid var(--brand); background: var(--accent-soft); border-radius: 0 8px 8px 0; font-size: 14px; max-width: 46em; }
+.flow { margin: 8px 0 0; padding-left: 1.6em; max-width: 46em; font-size: 15px; line-height: 1.8; }
+.flow li { margin: 0 0 6px; }
+section > p:not([class]) { max-width: 46em; }
 
 .d { font-family: var(--f-num); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .d.up { color: var(--up); } .d.down { color: var(--down); } .d.zero { color: var(--muted); }
