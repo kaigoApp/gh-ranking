@@ -66,6 +66,7 @@ jobs:
           SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
           HOST: ${{ secrets.XSERVER_HOST }}
           USER: ${{ secrets.XSERVER_USER }}
+          CONTACT_TO: ${{ secrets.CONTACT_TO }}
         run: |
           # 事業所ページを全サービスに広げてから GitHub Pages の上限（1GB）を超えるので、公開先はエックスサーバーだけ
           if [ -z "$SSH_KEY" ]; then
@@ -80,3 +81,10 @@ jobs:
           rsync -rlz --checksum --delete --exclude .htaccess --exclude .user.ini \
             -e "ssh -p 10022 -i ~/xserver_key" \
             public/ "$USER@$HOST:jimofuku.jp/public_html/"
+          # お問い合わせの届け先を、公開フォルダの外に置く（ページからは見えない）
+          if [ -n "$CONTACT_TO" ]; then
+            printf '%s\n' "$CONTACT_TO" | ssh -p 10022 -i ~/xserver_key "$USER@$HOST" \
+              'umask 077 && cat > jimofuku.jp/contact_to.txt'
+          else
+            echo "お問い合わせの届け先（CONTACT_TO）が未登録なので、フォームは「受け付けていません」と表示します"
+          fi
