@@ -15,6 +15,7 @@
 import collections
 import csv
 import gzip
+import hashlib
 import html
 import io
 import json
@@ -36,6 +37,9 @@ ASSETS = ROOT / "site" / "assets"
 ROOT_FILES = ROOT / "site" / "root"      # ファビコンなど、公開フォルダのいちばん上に置くファイル（scripts/make_icons.py で作る）
 OG_SRC = ROOT / "site" / "og-src"        # シェア用画像に貼る素材（公開はしない）
 OUT = ROOT / "public"
+# CSS・JS を変えたとき、スマホなどに残った古いファイルが使われないよう、URL の後ろに中身から作った印（?v=）を付ける
+ASSET_VER = {f.name: hashlib.md5(f.read_bytes()).hexdigest()[:8] for f in ASSETS.glob("*") if f.suffix in (".css", ".js")}
+ASSET_RE = re.compile(r'(assets/)([\w.-]+\.(?:css|js))"')
 SITE_URL = os.environ.get("SITE_URL", "https://kaigoapp.github.io/gh-ranking").rstrip("/")
 SITE_NAME = "ジモふく"
 TAGLINE = "地元の障害福祉が見つかる"
@@ -418,6 +422,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 """
     dest = OUT / path / "index.html" if path else OUT / "index.html"
     dest.parent.mkdir(parents=True, exist_ok=True)
+    doc = ASSET_RE.sub(lambda m: f'{m[1]}{m[2]}?v={ASSET_VER[m[2]]}"' if m[2] in ASSET_VER else m[0], doc)
     dest.write_text(doc, encoding="utf-8")
     PAGES.append(path)
 
