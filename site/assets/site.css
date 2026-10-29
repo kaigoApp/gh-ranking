@@ -452,3 +452,15 @@ table.sortable th[aria-sort="ascending"] button::after { content: " ▲"; color:
 .btn[disabled] { opacity: .6; cursor: wait; }
 .callout { background: var(--sun-soft); border-radius: 10px; padding: 12px 16px; margin: 12px 0 0; }
 .form-done { padding: 32px 0; }
+.area-facts { margin: 4px 0 12px; padding-left: 1.2em; font-size: 14px; max-width: 46em; }
+.area-facts li { margin: 4px 0; }
+.area-sub { display: inline-block; margin: 8px 0 0 14px; font-size: 14px; }
+.area-box .area-more { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+.area-box .area-more a { margin-right: 6px; }
+.rank-pair { display: grid; gap: 18px; }
+@media (min-width: 860px) { .rank-pair { grid-template-columns: 1fr 1fr; } }
+.rank-pair h3 { margin: 6px 0 8px; font-size: 16px; }
+.rank-pair td small, .kisei-table th small { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.kisei-table td { font-size: 14px; vertical-align: top; }
+.jump { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.jump a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--brand); font-weight: 700; text-decoration: none; font-size: 14px; }
