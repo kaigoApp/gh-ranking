@@ -1,29 +1,29 @@
 /* ジモふく
    Layout: 白いヘッダーの下に、地図を思わせる点模様の濃紺の帯（見出し・検索・タイル地図）。
-   帯は若葉色の深い緑。本文は明るい紙面に「目的」と「地域」の入口を大きく並べ、データは下にまとめる。
+   帯は深い青緑。本文は明るい紙面に「目的」と「地域」の入口を大きく並べ、データは下にまとめる。
    書体は丸ゴシック（見出し）＋ UD ゴシック（本文、読みやすさ優先）＋ 細長い欧文（数字）。 */
 :root {
-  --ink: #1f4d3a;          /* 帯の地色（深い緑） */
-  --ink-2: #2c6650;
-  --on-ink: #f4faf5;
-  --on-ink-muted: #b9d6c4;
-  --bg: #f6f9f4;
+  --ink: #0c4746;          /* 帯の地色（深い青緑） */
+  --ink-2: #155f5c;
+  --on-ink: #f2fbfa;
+  --on-ink-muted: #a8d5d0;
+  --bg: #f3f9f8;
   --surface: #ffffff;
-  --fg: #1c2a21;
-  --muted: #5b6c60;
-  --line: #dfe8db;
-  --brand: #3d9a58;        /* ジモふくの若葉色。ロゴ・ボタン・強調 */
+  --fg: #16292a;
+  --muted: #566b6a;
+  --line: #d8e8e6;
+  --brand: #0a827d;        /* ジモふくの青緑。ロゴ・ボタン・強調（白い文字が読める濃さ） */
   --on-brand: #ffffff;
-  --accent: #2d7a45;       /* 文字やグラフの緑（白地で読める濃さ） */
-  --accent-on-ink: #a6e8b4;
-  --accent-soft: #e2f2e2;
-  --bar: #b2dbb9;
+  --accent: #0b736f;       /* 文字やグラフの青緑（白地で読める濃さ） */
+  --accent-on-ink: #8fe3da;
+  --accent-soft: #dcf2ef;
+  --bar: #a7dcd6;
   --sun: #ffb93f;          /* 「新しい」を示す黄色 */
   --sun-soft: #fff2d6;
   --hot: #c46a10;
-  --up: #1d7a40;
+  --up: #0b736f;
   --down: #b3392c;
-  --shadow: 0 1px 2px rgb(31 77 58 / .06), 0 6px 20px rgb(31 77 58 / .06);
+  --shadow: 0 1px 2px rgb(12 71 70 / .06), 0 6px 20px rgb(12 71 70 / .06);
   --f-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
   --f-body: "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
   --f-num: "Barlow Semi Condensed", "BIZ UDPGothic", sans-serif;
@@ -32,10 +32,10 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #12301f; --ink-2: #1c4430; --on-ink: #eef7f0; --on-ink-muted: #9dbca9;
-    --bg: #0f1612; --surface: #17211b; --fg: #e5ede7; --muted: #9aab9f; --line: #27352c;
-    --brand: #5cbf74; --on-brand: #0b2414; --accent: #7fd494; --accent-on-ink: #a6e8b4; --accent-soft: #1d3a26; --bar: #356b44;
-    --sun: #ffcf5c; --sun-soft: #3a3118; --hot: #f0a050; --up: #6ccf8c; --down: #ef8a7c;
+    --ink: #0a2e2d; --ink-2: #134443; --on-ink: #eef8f7; --on-ink-muted: #9cc3bf;
+    --bg: #0e1616; --surface: #162121; --fg: #e4eeed; --muted: #98abaa; --line: #263636;
+    --brand: #3fbfb7; --on-brand: #062423; --accent: #6fd6cc; --accent-on-ink: #8fe3da; --accent-soft: #173a38; --bar: #2f6b67;
+    --sun: #ffcf5c; --sun-soft: #3a3118; --hot: #f0a050; --up: #6fd6cc; --down: #ef8a7c;
     --shadow: 0 1px 2px rgb(0 0 0 / .3);
     color-scheme: dark;
   }
@@ -536,4 +536,20 @@ button.act.fav[aria-pressed="true"] i { color: var(--hot); }
   .sv-table { border: 0; overflow: visible; }
   .sv-cmp { font-size: 8.5pt; }
   .sv-cmp th, .sv-cmp td { min-width: 0; padding: 4px 5px; border-color: #999; }
+}
+
+/* トップの「最近できたグループホーム」：都道府県の一覧はたたんでおく（パソコンでは開いた状態） */
+.fold { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.fold summary { cursor: pointer; padding: 12px 14px; display: flex; gap: 10px; font-weight: 700; list-style: none; }
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary .c { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 13px; }
+.fold summary::after { content: "＋"; color: var(--muted); font-weight: 400; }
+.fold[open] summary::after { content: "－"; }
+.fold .pref-grid { padding: 0 12px 12px; }
+.stats .v small { font-family: var(--f-body); font-size: .5em; font-weight: 700; margin: 0 .1em; }
+/* 事業所ページ：パソコンでは基本情報を左、サービスや近くの事業所を右に並べる */
+.fac-cols, .fac-main, .fac-side { display: grid; gap: 56px; min-width: 0; align-content: start; }
+@media (min-width: 960px) {
+  .fac-cols { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0 40px; align-items: start; }
+  .fac-side { gap: 40px; }
 }

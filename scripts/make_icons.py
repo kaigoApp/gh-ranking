@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEST = ROOT / "site" / "root"
-BRAND, SUN, INK, WHITE = "#3d9a58", "#ffb93f", "#1f4d3a", "#ffffff"
+BRAND, SUN, INK, WHITE = "#0a827d", "#ffb93f", "#0c4746", "#ffffff"
 # LOGO と同じ形（viewBox 0 0 32 32）。背景は透明
 SVG = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M16 2C9.4 2 4 7.3 4 13.9 4 22.6 16 30 16 30s12-7.4 12-16.1C28 7.3 22.6 2 16 2z" fill="{BRAND}"/><path d="M10 15.2 16 10l6 5.2V21a1 1 0 0 1-1 1h-3.2v-4h-3.6v4H11a1 1 0 0 1-1-1z" fill="{WHITE}"/><circle cx="23.5" cy="6.5" r="3.5" fill="{SUN}"/></svg>
 """

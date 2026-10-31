@@ -9,9 +9,9 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FONTS = ROOT / ".fonts"
 W, H = 1200, 630
-INK, INK2 = (31, 77, 58), (44, 102, 80)
-ON, MUTED, LEAF, SUN = (244, 250, 245), (185, 214, 196), (166, 232, 180), (255, 185, 63)
-BRAND = (61, 154, 88)
+INK, INK2 = (12, 71, 70), (21, 95, 92)
+ON, MUTED, LEAF, SUN = (242, 251, 250), (168, 213, 208), (143, 227, 218), (255, 185, 63)
+BRAND = (10, 130, 125)
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -93,7 +93,7 @@ def make(dest: pathlib.Path, eyebrow: str, title: str, number=None, unit="", lin
         for ln in lines[:3]:
             d.text((x, y), ln, font=_fit(d, ln, "bold", 34, right - x, 20), fill=MUTED)
             y += 52
-    d.rectangle((0, H - 64, W, H), fill=(22, 58, 43))
+    d.rectangle((0, H - 64, W, H), fill=(8, 52, 51))
     d.text((x, H - 50), foot or "jimofuku.jp", font=font("bold", 24), fill=MUTED)
     dest.parent.mkdir(parents=True, exist_ok=True)
     # 色数を減らすと 1 枚 20KB ほどになる（そのままだと 80KB）
