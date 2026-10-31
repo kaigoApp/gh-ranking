@@ -2,8 +2,8 @@ name: 工賃実績の取得
 
 on:
   push:
-    branches: [kouchin]
-    paths: [data/kouchin/urls.txt, scripts/fetch_raw.py, .github/workflows/kouchin.yml]
+    branches: [main, kouchin]
+    paths: [data/kouchin/urls.txt, scripts/parse_kouchin.py, .github/workflows/kouchin.yml]
   workflow_dispatch:
 
 permissions:
@@ -20,9 +20,11 @@ jobs:
       - run: pip install openpyxl==3.1.5 xlrd==2.0.1 && sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
       - name: 都道府県の工賃実績を取得
         run: python scripts/fetch_raw.py data/kouchin/urls.txt data/kouchin/raw
+      - name: 事業所番号に結びつける
+        run: python scripts/parse_kouchin.py
       - name: 保存
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/kouchin/raw
+          git add data/kouchin/raw data/kouchin/kouchin.csv
           git diff --cached --quiet || (git commit -m "工賃実績を取得" && git push)

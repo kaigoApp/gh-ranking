@@ -45,6 +45,7 @@ SITE_NAME = "ジモふく"
 TAGLINE = "地元の障害福祉が見つかる"
 WATCH_GAPS = ["33", "46", "65", "63", "22", "52"]  # レポートで「ない市区町村」を数えるサービス
 GH = "33"  # 住居数を出すのはグループホームだけ
+B_CODE = "46"  # 就労継続支援B型（平均工賃を出す）
 GA_ID = "G-1DLDV43DSJ"  # Google アナリティクスの測定 ID（G-…）。空ならアクセス解析のタグを入れない
 
 DESC = {
@@ -217,6 +218,33 @@ def summarize(path: pathlib.Path, keep: bool):
 
 # 公表データの内容が古いとわかった事業所の訂正（事業所番号 → 項目）。いまはホームページの URL だけ。
 FIXES = json.loads((ROOT / "data" / "fixes.json").read_text(encoding="utf-8"))["offices"]
+
+# 就労継続支援B型の平均工賃（月額）。都道府県の「工賃実績」の公表資料から scripts/parse_kouchin.py が作る（事業所番号 → 金額など）
+KOUCHIN_PREF = {"hokkaido": "北海道", "miyagi": "宮城県", "chiba": "千葉県", "tokyo": "東京都", "kanagawa": "神奈川県",
+                "niigata": "新潟県", "shizuoka": "静岡県", "kyoto": "京都府", "osaka": "大阪府", "hyogo": "兵庫県",
+                "hiroshima": "広島県", "fukuoka": "福岡県", "kumamoto": "熊本県", "aichi": "愛知県"}
+
+
+def load_kouchin():
+    path = ROOT / "data" / "kouchin" / "kouchin.csv"
+    if not path.exists():
+        return {}, {}
+    urls = {}
+    for line in (ROOT / "data" / "kouchin" / "urls.txt").read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.startswith("#"):
+            k, u = line.split()
+            urls[k] = u
+    with path.open(encoding="utf-8") as f:
+        return {r["no"]: dict(yen=int(r["yen"]), src=r["src"], year=r["year"]) for r in csv.DictReader(f)}, urls
+
+
+KOUCHIN, KOUCHIN_URLS = load_kouchin()
+
+
+def wage_text(no):
+    """一覧に出す短い文。「平均工賃 月2万3,294円（令和6年度）」"""
+    k = KOUCHIN.get(no)
+    return f"平均工賃 月{k['yen']:,}円（{k['year']}）" if k else ""
 
 POP_PREF: dict = {}
 POP_MUNI: dict = collections.defaultdict(dict)
@@ -1075,8 +1103,9 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                 fp = fac_path(no)
                 t = E(o["munis"][mk][0])
                 chip = fresh_chip(no) if c == GH else (NEW_CHIP if no in new_nos[c] else "")
+                wage = f'<span class="wage">{E(wage_text(no))}</span>' if c == B_CODE and no in KOUCHIN else ""
                 return (f'<li><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>'
-                        f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span></li>')
+                        f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span>{wage}</li>')
             items = "".join(li(no, o) for no, o in offs)
             n_new = sum(1 for no, _ in offs if no in new_nos[c])
             hero = f"""<div>
@@ -1107,8 +1136,16 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             tools = (f'<div class="list-tools">'
                      + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if len(offs) > 10 else '')
                      + f'<a class="near-link" href="{near_url}">住所やいまいる場所から近い順に見る</a></div>')
+            n_wage = sum(1 for no, _ in offs if no in KOUCHIN) if c == B_CODE else 0
+            wage_note = ""
+            if n_wage:
+                ws = sorted(KOUCHIN[no]["yen"] for no, _ in offs if no in KOUCHIN)
+                k0 = next(KOUCHIN[no] for no, _ in offs if no in KOUCHIN)
+                wage_note = (f'<p class="sec-sub">平均工賃（利用者に支払った工賃の1人あたりの月平均）は、{E(KOUCHIN_PREF.get(k0["src"], pref))}が公表している{E(k0["year"])}の工賃実績から、'
+                             f'事業所名で結びつけられた{n_wage}か所に出しています。この{n_wage}か所では、まん中の事業所が<b>月{ws[len(ws) // 2]:,}円</b>です。'
+                             f'金額は事業所の作業や利用日数によって大きく変わるので、見学のときに確かめてください。</p>')
             body = f"""
-<section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>
+<section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>{wage_note}
 {tools}
 <div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div>{ido}</section>
 <section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname)}</section>
@@ -1279,6 +1316,13 @@ def build_facilities(S, codes, periods, latest, new_nos):
             info.append(("ホームページ", f'<a href="{E(url)}" rel="nofollow noopener" target="_blank">{E(url)}</a>'))
         if o["cap"]:
             info.append(("定員", E(o["cap"]) + ("人" if o["cap"].isdigit() else "")))
+        if B_CODE in cs and no in KOUCHIN:
+            k = KOUCHIN[no]
+            src = KOUCHIN_PREF.get(k["src"], "都道府県")
+            info.append(("平均工賃（月額）",
+                         f'<b class="tnum">{k["yen"]:,}円</b><br><span class="note">就労継続支援B型で利用者に支払った工賃の1人あたりの月平均です。'
+                         f'{E(src)}の公表資料（{E(k["year"])}の工賃実績）より。'
+                         f'<a href="{E(KOUCHIN_URLS.get(k["src"], ""))}" rel="nofollow noopener" target="_blank">資料</a></span>'))
         if o["hours"]:
             info.append(("利用できる時間（平日）", E(o["hours"])))
         if o["closed"]:

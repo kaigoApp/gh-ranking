@@ -38,6 +38,11 @@
 3. GitHub Actions（`.github/workflows/build.yml`）が、毎月1日と15日、または main への push のたびに 1→2 を実行し、
    エックスサーバー（jimofuku.jp）に公開します。
 
+就労継続支援B型の平均工賃（月額）は WAM NET のデータに無いので、都道府県が毎年出す「工賃実績」の一覧から取ります。
+`data/kouchin/urls.txt` に県ごとの資料の URL を書くと、Actions（`.github/workflows/kouchin.yml`）が取りに行き、
+`scripts/parse_kouchin.py` が事業所名・法人名・市区町村で事業所番号に結びつけて `data/kouchin/kouchin.csv` を作ります。
+新しい年度の資料が出たら URL を書きかえ、資料の形が変わったら `parse_kouchin.py` の `SOURCES`（列の位置）を直します。
+
 WAM NET のデータは毎年3月末時点と9月末時点の年2回公開されます。
 サービスの名前と URL に使う名前は `scripts/services.py` で決めています。
 
@@ -57,4 +62,6 @@ WAM NET からダウンロードした ZIP を `python scripts/fetch.py --zip sf
 https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/
 
 総務省「住民基本台帳に基づく人口、人口動態及び世帯数」（人口あたりの数）
+
+各都道府県「工賃実績」の公表資料（就労継続支援B型の平均工賃。資料の URL は `data/kouchin/urls.txt`）
 https://www.soumu.go.jp/menu_news/s-news/01gyosei02_02000428.html
