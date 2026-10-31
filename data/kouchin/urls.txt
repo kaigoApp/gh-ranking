@@ -1,0 +1,16 @@
+# 都道府県の「工賃実績」（事業所ごとの平均工賃）の公表ファイル。名前 URL
+# Actions の kouchin.yml が data/kouchin/raw/<名前>.txt に文字にして置く
+hokkaido https://www.pref.hokkaido.lg.jp/fs/1/2/9/0/9/0/1/8/_/%E5%B0%B1%E5%8A%B4%E7%B6%99%E7%B6%9A%E6%94%AF%E6%8F%B4B%E5%9E%8B%20%E5%B7%A5%E8%B3%83%E5%AE%9F%E7%B8%BE%E4%B8%80%E8%A6%A7.pdf
+miyagi https://www.pref.miyagi.jp/documents/63348/b.pdf
+chiba https://www.pref.chiba.lg.jp/shoji/service/shuurou/kouchin/documents/r7kouchin.xlsx
+tokyo https://www.fukushi.metro.tokyo.lg.jp/documents/d/fukushi/06kouchinjisseki-xlsx-1
+kanagawa https://www.pref.kanagawa.jp/documents/122552/r6kouchinshisetsu_r2.xlsx
+niigata https://www.pref.niigata.lg.jp/uploaded/attachment/512537.xlsx
+shizuoka https://www.pref.shizuoka.jp/_res/projects/default_project/_page_/001/023/636/r6koutinjisseki.pdf
+aichi https://www.pref.aichi.jp/uploaded/attachment/585578.pdf
+kyoto https://www.pref.kyoto.jp/shogaishien/documents/02r6b_kochin.pdf
+osaka https://www.pref.osaka.lg.jp/documents/23571/r6kouchinjissekib.xlsx
+hyogo https://web.pref.hyogo.lg.jp/kf10/shuroushien/documents/r6jissekiitiran.xlsx
+hiroshima https://www.pref.hiroshima.lg.jp/uploaded/attachment/655726.xlsx
+fukuoka https://www.pref.fukuoka.lg.jp/uploaded/attachment/275643.xlsx
+kumamoto https://www.pref.kumamoto.jp/uploaded/life/257468_780062_misc.xlsx
