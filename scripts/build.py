@@ -9,6 +9,7 @@
   /report/<時点>/           レポート（データの時点ごとに1本）
   /data/                    お仕事で使う方へ（地域のくらべ表・半年の動き・CSV ダウンロード）
   /contact/                 お問い合わせ（送信はエックスサーバーの PHP、site/contact/send.php）
+  /about/                   運営者について
 
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
 """
@@ -451,7 +452,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <footer class="site-foot"><div class="container">
   <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
   <div>出典：独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>を加工して作成。最新データ：{E(LATEST_LABEL)}時点。</div>
-  <div><a href="{rel}report/">レポート</a>　<a href="{rel}contact/">お問い合わせ</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
+  <div><a href="{rel}about/">運営者について</a>　<a href="{rel}report/">レポート</a>　<a href="{rel}contact/">お問い合わせ</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
 <a class="saved-fab noprint" id="saved-fab" href="{rel}saved/" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.8l2.5 5.2 5.7.8-4.1 4 1 5.6L10 14.7l-5.1 2.7 1-5.6-4.1-4 5.7-.8z" fill="currentColor"/></svg>保存した事業所<b id="saved-n">0</b></a>
@@ -1053,6 +1054,7 @@ def build():
     build_near(S, codes, latest)
     build_privacy()
     build_contact()
+    build_about(codes)
     build_saved()
     build_reports(S, codes, periods)
     build_guides(S, codes, periods)
@@ -1796,6 +1798,36 @@ def build_corps(S, codes, periods, latest, prev, new_nos):
              f"{name}（法人番号{k}）が運営する障害福祉サービスの事業所{len(offs):,}か所の一覧。サービス別の事業所数、事業所のある都道府県、半年間の増減（{LATEST_LABEL}時点）。",
              hero, body)
     print(f"法人ページ: {len(cur):,}")
+
+
+def build_about(codes):
+    """運営者について。サイトの目的・運営者・データの出どころ・お問い合わせ先をまとめる。"""
+    rel = "../"
+    hero = f"""<div>
+  {crumbs(rel, [("運営者について", None)])}
+  <h1>運営者について</h1>
+  <p class="lede">{SITE_NAME}は、全国の障害福祉サービスの事業所を、地域やサービスの種類から探せる情報サイトです。</p>
+</div>"""
+    body = f"""<section><h2>サイトの概要</h2>
+<div class="table-wrap"><table class="info"><tbody>
+<tr><th scope="row">サイト名</th><td>{SITE_NAME}（{TAGLINE}）</td></tr>
+<tr><th scope="row">URL</th><td><a href="{rel or './'}">{E(SITE_URL)}/</a></td></tr>
+<tr><th scope="row">運営者</th><td>システムM（個人で運営しています）</td></tr>
+<tr><th scope="row">内容</th><td>障害福祉サービス{len(codes)}種類の事業所の一覧と地図、地域ごとの事業所数の推移、事業を考える方向けの地域レポート</td></tr>
+<tr><th scope="row">お問い合わせ</th><td><a href="{rel}contact/">お問い合わせフォーム</a>からお送りください</td></tr>
+</tbody></table></div></section>
+<section><h2>このサイトを作った理由</h2>
+<p>障害福祉の事業所を探している方に、地域にどんな事業所があるのかを分かりやすく見ていただきたいと思い、{SITE_NAME}を作りました。</p>
+<p>国が公表しているデータには全国の事業所の情報がそろっていますが、そのままでは目当ての事業所にたどり着くのに手間がかかります。そこで、お住まいの地域や、利用したいサービスの種類から探しやすい形に整理しています。</p>
+<p>また、障害福祉の事業を営む方や、福祉の現場で働く方々には深い敬意を抱いています。日々の支援に携わる皆さまのお役に立てるよう、地域ごとの事業所の動きや需給をまとめた、信頼できる質の高いレポートをお届けしていきます。</p></section>
+<section><h2>掲載している情報の出どころ</h2>
+<p>事業所の情報は、独立行政法人福祉医療機構の<a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET「障害福祉サービス等情報公表システムデータのオープンデータ」</a>をもとに作成しています。新しいデータが公表されると、自動で取り込んでサイトを更新します。いま載せているのは{E(LATEST_LABEL)}時点のデータです。</p>
+<p>内容は国の公表データのとおりで、{SITE_NAME}が各事業所に確認したものではありません。空き状況や利用料、見学については、各事業所へ直接お問い合わせください。</p></section>
+<section><h2>ご利用にあたって</h2>
+<p>掲載内容には注意を払っていますが、正確さや最新であることを保証するものではありません。このサイトの情報を利用したことで生じた損害については、責任を負いかねますのでご了承ください。</p>
+<p>掲載内容のまちがいにお気づきの場合は、<a href="{rel}contact/">お問い合わせ</a>からお知らせください。確認のうえ訂正します。個人情報やアクセス解析の扱いは<a href="{rel}privacy/">プライバシーとアクセス解析について</a>をご覧ください。</p></section>"""
+    page("about/", "運営者について",
+         f"{SITE_NAME}（{TAGLINE}）の運営者、サイトを作った理由、掲載している情報の出どころについて。", hero, body)
 
 
 def build_privacy():
