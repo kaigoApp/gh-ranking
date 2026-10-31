@@ -634,3 +634,29 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .gone-same { background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
 .gone-same ul { margin: 6px 0 0; padding-left: 1.2em; }
 .fix-link { margin-top: 6px; }
+
+/* ---- 事業所のまわり・事業所の方へ（/kit/） ---- */
+.around-tiles { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.around-tiles div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.around-tiles span { font-size: 12px; color: var(--muted); }
+.around-tiles b { font-family: var(--f-num); font-size: 30px; line-height: 1.1; color: var(--accent); }
+.around-tiles i { font-style: normal; font-size: 12px; color: var(--muted); }
+.around-links { display: grid; gap: 6px; font-weight: 700; font-size: 14px; margin-top: 10px; }
+.kit-name { font-size: 16px; overflow-wrap: anywhere; }
+.kit-qr { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.kit-qr img { display: block; background: #fff; border-radius: 8px; border: 1px solid var(--line); }
+.kit-btns { display: grid; gap: 8px; }
+.kit-badge img { display: block; }
+.kit-code { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); }
+.kit-card { display: none; }
+@media print {
+  body:has(#kit) .band, body:has(#kit) main section { display: none !important; }
+  .kit-card { display: block; }
+  .kit-card-in { width: 120mm; height: 70mm; border: 1px dashed #999; padding: 6mm; display: flex; gap: 5mm; align-items: center; justify-content: space-between; }
+  .kit-card-in > div:first-child { display: grid; gap: 2mm; }
+  .kit-card-eyebrow { font-size: 9pt; color: #555; }
+  .kit-card-in b { font-size: 14pt; line-height: 1.3; }
+  .kit-card-in span { font-size: 9pt; }
+  .kit-card-site { font-weight: 700; color: #1f4d3a; margin-top: 2mm; }
+  .kit-card-in img { width: 38mm; height: 38mm; }
+}
