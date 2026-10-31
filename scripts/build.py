@@ -110,8 +110,8 @@ def madoguchi(mname):
     return mname + {"市": "役所", "町": "役場", "村": "役場"}.get(mname[-1], "役所")
 
 
-def flow_html(c, mname):
-    """使い始めるまでの流れ。サービスの種類で少し変える。"""
+def flow_html(c, mname, rel=""):
+    """使い始めるまでの流れ。サービスの種類で少し変える。rel があれば、費用のめやす・見学チェックシートへの案内をつける。"""
     w = E(madoguchi(mname))
     if c in ("52", "70"):
         return (f"<p>相談支援の利用料はかかりません。事業所に電話で直接頼めるほか、{w}の障害福祉の窓口で紹介してもらうこともできます。"
@@ -126,7 +126,10 @@ def flow_html(c, mname):
                  "障害支援区分の認定調査を受ける（サービスによっては不要です）。",
                  "計画相談支援の事業所に「サービス等利用計画」を作ってもらう（自分で作ることもできます）。",
                  "受給者証が届いたら、事業所を見学して契約し、利用を始める。"]
-    return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol><p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
+    k = next((k for k, _, _, cs in KENGAKU if c in cs), "")
+    tools = (f'<p class="flow-tools"><a href="{href(rel, HIYOU_PATH)}">費用のめやすを調べる</a>'
+             f'<a href="{href(rel, KENGAKU_PATH)}{"?k=" + k if k else ""}">見学チェックシートを印刷する</a></p>') if rel else ""
+    return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol>" + tools + "<p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
 def fav_btn(no, name, big=False):
     """★で事業所を保存するボタン。保存先はその人の端末の中だけ（assets/saved.js）。"""
     if big:
@@ -716,7 +719,8 @@ def build():
     body = f"""
 {stats}
 <section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
-<div class="purposes">{"".join(purpose_html)}</div></section>
+<div class="purposes">{"".join(purpose_html)}</div>
+<p class="start-cta"><a href="{START_PATH}"><b>どのサービスを探せばいいかわからない方へ</b><span>年齢とやりたいことを選ぶだけで、探すサービスがわかります。費用のめやす・見学チェックシートもあります。</span></a></p></section>
 <a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 <a class="pro-link" href="report/{latest}/"><span class="eyebrow">レポート</span><b>障害福祉の事業所はどう変わったか（{E(LATEST_LABEL)}）</b><span>増え方、地域の差、入れ替わり、運営法人の変化を、国の公表データからまとめました。データが新しくなるたびに更新します。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
@@ -1055,6 +1059,7 @@ def build():
     build_near(S, codes, latest)
     build_privacy()
     build_contact()
+    build_start(S, codes, latest)
     build_about(codes)
     build_saved()
     build_reports(S, codes, periods)
@@ -1167,7 +1172,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
 <section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>{wage_note}
 {tools}
 <div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div>{ido}</section>
-<section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname)}</section>
+<section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname, rel)}</section>
 {area_box(rel, pi, mname, c, per, cur - pv if pv is not None else None, n_new)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
@@ -2096,12 +2101,279 @@ def build_saved():
 <ol id="sv-list" class="sv-list"></ol>
 <div id="sv-table" class="table-wrap sv-table" hidden></div>
 <p class="note noprint">保存とメモは、この端末のブラウザの中にだけ残ります。ほかの端末で見るときは「リンクをコピー」か「LINEで送る」を使ってください（メモは送られません）。</p>
+<p class="note noprint">見学で聞くことは<a href="{rel}{KENGAKU_PATH}">見学チェックシート</a>にまとめています。費用は<a href="{rel}{HIYOU_PATH}">費用のめやす</a>で調べられます。</p>
 <p class="noprint"><button type="button" class="sv-btn sub" id="sv-clear">すべて消す</button></p>
 </div>"""
     scripts = ('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">'
                '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>')
     page("saved/", "保存した事業所", "★で保存した障害福祉の事業所を並べて比べ、地図つきの一覧を印刷したり LINE で送ったりできます。",
          hero, body, scripts, noindex=True)
+
+
+# ---------------------------------------------------------------- はじめての方へ（探し始めの人向けの道具）
+START_PATH = "start/"
+HIYOU_PATH = "start/hiyou/"
+KENGAKU_PATH = "start/kengaku/"
+HIYOU_SRC = "https://www.mhlw.go.jp/bunya/shougaihoken/service/hutan1.html"
+
+# どのサービスを探せばいい？：年齢 → やりたいこと → サービス
+FINDER = [
+    ("kid0", "小学校に入る前の子ども", [
+        ("発達をうながす支援（療育）を受けたい", "通って、遊びや生活の練習をしながら発達を支える場所です。", ["63", "64"]),
+        ("保育園・幼稚園で過ごしやすくしたい", "専門の職員が保育園などに行き、子どもと先生を支えます。", ["67"]),
+        ("外に出るのがむずかしく、家に来てほしい", "重い障害などで通えない子どもの家に来て支援します。", ["66"]),
+        ("短い間あずけたい（家族の休息・急用）", "泊まりや日中のあずかりです。", ["24"]),
+        ("何を使えばいいか相談したい", "利用の計画づくりや、事業所選びの相談ができます（利用料はかかりません）。", ["70"]),
+    ]),
+    ("kid", "小学生から高校生まで", [
+        ("放課後や長い休みに通う場所がほしい", "学校のあとや休みの日に通い、生活の力や人との関わりを育てます。", ["65"]),
+        ("学校で過ごしやすくしたい", "専門の職員が学校などに行き、子どもと先生を支えます。", ["67"]),
+        ("短い間あずけたい（家族の休息・急用）", "泊まりや日中のあずかりです。", ["24"]),
+        ("家での介護や外出の付きそいがほしい", "ホームヘルプや、外出の付きそいです。", ["11", "13", "15", "ido"]),
+        ("何を使えばいいか相談したい", "利用の計画づくりや、事業所選びの相談ができます（利用料はかかりません）。", ["70"]),
+    ]),
+    ("adult", "18歳以上", [
+        ("一般の会社で働きたい（就職の準備）", "就職に向けた練習と仕事さがしの手伝いを受けます。原則2年までです。", ["60"]),
+        ("支えを受けながら、お給料をもらって働きたい", "事業所と雇用契約を結んで働きます（最低賃金以上）。", ["45"]),
+        ("自分のペースで働きたい・作業をしたい", "雇用契約なしで、体調に合わせて作業し、工賃を受け取ります。", ["46"]),
+        ("就職したあとも続けられるよう支えてほしい", "働き始めた人の悩みや、会社との調整を手伝います。", ["62"]),
+        ("日中に通う場所がほしい（介護や創作活動）", "食事や入浴の手伝い、創作や軽い作業をする通い先です。", ["22"]),
+        ("ひとり暮らしや生活の練習をしたい", "家事やお金の管理など、暮らしの練習をします。", ["42", "41", "34"]),
+        ("家を出て暮らす場所がほしい", "少人数で暮らす家や、入所施設です。", ["33", "32"]),
+        ("ひとり暮らしを続けられるよう見守ってほしい", "定期的に家を訪ね、困りごとの相談に乗ります。", ["61", "54"]),
+        ("家での介護や家事を手伝ってほしい", "ホームヘルプ（入浴・排せつ・食事・家事）です。", ["11", "12"]),
+        ("外出に付きそってほしい", "目の不自由な人の付きそい、行動の支援、市区町村の移動支援です。", ["15", "13", "ido"]),
+        ("短い間あずけたい（家族の休息・急用）", "泊まりや日中のあずかりです。", ["24"]),
+        ("病院や施設を出て、地域で暮らしたい", "退院・退所に向けた住まいさがしや準備を手伝います。", ["53"]),
+        ("何を使えばいいか相談したい", "利用の計画づくりや、事業所選びの相談ができます（利用料はかかりません）。", ["52"]),
+    ]),
+]
+
+# 見学で聞くこと
+KENGAKU_COMMON = [
+    "空きはあるか。ないときは、どのくらい待つか",
+    "体験（お試し）で利用できるか",
+    "送迎はあるか。家の近くまで来てくれるか",
+    "利用料のほかにかかるお金（食事・おやつ・材料・行事など）",
+    "職員の人数と、どんな資格の人がいるか",
+    "1日の流れ（何時に来て、何をして、何時に帰るか）",
+    "休みの日、開いている時間",
+    "体調が悪くなったとき・災害のときの対応",
+    "家族との連絡のしかた（連絡帳・電話・アプリなど）",
+    "通っている人の年齢や様子、雰囲気",
+]
+KENGAKU = [
+    ("work", "働く・作業をする（就労B型・A型・就労移行）", [
+        "どんな作業・仕事があるか。選べるか",
+        "工賃・お給料は月いくらか（B型は平均工賃、A型は時給と働く時間）",
+        "週に何日・1日何時間から通えるか",
+        "一般の会社への就職を手伝ってくれるか。これまでに就職した人の数",
+        "（就労移行）どんな練習をするか。実習先はあるか",
+        "（A型）雇用契約・社会保険の内容",
+    ], ["46", "45", "60"]),
+    ("day", "日中に通う（生活介護・自立訓練）", [
+        "どんな活動をするか（創作・軽作業・外出・運動など）",
+        "食事・入浴・トイレの手伝いはどこまでしてくれるか",
+        "医療的なケア（たんの吸引・服薬など）に対応できるか",
+        "看護師はいるか",
+    ], ["22", "42", "41"]),
+    ("kids", "子どもが通う（放課後等デイ・児童発達支援）", [
+        "どんな支援をするか（1人ずつか、みんなでか、運動・学習・遊びなど）",
+        "子どもごとの支援の計画を一緒に作ってくれるか",
+        "学校・園への迎えはあるか。長い休みの日は何時から開くか",
+        "専門の職員（保育士・作業療法士・言語聴覚士など）はいるか",
+        "1回の時間と、週に何回通えるか",
+        "同じくらいの年齢の子は何人いるか",
+    ], ["65", "63"]),
+    ("home", "暮らす（グループホーム）", [
+        "家賃・食費・光熱費など、毎月の合計はいくらか（家賃の補助を使えるか）",
+        "部屋は個室か。トイレやお風呂は共用か",
+        "夜も職員がいるか",
+        "日中の過ごし方（ほかの事業所に通うのか、ホームで過ごせるのか）",
+        "体験入居ができるか",
+        "通院の付きそい、お金の管理を手伝ってくれるか",
+        "門限・外泊・家族の訪問のきまり",
+    ], ["33"]),
+    ("visit", "家に来てもらう・外出の付きそい（居宅介護など）", [
+        "来てもらえる曜日と時間帯",
+        "いつも同じヘルパーさんか",
+        "急な変更や休みのときの連絡のしかた",
+        "男性・女性のヘルパーの希望を聞いてもらえるか",
+    ], ["11", "12", "15", "13"]),
+]
+
+
+def build_start(S, codes, latest):
+    """はじめての方へ：どのサービスを探せばいい？、費用のめやす、見学チェックシート。"""
+    def svc_cards(rel, cs):
+        out = []
+        for c in cs:
+            if c == "ido":
+                out.append(f'<a class="fd-svc" href="{rel}#prefs"><b>移動支援（ガイドヘルプ）</b><span>市区町村のサービス。地域を選ぶと、市区町村ごとのページで申し込み先が見られます。</span></a>')
+                continue
+            if c not in S:
+                continue
+            name, short, slug = SERVICES[c]
+            n = S[c][latest]["n"]
+            out.append(f'<a class="fd-svc" href="{rel}s/{slug}/#area"><b>{E(SEARCH_NAME.get(c, name))}</b><span>{E(DESC.get(c, ""))}</span><em>全国 {n:,}か所 → 地域からさがす</em></a>')
+        return "".join(out)
+
+    # ---- どのサービスを探せばいい？
+    rel = "../"
+    tabs = "".join(f'<button type="button" role="tab" data-age="{k}" aria-selected="{"true" if i == 0 else "false"}">{E(t)}</button>' for i, (k, t, _) in enumerate(FINDER))
+    groups = []
+    for i, (k, t, wishes) in enumerate(FINDER):
+        ws = "".join(
+            f'<details class="fd-wish"><summary><b>{E(w)}</b><span>{E(d)}</span></summary><div class="fd-svcs">{svc_cards(rel, cs)}</div></details>'
+            for w, d, cs in wishes)
+        groups.append(f'<div class="fd-group" data-age="{k}"><h3>{E(t)}</h3>{ws}</div>')
+    hero = f"""<div>
+  {crumbs(rel, [("はじめての方へ", None)])}
+  <div class="eyebrow" style="margin-top:12px">はじめての方へ</div>
+  <h1>どのサービスを探せばいい？</h1>
+  <p class="lede">障害福祉のサービスは種類が多く、名前だけではわかりにくいものです。年齢と、困っていること・やりたいことを選ぶと、探すサービスがわかります。</p>
+</div>"""
+    body = f"""
+<section><h2>1. 使う人の年齢</h2>
+<div class="fd-tabs" role="tablist" aria-label="年齢">{tabs}</div></section>
+<section><h2>2. 困っていること・やりたいこと</h2><p class="sec-sub">押すと、探すサービスが出ます。あてはまるものが複数あれば、いくつ使ってもかまいません。</p>
+<div class="fd-groups">{"".join(groups)}</div></section>
+<section><h2>わからないときは</h2>
+<p>市区町村の障害福祉の窓口か、相談支援の事業所に「こんなことに困っている」と伝えると、合うサービスを一緒に考えてもらえます。相談支援の利用料はかかりません。</p>
+<p><a href="{rel}s/keikaku-sodan/#area">相談支援の事業所をさがす（18歳以上）</a>　<a href="{rel}s/shogaiji-sodan/#area">障害児相談支援の事業所をさがす（18歳未満）</a></p></section>
+{start_links(rel, "finder")}"""
+    script = """<script>
+(function () {
+  var tabs = document.querySelectorAll('.fd-tabs [data-age]'), groups = document.querySelectorAll('.fd-group');
+  function show(k) {
+    tabs.forEach(function (b) { b.setAttribute('aria-selected', b.dataset.age === k); });
+    groups.forEach(function (g) { g.hidden = g.dataset.age !== k; });
+  }
+  tabs.forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.age); if (window.gtag) gtag('event', 'finder_age', { age: b.dataset.age }); }); });
+  document.querySelectorAll('.fd-wish').forEach(function (d) {
+    d.addEventListener('toggle', function () { if (d.open && window.gtag) gtag('event', 'finder_wish', { wish: d.querySelector('summary b').textContent }); });
+  });
+  show('kid0');
+})();
+</script>"""
+    page(START_PATH, "どのサービスを探せばいい？障害福祉サービスの選び方",
+         "年齢と、困っていること・やりたいことから、探すべき障害福祉サービス（放課後等デイサービス・就労B型・グループホームなど）がわかります。",
+         hero, body, script)
+
+    # ---- 費用のめやす
+    rel = "../../"
+    hero = f"""<div>
+  {crumbs(rel, [("はじめての方へ", href(rel, START_PATH)), ("費用のめやす", None)])}
+  <div class="eyebrow" style="margin-top:12px">はじめての方へ</div>
+  <h1>障害福祉サービスの費用のめやす</h1>
+  <p class="lede">サービスの利用料は、原則1割です。ただし世帯の収入に応じて「1か月に払う上限」が決まっていて、たくさん使ってもそれ以上はかかりません。3つ選ぶと、上限の金額がわかります。</p>
+</div>"""
+    def radios(name, opts):
+        return "".join(f'<label class="hy-opt"><input type="radio" name="{name}" value="{v}"{" checked" if i == 0 else ""}><span>{E(t)}</span></label>' for i, (v, t) in enumerate(opts))
+    body = f"""
+<section><h2>上限の金額を調べる</h2>
+<form class="hy-form" id="hy" onsubmit="return false">
+<fieldset><legend>使う人</legend>{radios("who", [("adult", "18歳以上"), ("kid", "18歳未満の子ども")])}</fieldset>
+<fieldset id="hy-age-f" hidden><legend>子どもの年齢</legend>{radios("age", [("pre", "3歳から5歳（小学校に入る前の3年間）"), ("other", "それ以外")])}</fieldset>
+<fieldset><legend>使うサービス</legend>{radios("svc", [("day", "通う・家に来てもらう（就労B型、放課後等デイ、ホームヘルプなど）"), ("live", "グループホーム・入所施設")])}</fieldset>
+<fieldset><legend id="hy-inc-l">世帯の収入</legend>{radios("inc", [("hogo", "生活保護を受けている"), ("hika", "住民税がかからない（非課税）"), ("ippan1", "住民税がかかる：年収およそ600万円まで"), ("ippan2", "住民税がかかる：それより多い")])}</fieldset>
+</form>
+<div class="hy-result" aria-live="polite"><span>1か月の上限</span><b id="hy-yen" class="tnum">0円</b><p id="hy-note"></p></div>
+<p class="note">「世帯」は、18歳以上の人は本人と配偶者だけで数えます（親の収入は入りません）。18歳未満の子どもは、保護者の世帯で数えます。年収は、住民税の「所得割」の金額（18歳以上は16万円未満、子どもは28万円未満）をおおまかに言いかえた目安です。正しい区分は市区町村の窓口で確かめてください。</p></section>
+<section><h2>上限の金額の表</h2>
+<div class="table-wrap"><table class="info"><thead><tr><th scope="col">世帯の収入</th><th scope="col">18歳以上</th><th scope="col">18歳未満</th></tr></thead><tbody>
+<tr><th scope="row">生活保護</th><td>0円</td><td>0円</td></tr>
+<tr><th scope="row">住民税がかからない</th><td>0円</td><td>0円</td></tr>
+<tr><th scope="row">住民税がかかる（少なめ）</th><td>9,300円<br><span class="note">グループホーム・入所は37,200円</span></td><td>4,600円（通う・家に来る）<br>9,300円（入所）</td></tr>
+<tr><th scope="row">住民税がかかる（多め）</th><td>37,200円</td><td>37,200円</td></tr>
+</tbody></table></div>
+<p class="note">3歳から5歳（小学校に入る前の3年間）の子どもの児童発達支援などは、利用料がかかりません。</p></section>
+<section><h2>上限とは別にかかるお金</h2>
+<ul class="plain">
+<li>食事代、おやつ代、作業や活動の材料費、行事の費用など</li>
+<li>グループホームの家賃・食費・光熱費・日用品。住民税がかからない世帯などは、家賃の補助（月1万円まで）があります</li>
+<li>入所施設の食費・光熱費（収入に応じた軽くする仕組みがあります）</li>
+</ul>
+<p class="note">市区町村によっては、独自にさらに軽くしていることがあります。この表は国の決まり（厚生労働省「<a href="{HIYOU_SRC}" rel="noopener" target="_blank">障害者の利用者負担</a>」）をもとにしたもので、実際の金額は市区町村が決めます。</p></section>
+{start_links(rel, "hiyou")}"""
+    script = """<script>
+(function () {
+  var f = document.getElementById('hy'), yen = document.getElementById('hy-yen'), note = document.getElementById('hy-note');
+  function v(n) { var x = f.querySelector('input[name=' + n + ']:checked'); return x ? x.value : ''; }
+  function calc() {
+    var who = v('who'), age = v('age'), svc = v('svc'), inc = v('inc'), y = 0, n = '';
+    document.getElementById('hy-age-f').hidden = who !== 'kid';
+    f.querySelector('input[name=inc][value=ippan1]').nextElementSibling.textContent =
+      who === 'kid' ? '住民税がかかる：年収およそ920万円まで' : '住民税がかかる：年収およそ600万円まで';
+    if (inc === 'hogo' || inc === 'hika') { y = 0; n = '利用料はかかりません。食事代などは別にかかります。'; }
+    else if (inc === 'ippan2') { y = 37200; }
+    else if (who === 'kid') { y = svc === 'live' ? 9300 : 4600; }
+    else { y = svc === 'live' ? 37200 : 9300; }
+    if (who === 'kid' && age === 'pre' && svc === 'day') { y = 0; n = '3歳から5歳の児童発達支援などは、利用料がかかりません。おやつ代などは別にかかります。'; }
+    if (y) n = '使った量が少なければ、これより安くなります（原則1割）。食事代などは別にかかります。';
+    yen.textContent = y.toLocaleString('ja-JP') + '円';
+    note.textContent = n;
+  }
+  f.addEventListener('change', function () { calc(); if (window.gtag) gtag('event', 'hiyou_calc'); });
+  calc();
+})();
+</script>"""
+    page(HIYOU_PATH, "障害福祉サービスの費用のめやす（1か月の上限額）",
+         "障害福祉サービス（放課後等デイサービス・就労B型・グループホームなど）の利用料の1か月の上限額を、世帯の収入から調べられます。",
+         hero, body, script)
+
+    # ---- 見学チェックシート
+    hero = f"""<div class="noprint-hero">
+  {crumbs(rel, [("はじめての方へ", href(rel, START_PATH)), ("見学チェックシート", None)])}
+  <div class="eyebrow" style="margin-top:12px">はじめての方へ</div>
+  <h1>見学チェックシート</h1>
+  <p class="lede">事業所を見学するときに聞いておきたいことの一覧です。サービスを選んで印刷し、見学のときに持っていけます。</p>
+</div>"""
+    opts = "".join(f'<option value="{k}">{E(t)}</option>' for k, t, _, _ in KENGAKU)
+    def li(x):
+        return f'<li><label><input type="checkbox"><span>{E(x)}</span></label><i class="ks-line" aria-hidden="true"></i></li>'
+    secs = "".join(
+        f'<section class="ks-sec" data-k="{k}"><h2>{E(t)}で聞くこと</h2><ul class="ks-list">{"".join(li(x) for x in items)}</ul>'
+        f'<p class="note noprint">事業所をさがす：' + "　".join(f'<a href="{rel}s/{SERVICES[c][2]}/#area">{E(SERVICES[c][1])}</a>' for c in cs if c in S) + '</p></section>'
+        for k, t, items, cs in KENGAKU)
+    body = f"""
+<div class="ks-tools noprint"><label><span>サービス</span><select id="ks-k">{opts}</select></label><button type="button" class="sv-btn" id="ks-print">印刷する</button></div>
+<div class="ks-sheet">
+<div class="ks-head"><h2 class="ks-title">見学チェックシート</h2><div class="ks-fill"><span>事業所名</span><i></i><span>見学日</span><i></i><span>対応した人</span><i></i></div></div>
+{secs}
+<section class="ks-sec"><h2>どのサービスでも聞くこと</h2><ul class="ks-list">{"".join(li(x) for x in KENGAKU_COMMON)}</ul></section>
+<section class="ks-sec ks-memo"><h2>気づいたこと・メモ</h2><div class="ks-lines" aria-hidden="true"></div></section>
+<p class="note ks-src">{SITE_NAME}（jimofuku.jp）の見学チェックシート</p>
+</div>
+<p class="note noprint">チェック欄は画面でも押せますが、記録は残りません。<a href="{rel}saved/">保存した事業所</a>の印刷と一緒に使うと便利です。</p>
+{start_links(rel, "kengaku")}"""
+    script = """<script>
+(function () {
+  var s = document.getElementById('ks-k'), secs = document.querySelectorAll('.ks-sec[data-k]');
+  var q = new URLSearchParams(location.search).get('k');
+  if (q && s.querySelector('option[value="' + q + '"]')) s.value = q;
+  function show() {
+    secs.forEach(function (x) { x.hidden = x.dataset.k !== s.value; });
+    document.querySelector('.ks-title').textContent = '見学チェックシート（' + s.options[s.selectedIndex].text.replace(/（.*/, '') + '）';
+  }
+  s.addEventListener('change', show);
+  document.getElementById('ks-print').addEventListener('click', function () { if (window.gtag) gtag('event', 'kengaku_print', { kind: s.value }); window.print(); });
+  show();
+})();
+</script>"""
+    page(KENGAKU_PATH, "見学チェックシート（障害福祉の事業所を見学するときに聞くこと）",
+         "就労B型・放課後等デイサービス・グループホームなど、障害福祉の事業所を見学するときに聞いておきたいことの一覧。印刷して持っていけます。",
+         hero, body, script)
+
+
+def start_links(rel, here):
+    """はじめての方へ の3つのページをつなぐ段。"""
+    items = [("finder", START_PATH, "どのサービスを探せばいい？", "年齢と、やりたいことから選ぶ"),
+             ("hiyou", HIYOU_PATH, "費用のめやす", "1か月に払う上限の金額"),
+             ("kengaku", KENGAKU_PATH, "見学チェックシート", "見学で聞くことを印刷"),
+             ("saved", "saved/", "保存した事業所", "気になる事業所を比べる・印刷")]
+    cards = "".join(f'<a href="{href(rel, p)}"><b>{E(t)}</b><span>{E(d)}</span></a>' for k, p, t, d in items if k != here)
+    return f'<section class="noprint"><h2>はじめての方へ</h2><div class="start-links">{cards}</div></section>'
 
 
 CONTACT_KINDS = ["掲載内容のまちがい", "サイトの使い方", "レポートについて", "取材・お仕事のご相談", "その他"]  # send.php の KINDS と同じにする
