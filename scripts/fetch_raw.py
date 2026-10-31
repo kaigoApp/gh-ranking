@@ -12,11 +12,15 @@ import openpyxl
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "report" / "raw"
+URLS = ROOT / "data" / "report" / "raw_urls.txt"
 
 
 def main():
-    OUT.mkdir(exist_ok=True)
-    for line in (ROOT / "data" / "report" / "raw_urls.txt").read_text(encoding="utf-8").splitlines():
+    global OUT, URLS
+    if len(sys.argv) == 3:  # 別の一覧を使うとき: fetch_raw.py <URL一覧> <出力先>
+        URLS, OUT = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+    OUT.mkdir(parents=True, exist_ok=True)
+    for line in URLS.read_text(encoding="utf-8").splitlines():
         if not line.strip() or line.startswith("#"):
             continue
         name, url = line.split()
