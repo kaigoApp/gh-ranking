@@ -485,11 +485,13 @@ def href(rel, path):
 
 PAGES: list[str] = []
 OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
-# BOOTH へのボタンが押されたら booth_click として記録する（city は売り場の表の行の市区名）
+# BOOTH へのボタンが押されたら booth_click として記録する（city は売り場の表の行の市区名）。
+# 地域レポートへの案内（data-cta のあるリンク）が押されたら report_cta として、どの入口からかを記録する
 GA_TAG = """
 <script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');
-document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[href*="booth.pm"]');if(!a)return;var r=a.closest('tr[id]');gtag('event','booth_click',{{link_url:a.href,city:r?r.id:'',transport_type:'beacon'}});}});</script>"""
+document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[href*="booth.pm"]');if(!a)return;var r=a.closest('tr[id]');gtag('event','booth_click',{{link_url:a.href,city:r?r.id:'',transport_type:'beacon'}});}});
+document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-cta]');if(a)gtag('event','report_cta',{{cta_from:a.getAttribute('data-cta'),link_url:a.href,transport_type:'beacon'}});}});</script>"""
 OG_META = """
 <meta property="og:image" content="{url}">
 <meta property="og:image:width" content="1200">
@@ -1011,6 +1013,7 @@ def build():
     build_privacy()
     build_contact()
     build_reports(S, codes, periods)
+    build_guides(S, codes, periods)
 
     # ---------- 事業所ページ
     build_facilities(S, codes, periods, latest, new_nos)
@@ -1091,9 +1094,10 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             fresh_note = "「新規掲載」の印がある事業所は最近できた事業所で、入居者を募集している可能性があるため先頭に並べています。" if c == GH else "「新規掲載」の印は、この半年で新しく公表データに載った事業所です。"
             # 人口あたりの数を県全体とくらべる一文。ページごとに中身が変わり、地域の様子もつかめる
             mpop, ppop = pop_of(pi, mname), POP_PREF.get(pi)
-            density = ""
+            density, per = "", None
             if mpop and ppop and L["pref"].get(pi):
                 a, b = cur / mpop * 10000, L["pref"][pi] / ppop * 10000
+                per = (a, b)
                 cmp_ = "より多め" if a > b * 1.15 else "より少なめ" if a < b * 0.85 else "と同じくらい"
                 density = (f'<p class="density">{E(mname)}の{E(short)}は、人口1万人あたり<b>{a:.1f}か所</b>です。'
                            f'{E(pref)}全体（{b:.1f}か所）{cmp_}です。</p>')
@@ -1108,7 +1112,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
 {tools}
 <div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div>{ido}</section>
 <section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname)}</section>
-{area_box(rel, pi, mname, c)}
+{area_box(rel, pi, mname, c, per, cur - pv if pv is not None else None, n_new)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
 {f'<section><h2>{E(pref)}のほかの市区町村の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ps_path(pi, c))}">{E(pref)}の{E(short)}のまとめを見る</a></p><div class="pref-grid">{near}</div></section>' if near else ''}
 {f'<section><h2>{E(mname)}のほかのサービス</h2><p class="sec-sub"><a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の障害福祉事業所をすべて見る</a></p><div class="pref-grid">{others}</div></section>' if others else ''}"""
@@ -1790,6 +1794,13 @@ def build_contact():
   });
   // 「もどる」で戻ったときにボタンが押せないままにならないように
   window.addEventListener("pageshow", function () { f.querySelector("button[type=submit]").disabled = false; });
+  // 市区町村のページの「レポートを注文する」から来たときは、種類と内容を先に入れておく
+  var q = new URLSearchParams(location.search), r = q.get("r");
+  if (r && r.length <= 40) {
+    f.elements.kind.value = "レポートについて";
+    var ed = (q.get("ed") || "").slice(0, 40);
+    f.elements.body.value = r + "の地域レポート" + (ed ? "（" + ed + "）" : "") + "を注文したいです。\\n";
+  }
 })();
 </script>"""
     page("contact/", "お問い合わせ", f"{SITE_NAME}へのご意見・ご質問・掲載内容のまちがいのお知らせはこちらから。", hero, body, script)
@@ -1819,16 +1830,61 @@ def area_report_for(pi, mname):
     return None
 
 
-def area_box(rel, pi, mname, c):
-    """市区町村 × サービスのページに出す、地域レポートの案内枠。"""
-    x = area_report_for(pi, mname)
+CITY_FACTS = json.loads((ROOT / "data" / "report" / "city_facts.json").read_text(encoding="utf-8"))["city"]
+KISEI_PATH = "report/kisei/"      # 読み物：新しく開けない市区町村（総量規制）
+GH2027_PATH = "report/gh-2027/"   # 読み物：グループホームの総量規制（2027年4月から）
+RANKING_PATH = "report/ranking/"  # 読み物：人口あたりの事業所が多い市・少ない市
+GH_KISEI = "グループホームは、2027年4月から総量規制の対象になります。市区町村の計画の量を超えている地域では、新しい指定を受けられないことがあります。"
+
+
+def cap_of(x, mname, c):
+    """手で調べた総量規制の文。政令市の区ごとに枠があるときは、その区の枠も返す。"""
+    if not x:
+        return None, None
+    r = CITY_FACTS.get(x["city"], {}).get("open", {}).get("caps", {}).get(c)
+    if not r:
+        return None, None
+    ward = mname[len(x["city"]):] if mname != x["city"] else ""
+    return r, (r.get("wards", {}).get(ward, 0) if ward and "wards" in r else None)
+
+
+def area_box(rel, pi, mname, c, per=None, half=None, n_new=0):
+    """市区町村 × サービスのページに出す「開設を考える方へ」の段。全国の市区町村に出し、地域レポートにつなげる。
+    per は (市区町村の人口1万人あたり, 県全体の人口1万人あたり)、half は半年の増減。"""
     ed = next((e for e in SHOP["editions"] if c in e["svcs"]), None)
-    if not x or not ed:
+    if not ed:
         return ""
-    return (f'<aside class="area-box"><p class="eyebrow">{E(x["city"])}で{E(svc_label(c))}の開設を検討している方へ</p>'
-            f'<h2>{E(x["city"])}の地域レポート（{E(ed["name"])}）</h2>'
-            f'<p>開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめた PDF です（{E(LATEST_LABEL)}のデータ）。</p>'
-            f'<a class="area-btn" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">内容と価格を見る</a></aside>')
+    x = area_report_for(pi, mname)
+    short = SERVICES[c][1]
+    facts = []
+    if per:
+        a, b = per
+        word = "多め" if a > b * 1.15 else "少なめ" if a < b * 0.85 else "同じくらい"
+        facts.append(f"<li><b>人口あたりの数</b>：1万人あたり{a:.1f}か所で、{E(PREFS[pi])}全体（{b:.1f}か所）とくらべて{word}です。</li>")
+    if half is not None:
+        facts.append(f"<li><b>この半年の動き</b>：{'増減なし' if not half else f'{half:+d}か所'}"
+                     + (f"（新しく載った事業所{n_new}か所）" if n_new else "") + "。</li>")
+    r, nw = cap_of(x, mname, c)
+    if r:
+        w = f"{mname[len(x['city']):]}の今年度の募集枠は{nw}か所です。" if nw else (f"{mname[len(x['city']):]}は今年度の募集がありません。" if nw == 0 else "")
+        facts.append(f"<li><b>新しく開くときの規制</b>：{E(r['text'])}{E(w)}</li>")
+    elif c == GH:
+        facts.append(f'<li><b>新しく開くときの規制</b>：{E(GH_KISEI)}<a href="{href(rel, GH2027_PATH)}">くわしく</a></li>')
+    else:
+        facts.append(f'<li><b>新しく開くときの規制</b>：{E(short)}は、市区町村によって新しい指定を止めていることがあります（総量規制）。'
+                     f'<a href="{href(rel, KISEI_PATH)}">わかっている市区町村の一覧</a></li>')
+    if x:
+        cta = (f'<p>{E(x["city"])}の地域レポート（{E(ed["name"])}）では、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめています（{E(LATEST_LABEL)}のデータ、すぐにダウンロードできます）。</p>'
+               f'<a class="area-btn" data-cta="muni-svc" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">内容と価格を見る</a>')
+    else:
+        q = urllib.parse.urlencode({"r": PREFS[pi] + mname, "ed": ed["name"]})
+        cta = (f'<p>{E(mname)}の地域レポート（{E(ed["name"])}）をご注文いただければ、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめてお届けします。'
+               f'価格は{SHOP["price_one"]:,}円（税込み）、ご注文から1週間前後です。</p>'
+               f'<a class="area-btn" data-cta="muni-svc-order" href="{href(rel, "contact/")}?{E(q)}">{E(mname)}のレポートを注文する</a>'
+               f'<a class="area-sub" href="{href(rel, AREA_PATH)}">内容と見本を見る</a>')
+    return (f'<aside class="area-box"><p class="eyebrow">{E(mname)}で{E(short)}の開設を考えている方へ</p>'
+            f'<h2>開設の前に見ておきたい数字</h2><ul class="area-facts">{"".join(facts)}</ul>{cta}'
+            f'<p class="area-more">あわせて読む：<a href="{href(rel, KISEI_PATH)}">新しく開けない市区町村</a>　<a href="{href(rel, GH2027_PATH)}">グループホームの総量規制（2027年4月から）</a>　<a href="{href(rel, RANKING_PATH)}">人口あたりの事業所が多い市・少ない市</a></p></aside>')
 
 
 def build_area_reports():
@@ -1875,6 +1931,10 @@ def build_area_reports():
 <section id="order"><h2>ほかの市区町村のレポート</h2>
 <p>上の一覧にない市区町村も作成できます。<a href="{contact}">お問い合わせ</a>から、種類で「レポートについて」を選び、市区町村名と版（放デイ・児発／グループホーム／就労B型）をお知らせください。作成できるかを確認したうえで、お届けの時期と購入方法をメールでご案内します。価格は上と同じです。</p>
 <a class="area-btn" href="{contact}">お問い合わせから注文する</a></section>
+<section><h2>開設を考える方への読み物（無料）</h2><ul>
+<li><a href="{href(rel, KISEI_PATH)}">新しく開けない市区町村は？ 障害福祉の総量規制まとめ</a></li>
+<li><a href="{href(rel, GH2027_PATH)}">グループホームは2027年4月から総量規制の対象に</a></li>
+<li><a href="{href(rel, RANKING_PATH)}">人口あたりの事業所が多い市・少ない市ランキング</a></li></ul></section>
 <section><h2>このレポートについて</h2><ul>
 <li>事業所の数と場所は、福祉医療機構 WAM NET のオープンデータ（2021年11月から半年ごと）をもとにしています。町丁目ごとの人口は令和2年国勢調査です。</li>
 <li>総量規制の状況は、作成時点で市区町村の公表資料を確認したものです。開設の準備を始める前に、必ず市区町村の最新の案内を確認してください。</li>
@@ -1886,6 +1946,173 @@ def build_area_reports():
          og=og_image("report-area", "数字ならジモふく", "地域レポート", None, "",
                      ("開設候補地の評価・競合・収支試算を1冊に", "全国の市区町村に対応（PDF）", f"{len(SHOP['cities'])}市区はすぐにダウンロード"),
                      pic=OG_SRC / "report-covers.png"))
+
+
+GUIDE_SRC = "https://www.mhlw.go.jp/content/12200000/001716171.pdf"   # 厚生労働省・こども家庭庁「障害福祉サービス事業者等の指定のガイドライン」（令和8年6月）
+GUIDE_SRC_NAME = "厚生労働省・こども家庭庁「障害福祉サービス事業者等の指定のガイドライン」（令和8年6月）"
+CAP_LEVEL = {"stop": "新しい指定を止めている", "limit": "募集で選ばれた事業所だけ", "watch": "断られることがある"}
+KISEI_CHECKED = "2026年10月"   # city_facts.json の caps を各市の公表資料で確かめた時期
+
+
+def guide_cta(rel, frm, lead):
+    """読み物の最後に置く、地域レポートへの案内。"""
+    return (f'<aside class="area-box"><p class="eyebrow">数字ならジモふく</p><h2>開設を考えている市区町村の地域レポート</h2>'
+            f'<p>{E(lead)}開設候補地の評価、競合の状況、総量規制の状況、収支試算と回収期間までを1冊にまとめた PDF です。'
+            f'全国の市区町村で作成でき、{len(SHOP["cities"])}市区はすぐにダウンロードできます（1版{SHOP["price_one"]:,}円・税込み）。</p>'
+            f'<a class="area-btn" data-cta="{E(frm)}" href="{href(rel, AREA_PATH)}">内容と見本を見る</a></aside>')
+
+
+def guide_links(rel, here):
+    items = [(KISEI_PATH, "新しく開けない市区町村は？ 障害福祉の総量規制まとめ"),
+             (GH2027_PATH, "グループホームは2027年4月から総量規制の対象に"),
+             (RANKING_PATH, "人口あたりの事業所が多い市・少ない市ランキング")]
+    lis = "".join(f'<li><a href="{href(rel, p_)}"><b>{E(t)}</b></a></li>' for p_, t in items if p_ != here)
+    return f'<section><h2>ほかの読み物</h2><ul class="report-list">{lis}</ul></section>'
+
+
+def build_guides(S, codes, periods):
+    """開設を考える方が調べる話題の読み物3本。数字は公表データから毎回作り直す。"""
+    latest = periods[-1]
+    rel = "../../"
+    asof = f"{LATEST_LABEL}時点"
+
+    # ---------- 新しく開けない市区町村（総量規制）
+    rows = []
+    for city, f in CITY_FACTS.items():
+        x = next((y for y in SHOP["cities"] if y["city"] == city), None)
+        for c, r in f.get("open", {}).get("caps", {}).items():
+            pi = PREFS.index(x["pref"]) if x else None
+            link = href(rel, muni_path(pi, city)) if x and S.get(c, {}).get(latest, {}).get("muni", {}).get((pi, city)) else None
+            name = f'<a href="{link}">{E(city)}</a>' if link else E(city)
+            rows.append(f'<tr><th>{name}<small>{E(x["pref"]) if x else ""}</small></th><td>{E(SERVICES[c][0])}</td>'
+                        f'<td><b>{E(CAP_LEVEL.get(r["level"], ""))}</b><br>{E(r["text"])}</td><td><a href="{E(r["url"])}" rel="noopener">市の資料</a></td></tr>')
+    capped = sorted({city for city, f in CITY_FACTS.items() if f.get("open", {}).get("caps")})
+    free = [city for city in CITY_FACTS if city not in capped]
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", href(rel, "report/")), ("新しく開けない市区町村", None)])}
+  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{KISEI_CHECKED}に確認</div>
+  <h1>新しく開けない市区町村は？ 障害福祉の総量規制まとめ</h1>
+  <p class="lede">放課後等デイサービスや就労継続支援B型などは、市区町村や県が「この地域はもう足りている」と判断すると、新しい事業所の指定をしないことができます。これを総量規制といいます。開設の準備を始める前に、まず確かめておきたい点です。</p>
+</div>"""
+    body = f"""
+<section><h2>総量規制の対象になるサービス</h2>
+<p>国のガイドラインでは、次のサービスが対象です。指定をする都道府県や市（政令市・中核市など）が、計画で見込んだ量に届いている、または新しい指定で超えると判断したときに、指定をしないことができます。</p>
+<ul><li>生活介護</li><li>就労継続支援A型・B型</li><li>障害者支援施設</li><li>児童発達支援・放課後等デイサービス</li><li>障害児入所施設</li>
+<li><b>共同生活援助（グループホーム）は、2027年4月1日から対象に加わります。</b><a href="{href(rel, GH2027_PATH)}">くわしく</a></li></ul>
+<p>ただし、強度行動障害のある方、重症心身障害の方、医療的ケアが必要な方を受け入れる事業所や、事業の引きつぎで中身が変わらない場合などは、対象から外すことが望ましいとされています。規制を解くときは、募集（公募）で事業所を選ぶことがすすめられています。</p>
+<p class="note">出典：<a href="{GUIDE_SRC}" rel="noopener">{E(GUIDE_SRC_NAME)}</a></p></section>
+<section><h2>規制があるとわかっている市</h2>
+<p class="sec-sub">ジモふくが地域レポートを作った{len(CITY_FACTS)}市区について、{KISEI_CHECKED}に各市の公表資料で確かめた結果です。規制があったのは{"・".join(capped)}の{len(capped)}市でした。</p>
+<div class="table-wrap"><table class="kisei-table"><thead><tr><th>市</th><th>サービス</th><th>内容</th><th>出典</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+<p class="note">{"・".join(free)}は、地域レポートで扱う放課後等デイ・児童発達支援・グループホーム・就労B型について、{KISEI_CHECKED}の時点で新しい指定を止める案内は見つかりませんでした。規制は年度ごとに変わるため、開設の前に必ず窓口で確かめてください。</p></section>
+<section><h2>自分の地域を確かめるには</h2><ol>
+<li><b>指定の窓口を調べる</b>：多くは都道府県の障害福祉課です。政令市・中核市などは市が指定をしています。</li>
+<li><b>市区町村の障害福祉計画を見る</b>：サービスごとに「見込量」が書かれています。いまの事業所の数がそれに近いほど、規制がかかりやすくなります。ジモふくの市区町村のページで、いまの数と半年ごとの増え方がわかります。</li>
+<li><b>市や県のサイトで「総量規制」「公募」と検索する</b>：募集の時期や枠が公表されていることがあります。</li>
+<li><b>窓口に事前相談する</b>：多くの自治体で、申請の前に相談が必要です。</li></ol></section>
+{guide_cta(rel, "guide-kisei", "地域レポートでは、総量規制の状況を確かめたうえで、規制で開けない区やサービスを候補地から外しています。")}
+{guide_links(rel, KISEI_PATH)}"""
+    page(KISEI_PATH, "新しく開けない市区町村は？ 障害福祉の総量規制まとめ（2026年）",
+         f"放課後等デイ・就労B型・生活介護などの総量規制とは。対象サービス、2027年4月からのグループホーム、規制があるとわかっている市（{'・'.join(capped)}）と、自分の地域の確かめ方。",
+         hero, body, og=og_image("guide-kisei", "数字ならジモふく", "新しく開けない市区町村", None, "",
+                                 ("障害福祉の総量規制まとめ", f"規制がある市：{'・'.join(capped)}", f"{KISEI_CHECKED}に確認")))
+
+    # ---------- グループホームの総量規制（2027年4月から）
+    gh = S.get(GH, {})
+    ps = [p for p in periods if p in gh]
+    tot = [sum(gh[p]["pref"].values()) for p in ps]
+    first, now = tot[0], tot[-1]
+    yr = gh.get(ps[-3]) if len(ps) >= 3 else None
+    yr_tot = sum(yr["pref"].values()) if yr else None
+    dens = sorted(((gh[latest]["pref"].get(pi, 0) / POP_PREF[pi] * 10000, pi) for pi in range(47) if POP_PREF.get(pi)), reverse=True)
+    nat = now / sum(POP_PREF.values()) * 10000 if POP_PREF else None
+    drows = "".join(f'<tr><td class="r tnum">{i}</td><td><a href="{href(rel, ps_path(pi, GH))}">{E(PREFS[pi])}</a></td><td class="r tnum">{v:.1f}</td>'
+                    f'<td class="r tnum">{gh[latest]["pref"].get(pi, 0):,}</td></tr>' for i, (v, pi) in enumerate(dens[:10], 1))
+    lrows = "".join(f'<tr><td class="r tnum">{47 - len(dens) + i}</td><td><a href="{href(rel, ps_path(pi, GH))}">{E(PREFS[pi])}</a></td><td class="r tnum">{v:.1f}</td>'
+                    f'<td class="r tnum">{gh[latest]["pref"].get(pi, 0):,}</td></tr>' for i, (v, pi) in list(enumerate(dens, 1))[-5:])
+    growth = f"{label(ps[0])}の{first:,}か所から、{label(ps[-1])}には{now:,}か所になりました（{(now / first - 1) * 100:.0f}%増）。" if first else ""
+    yr_txt = f"この1年でも{now - yr_tot:+,}か所です。" if yr_tot else ""
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", href(rel, "report/")), ("グループホームの総量規制", None)])}
+  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(asof)}</div>
+  <h1>グループホームは2027年4月から総量規制の対象に</h1>
+  <p class="lede">障害者のグループホーム（共同生活援助）は、2027年4月1日から総量規制の対象サービスに加わります。計画で見込んだ量に届いている地域では、新しい指定を受けられないことがあります。開設を考えている方に向けて、変わる点と、いまの数字をまとめました。</p>
+</div>"""
+    body = f"""
+<section><h2>何が変わるのか</h2><ul>
+<li><b>いつから</b>：2027年4月1日から、共同生活援助が総量規制の対象サービスになります。</li>
+<li><b>どうなるのか</b>：指定をする都道府県や市が、地域の定員の合計が障害福祉計画の見込量に届いている、または新しい指定で超えると判断したときは、指定をしないことができます。必ず止まるわけではなく、自治体ごとの判断です。</li>
+<li><b>外れることが望ましいとされる場合</b>：強度行動障害のある方、重症心身障害の方、医療的ケアが必要な方を受け入れる場合や、事業の引きつぎで中身が変わらない場合などです。</li>
+<li><b>規制を解くとき</b>：見込量と実際の量の差の分を、募集（公募）で選ぶことがすすめられています。</li></ul>
+<p class="note">出典：<a href="{GUIDE_SRC}" rel="noopener">{E(GUIDE_SRC_NAME)}</a>。すでに放課後等デイ・就労B型などで同じ仕組みが使われており、札幌市・京都市・熊本市・大阪市などで実際に募集制や新規停止があります（<a href="{href(rel, KISEI_PATH)}">一覧</a>）。</p></section>
+<section><h2>なぜグループホームが対象になるのか</h2>
+<p>グループホームはここ数年で大きく増えています。公表データでは、{E(growth)}{E(yr_txt)}地域によって増え方に大きな差があり、足りている地域と足りない地域の差が課題になっています。</p>
+<h3>全国のグループホームの数の推移</h3>{trend_chart(ps, tot, "か所")}</section>
+<section><h2>人口あたりのグループホームが多い県</h2>
+<p class="sec-sub">人口1万人あたりの数です（全国{f"{nat:.1f}" if nat else "－"}か所）。数が多い県ほど、計画の量に届いている地域が多い可能性があります。実際に規制するかどうかは、県や市の判断です。</p>
+<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>都道府県</th><th class="r">1万人あたり</th><th class="r">事業所数</th></tr></thead><tbody>{drows}</tbody></table></div>
+<h3>少ない県</h3>
+<div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>都道府県</th><th class="r">1万人あたり</th><th class="r">事業所数</th></tr></thead><tbody>{lrows}</tbody></table></div>
+<p class="note">事業所数は WAM NET の公表データ（{E(asof)}）、人口は{E(POP_SOURCE.replace("人口：", ""))}。市区町村ごとの数は<a href="{href(rel, RANKING_PATH)}">ランキング</a>で見られます。</p></section>
+<section><h2>開設を考えている方が、いまやっておきたいこと</h2><ol>
+<li><b>候補の市区町村の障害福祉計画を見る</b>：グループホームの見込量（人数）と、いまの定員の合計がどれくらい近いかを確かめます。</li>
+<li><b>指定の窓口に早めに相談する</b>：2027年4月以降の扱いや、募集の予定があるかを聞いておきます。</li>
+<li><b>受け入れる方を考える</b>：重い障害の方や医療的ケアが必要な方を受け入れるホームは、規制から外れる可能性があります。</li>
+<li><b>地域の数と増え方を見る</b>：ジモふくの市区町村のページで、グループホームの数と半年ごとの増え方がわかります。</li></ol></section>
+{guide_cta(rel, "guide-gh2027", "グループホーム版の地域レポートでは、市内の大手法人の割合や直近半年に参入した法人も確かめられます。")}
+{guide_links(rel, GH2027_PATH)}"""
+    page(GH2027_PATH, "グループホームは2027年4月から総量規制の対象に｜開設前に知っておきたいこと",
+         f"障害者グループホーム（共同生活援助）は2027年4月1日から総量規制の対象。何が変わるか、例外、全国の数の推移（{now:,}か所、{asof}）と人口あたりが多い県。",
+         hero, body, og=og_image("guide-gh2027", "数字ならジモふく", "グループホームの総量規制", now, "か所",
+                                 ("2027年4月1日から対象に", "何が変わるか・例外・いまの数", f"全国の数（{asof}）")))
+
+    # ---------- 人口あたりの事業所が多い市・少ない市
+    MIN_POP = 100000
+    secs, tops = [], []
+    for c in ("65", "33", "46"):
+        if c not in S or latest not in S[c]:
+            continue
+        L = S[c][latest]
+        vals = []
+        for (pi, m), n in L["muni"].items():
+            pp = pop_of(pi, m)
+            if pp and pp >= MIN_POP:
+                vals.append((n / pp * 10000, n, pi, m))
+        vals.sort(key=lambda v: -v[0])
+        if len(vals) < 20:
+            continue
+        def tr(i, v):
+            a, n, pi, m = v
+            return (f'<tr><td class="r tnum">{i}</td><td><a href="{href(rel, ms_path(pi, m, c))}">{E(m)}</a><small>{E(PREFS[pi])}</small></td>'
+                    f'<td class="r tnum">{a:.1f}</td><td class="r tnum">{n:,}</td></tr>')
+        head = '<thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">1万人あたり</th><th class="r">事業所数</th></tr></thead>'
+        hi = "".join(tr(i, v) for i, v in enumerate(vals[:10], 1))
+        lo = "".join(tr(len(vals) - 9 + i, v) for i, v in enumerate(vals[-10:]))
+        sname = SEARCH_NAME.get(c, SERVICES[c][0])
+        secs.append(f"""<section id="{SERVICES[c][2]}"><h2>{E(sname)}</h2>
+<p class="sec-sub">人口{MIN_POP // 10000}万人以上の{len(vals)}市区町村のうち、人口1万人あたりの事業所の数が多い10と少ない10です。</p>
+<div class="rank-pair"><div><h3>多い市区町村</h3><div class="table-wrap"><table>{head}<tbody>{hi}</tbody></table></div></div>
+<div><h3>少ない市区町村</h3><div class="table-wrap"><table>{head}<tbody>{lo}</tbody></table></div></div></div></section>""")
+        tops.append(f"{SERVICES[c][1]}は{vals[0][3]}")
+    jump = "".join(f'<a href="#{SERVICES[c][2]}">{E(SERVICES[c][1])}</a>' for c in ("65", "33", "46") if c in S)
+    hero = f"""<div>
+  {crumbs(rel, [("レポート", href(rel, "report/")), ("多い市・少ない市", None)])}
+  <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(asof)}</div>
+  <h1>人口あたりの事業所が多い市・少ない市ランキング</h1>
+  <p class="lede">放課後等デイサービス、グループホーム、就労継続支援B型について、人口1万人あたりの事業所の数を市区町村ごとに並べました。数が少ない地域は事業所が足りていない可能性があり、多い地域は競合が多く、総量規制がかかりやすい地域です。</p>
+  <p class="jump">{jump}</p>
+</div>"""
+    body = f"""{"".join(secs)}
+<section><h2>この数字の見方</h2><ul>
+<li>事業所の数は WAM NET の公表データ（{E(asof)}）、人口は{E(POP_SOURCE.replace("人口：", ""))}です。政令市は区ごとに数えています。</li>
+<li>人口全体で割っているので、放課後等デイは子どもの多い地域ほど多めに出ます。事業所ごとの定員の違いも入っていません。</li>
+<li>人口あたりが少なくても、となりの市区町村の事業所を使っている人が多い地域もあります。</li></ul></section>
+{guide_cta(rel, "guide-ranking", "地域レポートでは、市区町村の中を町丁目ごとに分けて、子どもや人口の数と周辺の定員から足りていない場所を探しています。")}
+{guide_links(rel, RANKING_PATH)}"""
+    page(RANKING_PATH, "人口あたりの障害福祉事業所が多い市・少ない市ランキング（放デイ・グループホーム・B型）",
+         f"放課後等デイサービス・グループホーム・就労継続支援B型の、人口1万人あたりの事業所数が多い市区町村と少ない市区町村（人口10万人以上、{asof}）。",
+         hero, body, og=og_image("guide-ranking", "数字ならジモふく", "多い市・少ない市", None, "",
+                                 ("人口あたりの事業所数ランキング", "放デイ・グループホーム・B型", asof)))
 
 
 def report_path(p):
@@ -1912,7 +2139,11 @@ def build_reports(S, codes, periods):
     page("report/", "レポート｜障害福祉の事業所はどう変わったか",
          "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
          hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>障害福祉事業所の開設を検討する方へ。開設候補地の評価・競合・収支試算を市区町村ごとに1冊に。全国の市区町村で作成できます。無料の見本あり。</span></a></section>'
-         f'<section><ul class="report-list">{items}</ul></section>')
+         f'<section><h2>開設を考える方への読み物</h2><ul class="report-list">'
+         f'<li><a href="{href(rel, KISEI_PATH)}"><b>新しく開けない市区町村は？ 障害福祉の総量規制まとめ</b><span>対象のサービス、規制があるとわかっている市、自分の地域の確かめ方</span></a></li>'
+         f'<li><a href="{href(rel, GH2027_PATH)}"><b>グループホームは2027年4月から総量規制の対象に</b><span>何が変わるか、例外、全国の数の推移</span></a></li>'
+         f'<li><a href="{href(rel, RANKING_PATH)}"><b>人口あたりの事業所が多い市・少ない市ランキング</b><span>放課後等デイ・グループホーム・就労B型</span></a></li></ul></section>'
+         f'<section><h2>時点ごとのレポート</h2><ul class="report-list">{items}</ul></section>')
     build_area_reports()
 
 
