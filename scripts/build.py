@@ -399,7 +399,7 @@ def tilemap(values: dict, links: dict, titles: dict, caption: str, legend_lo: st
 SEARCH_FORM = """<form class="search" id="search" role="search">
   <label for="q">施設名・法人名・市区町村名でさがす</label>
   <div class="field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-  <input id="q" type="search" placeholder="例：フレンド、江別市、社会福祉法人〇〇" autocomplete="off" enterkeyhint="search"></div>
+  <input id="q" type="search" placeholder="例：江別市、フレンド" autocomplete="off" enterkeyhint="search"></div>
   <p class="status" aria-live="polite"></p>
   <ul class="results"></ul>
 </form>"""
@@ -431,7 +431,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:url" content="{E(canonical)}">{OG_META.format(url=E(SITE_URL + "/" + urllib.parse.quote(og))) if ogp.ENABLED and og else ""}
-<meta name="theme-color" content="#1f4d3a">
+<meta name="theme-color" content="#0c4746">
 <link rel="icon" href="{rel}favicon.ico" sizes="48x48">
 <link rel="icon" href="{rel}favicon.svg" type="image/svg+xml">
 <link rel="icon" href="{rel}icon-192.png" type="image/png" sizes="192x192">
@@ -690,7 +690,7 @@ def build():
   <div><span class="v">{tot:,}</span><span class="k">掲載している事業所（延べ）</span></div>
   <div><span class="v">{delta(tot - tot0)}</span><span class="k">この半年の増減</span></div>
   <div><span class="v">{len(FRESH):,}</span><span class="k">この1年でできたグループホーム</span></div>
-  <div><span class="v">{latest[:4]}.{int(latest[4:])}</span><span class="k">最新データ（{E(LATEST_LABEL)}時点）</span></div>
+  <div><span class="v">{latest[:4]}<small>年</small>{int(latest[4:])}<small>月末</small></span><span class="k">最新データの時点</span></div>
 </div>"""
 
     fresh_top = ""
@@ -699,7 +699,8 @@ def build():
         grid = "".join(f'<a href="{href("", ps_path(pi, GH))}#fresh"><span>{PREFS[pi]}</span><span class="c">{fc.get(pi, 0):,}</span></a>' for pi in range(47))
         fresh_top = (f'<section id="fresh" class="feature"><div class="feature-h"><span class="badge">NEW</span><h2>最近できたグループホーム</h2></div>'
                      f'<p class="sec-sub">この1年で新しく公表データに載ったグループホームは全国に<b>{len(FRESH):,}件</b>。できたばかりの事業所は入居者を募集していることが多く、入居先を探す手がかりになります。都道府県を選ぶと一覧が見られます。</p>'
-                     f'<div class="pref-grid">{grid}</div></section>')
+                     f'<details class="fold" id="fresh-fold"><summary>都道府県を選ぶ<span class="c">47都道府県</span></summary><div class="pref-grid">{grid}</div></details>'
+                     '<script>if(matchMedia("(min-width: 760px)").matches)document.getElementById("fresh-fold").open=true</script></section>')
     inc = sorted(all_munis, key=lambda mk: (-(muni_total[latest][mk] - muni_total[prev][mk]), -muni_total[latest][mk]))[:15]
     inc_rows = "".join(
         f'<tr><td class="r tnum">{i + 1}</td><td class="name"><a href="{href("", muni_path(*mk))}">{E(PREFS[mk[0]] + " " + mk[1])}</a></td>'
@@ -1365,15 +1366,15 @@ def build_facilities(S, codes, periods, latest, new_nos):
         muni_html, muni_n, muni_more = fac_links(by_muni[(mk, m)]) if mk else ("", 0, 0)
         short = SERVICES[m][1]
         corp_more_note = f'<p class="note">ほか{corp_more}件は<a href="{href(rel, corp_path(o["corp_key"]))}">法人のページ</a>へ。</p>' if corp_more > 0 and corp_path(o["corp_key"]) else (f'<p class="note">ほか{corp_more}件。</p>' if corp_more > 0 else "")
-        body = f"""
+        body = f"""<div class="fac-cols"><div class="fac-main">
 <section><h2>基本情報</h2>
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>
-<p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{fav_json}</section>
+<p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{fav_json}</section></div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
-{f'<section><h2>{E(mk[1])}のほかの{E(short)}</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{muni_n}件</span></summary><ul>{muni_html}</ul></details></div><p class="note"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}をすべて見る</a></p></section>' if muni_html else ''}"""
+{f'<section><h2>{E(mk[1])}のほかの{E(short)}</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{muni_n}件</span></summary><ul>{muni_html}</ul></details></div><p class="note"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}をすべて見る</a></p></section>' if muni_html else ''}</div></div>"""
         if list(cs) == [GH]:
             title = f"{name}（{place}）のグループホーム情報"
         else:
