@@ -668,7 +668,6 @@ def build():
   <h1>地元の障害福祉を、<br>ちゃんと見つける。</h1>
   <p class="lede">グループホーム、就労支援、放課後等デイサービスまで。国の公表データをもとに、全国{tot:,}か所の事業所を地域とサービスからさがせます。</p>
   {SEARCH_FORM}
-  <a class="rep-card" href="report/area/"><span class="eyebrow">数字ならジモふく</span><b><em>開設・事業拡大を、</em><em>データで判断するための</em><em>地域レポート</em></b><span>全国の市区町村に対応します。候補地の評価、競合の状況、収支試算を1冊にまとめた PDF です。商圏分析やセミナー資料にも使えます。</span><i aria-hidden="true">→</i></a>
 </div>
 <div class="hero-map">
   <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
