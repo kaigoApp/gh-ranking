@@ -553,3 +553,19 @@ button.act.fav[aria-pressed="true"] i { color: var(--hot); }
   .fac-cols { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0 40px; align-items: start; }
   .fac-side { gap: 40px; }
 }
+
+/* ---- 一覧のしぼりこみ・並べかえ（assets/filter.js）、近くの事業所、載らなくなった事業所 ---- */
+.sort-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: -2px 0 12px; }
+.sort-tools .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sort-tools .chips button { font: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); cursor: pointer; min-height: 36px; }
+.sort-tools .chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); font-weight: 700; }
+.sort-tools .chips button[aria-pressed="true"]::before { content: "✓ "; }
+.sort-tools .sort { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.sort-tools select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); }
+.dir li span.when { color: var(--fg); }
+.dir li span b.km { color: var(--accent); font-family: var(--f-num); font-size: 14px; }
+.chip.gone { background: #fde7e4; color: #a3321f; }
+@media (prefers-color-scheme: dark) { .chip.gone { background: #4a221b; color: #ffb4a6; } }
+.gone-same { background: var(--sun-soft); border: 1px solid var(--sun); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
+.gone-same ul { margin: 6px 0 0; padding-left: 1.2em; }
+.fix-link { margin-top: 6px; }

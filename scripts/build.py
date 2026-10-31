@@ -14,6 +14,7 @@
 環境変数 SITE_URL に公開先の URL を入れると、sitemap.xml と canonical に使う。
 """
 import collections
+import math
 import csv
 import gzip
 import hashlib
@@ -1120,8 +1121,8 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                 t = E(o["munis"][mk][0])
                 chip = fresh_chip(no) if c == GH else (NEW_CHIP if no in new_nos[c] else "")
                 wage = f'<span class="wage">{E(wage_text(no))}</span>' if c == B_CODE and no in KOUCHIN else ""
-                return (f'<li{" class=has-fav" if fp else ""}><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>{fav_btn(no, o["munis"][mk][0]) if fp else ""}'
-                        f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span>{wage}</li>')
+                return (f'<li{" class=has-fav" if fp else ""}{li_attrs(no, o, c, no in new_nos[c])}><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>{fav_btn(no, o["munis"][mk][0]) if fp else ""}'
+                        f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span>{wage}{when_html(o)}</li>')
             items = "".join(li(no, o) for no, o in offs)
             n_new = sum(1 for no, _ in offs if no in new_nos[c])
             hero = f"""<div>
@@ -1149,9 +1150,11 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             ido = (f'<p class="sec-sub">外出の付きそいを探している方は、<a href="{href(rel, muni_path(pi, mname) + IDO_SLUG + "/")}">{E(mname)}の移動支援（ガイドヘルプ）</a>のページもご覧ください。</p>'
                    if c in IDO_CODES else "")
             near_url = f'{href(rel, "data/near/")}?s={c}&amp;p={pi}&amp;m={urllib.parse.quote(mname)}'
+            many = len(offs) >= 5
             tools = (f'<div class="list-tools">'
-                     + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if len(offs) > 10 else '')
-                     + f'<a class="near-link" href="{near_url}">住所やいまいる場所から近い順に見る</a></div>')
+                     + (f'<input id="flt" class="filter" type="search" placeholder="名前・住所・法人でしぼりこむ" aria-label="事業所をしぼりこむ" data-target="#flt-list"><span class="note" id="flt-note" aria-live="polite"></span>' if many else '')
+                     + f'<a class="near-link" href="{near_url}">住所やいまいる場所から近い順に見る</a></div>'
+                     + (sort_tools(c) if many else ''))
             n_wage = sum(1 for no, _ in offs if no in KOUCHIN) if c == B_CODE else 0
             wage_note = ""
             if n_wage:
@@ -1172,9 +1175,78 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
             new_txt = f"この半年で{n_new}か所が新しく載りました。" if n_new else ""
             page(ms_path(pi, mname, c), f"{mname}の{sname}一覧 {cur:,}か所（{pref}）",
                  f"{pref}{mname}の{sname}の事業所{cur:,}か所の一覧（{LATEST_LABEL}時点）。{new_txt}電話番号・地図・運営法人と、使い始めるまでの流れ。",
-                 hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if len(offs) > 10 else "", og=muni_og(pi, mname))
+                 hero, body, f'<script src="{rel}assets/filter.js" defer></script>' if len(offs) >= 5 else "", og=muni_og(pi, mname))
             count += 1
     print(f"市区町村×サービスのページ: {count:,}")
+
+
+HM_RE = re.compile(r"(\d{1,2})[:：時](\d{2})?")
+
+
+def open_days(closed: str):
+    """定休日の文から、土曜・日曜に開いているか。わからないときは None。"""
+    t = (closed or "").strip()
+    if not t:
+        return None, None
+    if re.fullmatch(r"(なし|無し|無|年中無休|なし。?)", t):
+        return True, True
+    sat = "土" not in t
+    sun = not re.search(r"日曜|^日|[土、・,，\s/／]日(?!数)", t)
+    return sat, sun
+
+
+def end_min(hours: str):
+    """平日の時間の文から、終わる時刻（分）。"09:00-16:00" → 960。読めないときは None。"""
+    hm = HM_RE.findall(hours or "")
+    if len(hm) < 2:
+        return None
+    h, m = hm[-1]
+    v = int(h) * 60 + int(m or 0)
+    return v if 0 < v <= 24 * 60 else None
+
+
+def li_attrs(no, o, c, is_new):
+    """一覧のしぼりこみ・並べかえ（assets/filter.js）に使う印。"""
+    a = []
+    if is_new or (c == GH and no in FRESH):
+        a.append('data-new="1"')
+    sat, sun = open_days(o.get("closed"))
+    if sat is not None:
+        a.append(f'data-sat="{int(sat)}" data-sun="{int(sun)}"')
+    e = end_min(o.get("hours"))
+    if e:
+        a.append(f'data-end="{e}"')
+    if (o.get("cap") or "").isdigit():
+        a.append(f'data-cap="{int(o["cap"])}"')
+    if c == B_CODE and no in KOUCHIN:
+        a.append(f'data-wage="{KOUCHIN[no]["yen"]}"')
+    return (" " + " ".join(a)) if a else ""
+
+
+def when_html(o):
+    """一覧に、平日の時間と定休日を短く出す。"""
+    parts = []
+    if o.get("hours"):
+        parts.append(f"平日 {o['hours']}")
+    if o.get("closed"):
+        parts.append(f"休み {o['closed']}")
+    if o.get("cap") and o["cap"].isdigit():
+        parts.append(f"定員 {o['cap']}人")
+    return f'<span class="when">{E("｜".join(parts))}</span>' if parts else ""
+
+
+def sort_tools(c):
+    """しぼりこみのボタンと並べかえ。中身のない項目は filter.js が隠す。"""
+    opts = '<option value="">おすすめ順</option><option value="end">終わる時間が遅い順</option><option value="cap">定員の多い順</option>'
+    if c == B_CODE:
+        opts += '<option value="wage">平均工賃の高い順</option>'
+    return ('<div class="sort-tools" id="sort-tools" hidden>'
+            '<div class="chips" role="group" aria-label="しぼりこむ">'
+            '<button type="button" data-only="sat" aria-pressed="false">土曜も開いている</button>'
+            '<button type="button" data-only="sun" aria-pressed="false">日曜も開いている</button>'
+            '<button type="button" data-only="late" aria-pressed="false">17時以降も</button>'
+            '<button type="button" data-only="new" aria-pressed="false">新しく載った所</button></div>'
+            f'<label class="sort"><span>並べかえ</span><select id="sort-by">{opts}</select></label></div>')
 
 
 def build_ido(S, codes, latest):
@@ -1239,6 +1311,120 @@ def build_ido(S, codes, latest):
     print(f"移動支援のページ: {count:,}")
 
 
+class Nearby:
+    """サービスごとに、緯度・経度のます目（約5km）で事業所を引く。近い順の一覧を作る。"""
+    CELL = 0.05
+
+    def __init__(self):
+        self.g = collections.defaultdict(lambda: collections.defaultdict(list))
+
+    @staticmethod
+    def ll(o):
+        h = o["houses"][0] if o.get("houses") else None
+        try:
+            la, ln = float(h[3]), float(h[4])
+        except (TypeError, ValueError, IndexError):
+            return None
+        return (la, ln) if 20 <= la <= 46 and 122 <= ln <= 154 else None
+
+    def add(self, c, no, la, ln):
+        self.g[c][(int(la / self.CELL), int(ln / self.CELL))].append((la, ln, no))
+
+    def find(self, c, la, ln, k=8, skip=(), max_km=15.0):
+        a, b = int(la / self.CELL), int(ln / self.CELL)
+        out = []
+        for r in range(0, 4):
+            ring = [(x, y) for x in range(a - r, a + r + 1) for y in range(b - r, b + r + 1) if max(abs(x - a), abs(y - b)) == r]
+            for cell in ring:
+                for la2, ln2, no in self.g[c].get(cell, ()):
+                    if no in skip:
+                        continue
+                    d = dist_km(la, ln, la2, ln2)
+                    if d <= max_km:
+                        out.append((d, no))
+            # このリングより外は r*CELL 以上離れているので、もう k 件そろっていれば止める
+            if len(out) >= k and sorted(out)[k - 1][0] < r * self.CELL * 91:
+                break
+        return sorted(out)[:k]
+
+
+def build_gone(S, codes, periods, latest, offs, names, near_html):
+    """前回の公表データにあって今回なくなった事業所のページ。事業所名で検索して来た人に、
+    休止・廃止の可能性と、近くの同じサービスを案内する（電話がつながらない空振りを減らす）。"""
+    prev = periods[-2]
+    rel = "../../"
+    gone = collections.defaultdict(dict)
+    for c in codes:
+        if prev not in S[c] or not S[c][prev].get("offices"):
+            continue
+        for no, o in S[c][prev]["offices"].items():
+            if no not in offs and re.fullmatch(r"[0-9A-Za-z]{1,20}", no):
+                gone[no][c] = o
+    # 同じ市区町村に同じ名前の事業所が今回載っていれば、番号が変わっただけの可能性がある
+    by_name = collections.defaultdict(list)
+    for x, cs in offs.items():
+        for oc in cs.values():
+            for mk, (nm, _) in oc["munis"].items():
+                by_name[(mk, re.sub(r"\s", "", nm))].append(x)
+    n = 0
+    for no, cs in gone.items():
+        m = GH if GH in cs else next(iter(cs))
+        o = cs[m]
+        pi = o["p"]
+        pref = PREFS[pi]
+        mk = next(iter(o["munis"]), None)
+        name = display_name(o)
+        place = pref + (mk[1] if mk else "")
+        h0 = o["houses"][0] if o["houses"] else (name, "", "", "", "")
+        tel = next((x["tel"] for x in cs.values() if x["tel"]), "")
+        items = [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/"))]
+        if mk:
+            items.append((mk[1], href(rel, muni_path(*mk))))
+        items.append((name, None))
+        same = sorted({x for c in cs for mk2 in cs[c]["munis"] for x in by_name.get((mk2, re.sub(r"\s", "", cs[c]["munis"][mk2][0])), ())})
+        same_html = ""
+        if same:
+            same_html = ('<div class="gone-same"><b>同じ名前の事業所が、別の事業所番号で載っています。</b>番号が変わっただけかもしれません。<ul>'
+                         + "".join(f'<li><a href="{href(rel, fac_path(x))}">{E(names[x])}</a>（{E(offs[x][next(iter(offs[x]))]["corp"])}）</li>' for x in same[:5])
+                         + '</ul></div>')
+        labels = "・".join(svc_label(c) for c in cs)
+        hero = f"""<div>
+  {crumbs(rel, items)}
+  <div class="eyebrow" style="margin-top:12px">{E("・".join(SERVICES[c][0] for c in cs))}<span class="chip gone">国のデータに載っていません</span></div>
+  <h1>{E(name)}</h1>
+  <p class="lede">{E(o["corp"])}が運営していた、{E(place)}の事業所です。{E(label(prev))}の国の公表データには載っていましたが、{E(LATEST_LABEL)}のデータには載っていません。休止・廃止のほか、事業所番号が変わった可能性があります。</p>
+</div>"""
+        here = Nearby.ll(o)
+        nb_html, nb_n = near_html(m, *here, skip={no}, k=10) if here else ("", 0)
+        short = SERVICES[m][1]
+        info = [("事業所名", E(name)), ("サービス", E(labels)), ("運営法人", E(o["corp"])), ("所在地", E(h0[1] + h0[2]))]
+        if tel:
+            info.append(("電話番号（当時）", f'<span class="tnum">{E(tel)}</span><br><span class="note">いまはつながらないことがあります。</span>'))
+        info.append(("事業所番号", f'<span class="tnum">{E(no)}</span>'))
+        info_html = "".join(f'<tr><th scope="row">{k}</th><td class="name">{v}</td></tr>' for k, v in info)
+        body = f"""
+<section><h2>この事業所について</h2>{same_html}
+<div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
+<p class="note">{E(label(prev))}時点の国の公表データです。いまも続けているかは、運営法人に確かめてください。続けている場合は、<a href="{rel}contact/?f={E(no)}&amp;fn={urllib.parse.quote(name)}" rel="nofollow">お知らせ</a>いただければ表示を直します。</p></section>
+{f'<section><h2>近くの{E(short)}</h2><p class="sec-sub">{E(LATEST_LABEL)}のデータに載っている、近い事業所です。距離はまっすぐ測ったものです。</p><div class="dir"><details open><summary>近い順<span class="c">{nb_n}件</span></summary><ul>{nb_html}</ul></details></div></section>' if nb_html else ''}
+{f'<section><h2>{E(mk[1])}の{E(short)}</h2><p class="sec-sub"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}の一覧を見る</a></p></section>' if mk and S[m][latest]["muni"].get(mk) else ''}"""
+        page(f"f/{no}/", f"{name}（{place}）｜国のデータに載らなくなった事業所",
+             f"{name}（{o['corp']}、{place}）は{LATEST_LABEL}の国の公表データに載っていません。休止・廃止の可能性と、近くの{short}の事業所。",
+             hero, body)
+        n += 1
+    print(f"載らなくなった事業所のページ: {n:,}")
+
+
+def dist_km(la1, ln1, la2, ln2):
+    r = math.pi / 180
+    x = math.sin((la2 - la1) * r / 2) ** 2 + math.cos(la1 * r) * math.cos(la2 * r) * math.sin((ln2 - ln1) * r / 2) ** 2
+    return 2 * 6371 * math.asin(math.sqrt(x))
+
+
+def km_text(d):
+    return f"{d * 1000:.0f}m" if d < 1 else f"{d:.1f}km"
+
+
 def build_facilities(S, codes, periods, latest, new_nos):
     """事業所ページ。1つの事業所番号で複数のサービスを行う事業所は、1ページにまとめる。"""
     first_seen = {}
@@ -1253,6 +1439,20 @@ def build_facilities(S, codes, periods, latest, new_nos):
                 offs[no][c] = o
     main = {no: GH if GH in cs else next(iter(cs)) for no, cs in offs.items()}
     names = {no: display_name(cs[main[no]]) for no, cs in offs.items()}
+    near = Nearby()
+    for no, cs in offs.items():
+        for c, oc in cs.items():
+            p_ = Nearby.ll(oc)
+            if p_:
+                near.add(c, no, *p_)
+
+    def near_html(c, la, ln, skip, k=8):
+        """近くの同じサービスの事業所（まっすぐ測った距離）。"""
+        hits = near.find(c, la, ln, k=k, skip=skip)
+        return "".join(
+            f'<li><b><a href="{href(rel, fac_path(x))}">{E(names[x])}</a></b><span><b class="km tnum">{km_text(d)}</b>｜{E(offs[x][main[x]]["corp"])}｜{E(place_of(x))}</span>'
+            + (f'<span class="wage">{E(wage_text(x))}</span>' if c == B_CODE and x in KOUCHIN else "") + '</li>'
+            for d, x in hits), len(hits)
     by_corp = collections.defaultdict(list)
     by_muni = collections.defaultdict(list)   # (市区町村, サービス) → 事業所番号
     for no, cs in offs.items():
@@ -1367,12 +1567,21 @@ def build_facilities(S, codes, periods, latest, new_nos):
         corp_html, corp_n, corp_more = fac_links(by_corp[o["corp_key"]])
         muni_html, muni_n, muni_more = fac_links(by_muni[(mk, m)]) if mk else ("", 0, 0)
         short = SERVICES[m][1]
+        here = Nearby.ll(o)
+        nb_html, nb_n = near_html(m, *here, skip={no}) if here else ("", 0)
+        near_url = f'{href(rel, "data/near/")}?s={m}' + (f'&amp;p={pi}&amp;m={urllib.parse.quote(mk[1])}' if mk else "")
+        nb_sec = (f'<section><h2>近くの{E(short)}</h2><p class="sec-sub">この事業所から近い順です。距離はまっすぐ測ったもので、道のりとは違います。</p>'
+                  f'<div class="dir"><details open><summary>近い順<span class="c">{nb_n}件</span></summary><ul>{nb_html}</ul></details></div>'
+                  f'<p class="note"><a href="{near_url}">住所やいまいる場所から近い順に見る</a></p></section>') if nb_html else ""
+        report = (f'<p class="note fix-link">情報がまちがっているときは、<a href="{rel}contact/?f={E(no)}&amp;fn={urllib.parse.quote(name)}" rel="nofollow">まちがいを知らせる</a>から教えてください。'
+                  f'確かめて、このサイトの表示を直します。</p>')
         corp_more_note = f'<p class="note">ほか{corp_more}件は<a href="{href(rel, corp_path(o["corp_key"]))}">法人のページ</a>へ。</p>' if corp_more > 0 and corp_path(o["corp_key"]) else (f'<p class="note">ほか{corp_more}件。</p>' if corp_more > 0 else "")
         body = f"""<div class="fac-cols"><div class="fac-main">
 <section><h2>基本情報</h2>
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>
-<p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{fav_json}</section></div><div class="fac-side">
+<p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{report}{fav_json}</section>
+{nb_sec}</div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
@@ -1385,6 +1594,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
              f"{name}は{o['corp']}が運営する{place}の{labels}の事業所。所在地、電話番号、同じ法人や同じ地域の事業所。",
              hero, body, og=muni_og(*mk) if mk else "og/top.png")
     print(f"施設ページ: {len(offs):,}")
+    build_gone(S, codes, periods, latest, offs, names, near_html)
     muni_list = sorted({mk for c in codes for mk in S[c][latest]["muni"]})
     # 検索用の索引。事業所が多いので8つに分け、検索欄を触ったときに並行して読み込む。
     # 法人名は表にして番号で引き、ファイルを小さくする。
@@ -1935,6 +2145,12 @@ def build_contact():
     f.elements.kind.value = "レポートについて";
     var ed = (q.get("ed") || "").slice(0, 40);
     f.elements.body.value = r + "の地域レポート" + (ed ? "（" + ed + "）" : "") + "を注文したいです。\\n";
+  }
+  // 事業所ページの「まちがいを知らせる」から来たとき
+  var fno = q.get("f") || "", fn = (q.get("fn") || "").slice(0, 80);
+  if (/^[0-9A-Za-z]{1,20}$/.test(fno)) {
+    f.elements.kind.value = "掲載内容のまちがい";
+    f.elements.body.value = "事業所：" + fn + "（事業所番号 " + fno + "）\\n" + location.origin + "/f/" + fno + "/\\n\\nまちがっているところ：\\n正しい内容：\\n";
   }
 })();
 </script>"""
