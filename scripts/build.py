@@ -125,6 +125,15 @@ def flow_html(c, mname):
                  "計画相談支援の事業所に「サービス等利用計画」を作ってもらう（自分で作ることもできます）。",
                  "受給者証が届いたら、事業所を見学して契約し、利用を始める。"]
     return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol><p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
+def fav_btn(no, name, big=False):
+    """★で事業所を保存するボタン。保存先はその人の端末の中だけ（assets/saved.js）。"""
+    if big:
+        return (f'<button type="button" class="act fav" data-fav="{E(no)}" data-name="{E(name)}" aria-pressed="false">'
+                f'<span>あとで比べる</span><b><i aria-hidden="true">☆</i><em>保存する</em></b></button>')
+    return (f'<button type="button" class="fav-s" data-fav="{E(no)}" data-name="{E(name)}" aria-pressed="false" '
+            f'aria-label="{E(name)}を保存する" title="保存してあとで比べる">☆</button>')
+
+
 NEW_CHIP = '<span class="chip hot">新規掲載</span>'
 CORP_CHIP = '<span class="chip hot">新規参入</span>'
 
@@ -401,8 +410,9 @@ LOGO = ('<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2C9.4 2 4 7.3 
         '<circle cx="23.5" cy="6.5" r="3.5" fill="var(--sun)"/></svg>')
 
 
-def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False, og: str = "og/top.png") -> None:
-    """path は public/ からの相対パス（"s/group-home/" など、末尾スラッシュ）。og はシェア用画像の public/ からのパス。"""
+def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False, og: str = "og/top.png", noindex=False) -> None:
+    """path は public/ からの相対パス（"s/group-home/" など、末尾スラッシュ）。og はシェア用画像の public/ からのパス。
+    noindex のページ（保存した事業所など、人ごとに中身が変わるページ）は検索に出さず、sitemap にも入れない。"""
     depth = path.count("/")
     rel = "../" * depth
     canonical = SITE_URL + "/" + urllib.parse.quote(path)
@@ -415,7 +425,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{E(full_title)}</title>
 <meta name="description" content="{E(desc)}">
-<link rel="canonical" href="{E(canonical)}">
+<link rel="canonical" href="{E(canonical)}">{'\n<meta name="robots" content="noindex">' if noindex else ""}
 <meta property="og:title" content="{E(full_title)}">
 <meta property="og:description" content="{E(desc)}">
 <meta property="og:type" content="website">
@@ -444,6 +454,8 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
   <div><a href="{rel}report/">レポート</a>　<a href="{rel}contact/">お問い合わせ</a>　<a href="{rel}privacy/">プライバシーとアクセス解析について</a></div>
   <div>事業所数は事業所番号の数です。1つの事業所が複数のサービスを行う場合は、サービスごとに数えています（延べ数）。新規掲載・掲載終了は公表システムへの掲載の有無で判定しており、実際の開設・廃止日とは一致しない場合があります。</div>
 </div></footer>
+<a class="saved-fab noprint" id="saved-fab" href="{rel}saved/" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.8l2.5 5.2 5.7.8-4.1 4 1 5.6L10 14.7l-5.1 2.7 1-5.6-4.1-4 5.7-.8z" fill="currentColor"/></svg>保存した事業所<b id="saved-n">0</b></a>
+<script src="{rel}assets/saved.js" defer></script>
 {scripts}
 </body>
 </html>
@@ -452,7 +464,8 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     dest.parent.mkdir(parents=True, exist_ok=True)
     doc = ASSET_RE.sub(lambda m: f'{m[1]}{m[2]}?v={ASSET_VER[m[2]]}"' if m[2] in ASSET_VER else m[0], doc)
     dest.write_text(doc, encoding="utf-8")
-    PAGES.append(path)
+    if not noindex:
+        PAGES.append(path)
 
 
 def breadcrumb_ld(hero: str, canonical: str) -> str:
@@ -1040,6 +1053,7 @@ def build():
     build_near(S, codes, latest)
     build_privacy()
     build_contact()
+    build_saved()
     build_reports(S, codes, periods)
     build_guides(S, codes, periods)
 
@@ -1104,7 +1118,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                 t = E(o["munis"][mk][0])
                 chip = fresh_chip(no) if c == GH else (NEW_CHIP if no in new_nos[c] else "")
                 wage = f'<span class="wage">{E(wage_text(no))}</span>' if c == B_CODE and no in KOUCHIN else ""
-                return (f'<li><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>'
+                return (f'<li{" class=has-fav" if fp else ""}><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>{fav_btn(no, o["munis"][mk][0]) if fp else ""}'
                         f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span>{wage}</li>')
             items = "".join(li(no, o) for no, o in offs)
             n_new = sum(1 for no, _ in offs if no in new_nos[c])
@@ -1276,7 +1290,14 @@ def build_facilities(S, codes, periods, latest, new_nos):
             acts.append(f'<a class="act" href="https://www.google.com/maps/search/?api=1&amp;query={urllib.parse.quote(h0[3] + "," + h0[4])}" rel="noopener" target="_blank"><span>地図で見る</span><b>Google マップ</b></a>')
         if url:
             acts.append(f'<a class="act" href="{E(url)}" rel="nofollow noopener" target="_blank"><span>事業所のホームページ</span><b>開く</b></a>')
-        actions = f'<div class="actions">{"".join(acts)}</div>' if acts else ""
+        acts.append(fav_btn(no, name, big=True))
+        actions = f'<div class="actions">{"".join(acts)}</div>'
+        # 保存した事業所のページ（/saved/）が、このページから読み取る中身
+        fav = dict(no=no, name=name, svc=[svc_label(c) for c in cs], corp=o["corp"], addr=h0[1] + h0[2], tel=tel,
+                   lat=h0[3], lng=h0[4], cap=(o["cap"] + ("人" if o["cap"].isdigit() else "")) if o["cap"] else "",
+                   hours=o["hours"] or "", closed=o["closed"] or "", url=url,
+                   wage=wage_text(no).replace("平均工賃 ", "") if B_CODE in cs and no in KOUCHIN else "")
+        fav_json = '<script type="application/json" id="fav-data">' + json.dumps(fav, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/") + "</script>"
         labels = "・".join(svc_label(c) for c in cs)
         if list(cs) == [GH]:
             eyebrow = "グループホーム（共同生活援助）"
@@ -1348,7 +1369,8 @@ def build_facilities(S, codes, periods, latest, new_nos):
         body = f"""
 <section><h2>基本情報</h2>
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
-<p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p></section>
+<p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>
+<p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{fav_json}</section>
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
@@ -1795,12 +1817,49 @@ def build_privacy():
     body = f"""{ga}
 <section><h2>「近くの事業所」での位置情報</h2>
 <p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」さがすときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
+<section><h2>「保存した事業所」の記録</h2>
+<p>★で保存した事業所と、書きこんだメモは、お使いの端末のブラウザの中にだけ残ります。{SITE_NAME}には送られません。ブラウザの記録を消すと、保存も消えます。保存した事業所のページの地図は、国土地理院の地図（地理院タイル）を読みこんで表示しています。</p></section>
 <section><h2>お問い合わせで送られた情報</h2>
 <p><a href="{rel}contact/">お問い合わせ</a>で入力されたお名前・メールアドレス・内容は、メールで{SITE_NAME}の運営者に届きます。お返事をするためだけに使い、ほかの目的には使いません。続けて大量に送られるのを防ぐため、送った日時と、IP アドレスを元に戻せない形に変えたものを3日間だけ残します。</p></section>
 <section><h2>掲載している情報</h2>
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",
          f"{SITE_NAME}のアクセス解析（Google アナリティクス）で送る情報と、位置情報の扱いについて。", hero, body)
+
+
+def build_saved():
+    """★で保存した事業所を並べて比べ、地図つきの一覧を印刷するページ。中身は assets/saved.js が端末の記録から作る。"""
+    rel = "../"
+    hero = f"""<div>
+  {crumbs(rel, [("保存した事業所", None)])}
+  <div class="eyebrow" style="margin-top:12px">見学や相談の前に</div>
+  <h1>保存した事業所</h1>
+  <p class="lede">事業所のページや一覧で「☆」を押した事業所が、ここに並びます。並べて比べたり、地図つきの一覧を印刷したり、LINE で家族や担当者に送ったりできます。</p>
+</div>"""
+    body = f"""
+<div id="sv-shared" class="sv-shared noprint" hidden><p><b>送られてきた一覧です。</b>自分の保存に加えると、あとでまた見られます。</p><button type="button" class="sv-btn" id="sv-import">この一覧を保存する</button></div>
+<section id="sv-empty" hidden><h2>まだ保存した事業所はありません</h2>
+<p>事業所のページの「保存する」や、一覧の右はしの「☆」を押すと、ここに並びます。保存はこの端末のブラウザの中だけに残り、登録はいりません。</p>
+<p><a href="{rel}#purpose">目的からさがす</a>　<a href="{rel}#prefs">地域からさがす</a>　<a href="{rel}data/near/">近くの事業所をさがす</a></p></section>
+<div id="sv-main" hidden>
+<div class="sv-tools noprint">
+  <div class="sv-view" role="group" aria-label="表示のしかた"><button type="button" id="sv-v-list" aria-pressed="true">一覧</button><button type="button" id="sv-v-table" aria-pressed="false">表で比べる</button></div>
+  <button type="button" class="sv-btn" id="sv-print">印刷する（A4）</button>
+  <a class="sv-btn line" id="sv-line" href="#" target="_blank" rel="noopener">LINEで送る</a>
+  <button type="button" class="sv-btn sub" id="sv-copy">リンクをコピー</button>
+  <span class="note" id="sv-msg" aria-live="polite"></span>
+</div>
+<div class="sv-print-head"><h2>候補の事業所リスト</h2><p><span id="sv-date"></span>　{SITE_NAME}（jimofuku.jp）で作成。情報は国の公表データ（{E(LATEST_LABEL)}時点）です。空き状況や費用は各事業所に確かめてください。</p></div>
+<div id="sv-map" class="sv-map" role="img" aria-label="保存した事業所の地図"></div>
+<ol id="sv-list" class="sv-list"></ol>
+<div id="sv-table" class="table-wrap sv-table" hidden></div>
+<p class="note noprint">保存とメモは、この端末のブラウザの中にだけ残ります。ほかの端末で見るときは「リンクをコピー」か「LINEで送る」を使ってください（メモは送られません）。</p>
+<p class="noprint"><button type="button" class="sv-btn sub" id="sv-clear">すべて消す</button></p>
+</div>"""
+    scripts = ('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">'
+               '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>')
+    page("saved/", "保存した事業所", "★で保存した障害福祉の事業所を並べて比べ、地図つきの一覧を印刷したり LINE で送ったりできます。",
+         hero, body, scripts, noindex=True)
 
 
 CONTACT_KINDS = ["掲載内容のまちがい", "サイトの使い方", "レポートについて", "取材・お仕事のご相談", "その他"]  # send.php の KINDS と同じにする
