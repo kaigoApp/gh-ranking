@@ -1060,6 +1060,7 @@ def build():
     build_privacy()
     build_contact()
     build_start(S, codes, latest)
+    build_kit()
     build_about(codes)
     build_saved()
     build_reports(S, codes, periods)
@@ -1338,7 +1339,8 @@ class Nearby:
     def find(self, c, la, ln, k=8, skip=(), max_km=15.0):
         a, b = int(la / self.CELL), int(ln / self.CELL)
         out = []
-        for r in range(0, 4):
+        r_max = min(int(max_km / (self.CELL * 78)) + 1, 4)   # 経度1度は北海道で約78km
+        for r in range(0, r_max + 1):
             ring = [(x, y) for x in range(a - r, a + r + 1) for y in range(b - r, b + r + 1) if max(abs(x - a), abs(y - b)) == r]
             for cell in ring:
                 for la2, ln2, no in self.g[c].get(cell, ()):
@@ -1578,6 +1580,22 @@ def build_facilities(S, codes, periods, latest, new_nos):
         nb_sec = (f'<section><h2>近くの{E(short)}</h2><p class="sec-sub">この事業所から近い順です。距離はまっすぐ測ったもので、道のりとは違います。</p>'
                   f'<div class="dir"><details open><summary>近い順<span class="c">{nb_n}件</span></summary><ul>{nb_html}</ul></details></div>'
                   f'<p class="note"><a href="{near_url}">住所やいまいる場所から近い順に見る</a></p></section>') if nb_html else ""
+        around_sec = ""
+        if here:
+            hits3 = near.find(m, *here, k=10 ** 6, skip={no}, max_km=3.0)
+            new3 = sum(1 for _, x in hits3 if x in new_nos[m])
+            tiles = [(f"半径3km以内のほかの{short}", f"{len(hits3)}", "か所"), ("そのうち、この半年で新しく載った", f"{new3}", "か所")]
+            if mk:
+                mpop, ppop = pop_of(pi, mk[1]), POP_PREF.get(pi)
+                Lm = S[m][latest]
+                if mpop and ppop and Lm["pref"].get(pi):
+                    tiles.append((f"{mk[1]}の人口1万人あたり（{pref}は{Lm['pref'][pi] / ppop * 10000:.1f}）", f"{Lm['muni'].get(mk, 0) / mpop * 10000:.1f}", "か所"))
+            ar = area_report_for(pi, mk[1]) if mk else None
+            more = (f'<a href="{href(rel, AREA_PATH)}" data-cta="fac_around">{E(ar["city"])}の地域レポート（くわしい数字・有料）</a>' if ar
+                    else (f'<a href="{href(rel, matome_path(*mk))}">{E(mk[1])}のまとめ（サービス別の数と増え方）</a>' if mk else ""))
+            around_sec = (f'<section class="around"><h2>この事業所のまわり</h2><p class="sec-sub">事業所の方へ。{E(LATEST_LABEL)}時点の国の公表データから、同じ{E(short)}のまわりの様子をまとめました。距離はまっすぐ測ったものです。</p>'
+                          '<div class="around-tiles">' + "".join(f'<div><span>{E(t)}</span><b class="tnum">{v}</b><i>{u}</i></div>' for t, v, u in tiles) + '</div>'
+                          f'<p class="around-links">{more}<a href="{rel}kit/?f={E(no)}" rel="nofollow">このページを紹介する（QRコード・バナー）</a></p></section>')
         report = (f'<p class="note fix-link">情報がまちがっているときは、<a href="{rel}contact/?f={E(no)}&amp;fn={urllib.parse.quote(name)}" rel="nofollow">まちがいを知らせる</a>から教えてください。'
                   f'確かめて、このサイトの表示を直します。</p>')
         corp_more_note = f'<p class="note">ほか{corp_more}件は<a href="{href(rel, corp_path(o["corp_key"]))}">法人のページ</a>へ。</p>' if corp_more > 0 and corp_path(o["corp_key"]) else (f'<p class="note">ほか{corp_more}件。</p>' if corp_more > 0 else "")
@@ -1590,6 +1608,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
+{around_sec}
 {f'<section><h2>{E(mk[1])}のほかの{E(short)}</h2><div class="dir"><details><summary>同じ市区町村<span class="c">{muni_n}件</span></summary><ul>{muni_html}</ul></details></div><p class="note"><a href="{href(rel, ms_path(*mk, m))}">{E(mk[1])}の{E(short)}をすべて見る</a></p></section>' if muni_html else ''}</div></div>"""
         if list(cs) == [GH]:
             title = f"{name}（{place}）のグループホーム情報"
@@ -2364,6 +2383,36 @@ def build_start(S, codes, latest):
     page(KENGAKU_PATH, "見学チェックシート（障害福祉の事業所を見学するときに聞くこと）",
          "就労B型・放課後等デイサービス・グループホームなど、障害福祉の事業所を見学するときに聞いておきたいことの一覧。印刷して持っていけます。",
          hero, body, script)
+
+
+def build_kit():
+    """事業所の方へ：自分の事業所のページを、QRコード・バナーでチラシやホームページから紹介する。中身は ?f=事業所番号 から作る。"""
+    rel = "../"
+    hero = f"""<div>
+  {crumbs(rel, [("事業所の方へ：ページを紹介する", None)])}
+  <div class="eyebrow" style="margin-top:12px">事業所の方へ（無料）</div>
+  <h1>あなたの事業所のページを紹介する</h1>
+  <p class="lede">{SITE_NAME}の事業所ページを、チラシやホームページ、名刺から案内できます。QRコードとバナーは自由に使えます。お申し込みや費用は要りません。</p>
+</div>"""
+    body = f"""
+<section id="kit-none" hidden><h2>事業所を選んでください</h2>
+<p>事業所ページのいちばん下にある「このページを紹介する（QRコード・バナー）」から開いてください。事業所は<a href="{rel}#search">検索</a>で見つけられます。</p></section>
+<div id="kit" hidden>
+<section><h2>事業所</h2><p class="kit-name"><b id="kit-name"></b><br><a id="kit-url" href="#"></a></p>
+<p><button type="button" class="sv-btn sub" id="kit-copy-url">ページの住所（URL）をコピー</button> <span class="note" id="kit-msg" aria-live="polite"></span></p></section>
+<section><h2>QRコード</h2><p class="sec-sub">チラシや掲示物に。読みとると、この事業所のページが開きます。</p>
+<div class="kit-qr"><div id="kit-qr" role="img" aria-label="事業所ページのQRコード"></div>
+<div class="kit-btns"><button type="button" class="sv-btn" id="kit-png">画像を保存（PNG）</button><button type="button" class="sv-btn sub" id="kit-print">案内カードを印刷</button></div></div></section>
+<section><h2>ホームページに貼るバナー</h2><p class="sec-sub">下のコードを、事業所のホームページの HTML に貼りつけてください。</p>
+<p class="kit-badge"><img src="{rel}badge.svg" width="200" height="56" alt="ジモふくに掲載されています"></p>
+<textarea id="kit-code" class="kit-code" rows="3" readonly></textarea>
+<p><button type="button" class="sv-btn sub" id="kit-copy-code">コードをコピー</button></p></section>
+<section><h2>載っている情報を直したいとき</h2><p>{SITE_NAME}の情報は国の公表データ（WAM NET）から作っています。まちがいは<a id="kit-fix" href="{rel}contact/">お問い合わせ</a>からお知らせください。このサイトの表示を直します。</p></section>
+<div class="kit-card" aria-hidden="true"><div class="kit-card-in"><div><span class="kit-card-eyebrow">くわしい情報はこちら</span><b id="kit-card-name"></b><span>地図・電話番号・近くの事業所</span><span class="kit-card-site">{SITE_NAME}　jimofuku.jp</span></div><div id="kit-card-qr"></div></div></div>
+</div>"""
+    script = f'<script src="{rel}assets/qrcode.js" defer></script><script src="{rel}assets/kit.js" defer></script>'
+    page("kit/", "事業所の方へ：ページを紹介する（QRコード・バナー）", f"{SITE_NAME}の事業所ページを、QRコードやバナーでチラシ・ホームページから紹介できます（無料）。",
+         hero, body, script, noindex=True)
 
 
 def start_links(rel, here):

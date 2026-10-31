@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="56" viewBox="0 0 200 56" role="img" aria-label="ジモふくに掲載されています">
+  <rect x="1" y="1" width="198" height="54" rx="12" fill="#ffffff" stroke="#3d9a58" stroke-width="2"/>
+  <g transform="translate(12 12)">
+    <path d="M16 2C9.4 2 4 7.3 4 13.9 4 22.6 16 30 16 30s12-7.4 12-16.1C28 7.3 22.6 2 16 2z" fill="#3d9a58"/>
+    <path d="M10 15.2 16 10l6 5.2V21a1 1 0 0 1-1 1h-3.2v-4h-3.6v4H11a1 1 0 0 1-1-1z" fill="#ffffff"/>
+    <circle cx="23.5" cy="6.5" r="3.5" fill="#ffb93f"/>
+  </g>
+  <text x="52" y="24" font-family="'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif" font-size="11" fill="#5b6c60">地元の障害福祉が見つかる</text>
+  <text x="52" y="42" font-family="'Hiragino Maru Gothic ProN','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif" font-size="15" font-weight="700" fill="#1f4d3a">ジモふくに掲載中</text>
+</svg>
