@@ -189,9 +189,19 @@ def split_muni(addr_muni: str, code_pref: int):
     return code_pref, None
 
 
+# 掲載をやめてほしいと依頼があった事業所・法人（data/exclude.json）。読むときに除くので、サイトのどこにも出ない
+_EXCLUDE = json.loads((ROOT / "data" / "exclude.json").read_text(encoding="utf-8"))
+EXCLUDE_NOS = set(_EXCLUDE.get("offices", {}))
+EXCLUDE_CORPS = set(_EXCLUDE.get("corps", {}))
+
+
+def excluded(r) -> bool:
+    return r["no"] in EXCLUDE_NOS or r.get("corp_key", "") in EXCLUDE_CORPS
+
+
 def read_slim(path: pathlib.Path):
     with gzip.open(path, "rt", encoding="utf-8") as f:
-        yield from csv.DictReader(f)
+        yield from (r for r in csv.DictReader(f) if not excluded(r))
 
 
 CORP_FORMS = ["株式会社", "社会福祉法人", "合同会社", "特定非営利活動法人", "一般社団法人", "医療法人", "有限会社"]

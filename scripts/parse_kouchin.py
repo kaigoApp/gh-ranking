@@ -9,6 +9,7 @@ WAM NET の事業所番号に結びつけて data/kouchin/kouchin.csv に書く�
 import collections
 import csv
 import gzip
+import json
 import pathlib
 import re
 import sys
@@ -60,6 +61,11 @@ def ncorp(s: str) -> str:
     return CORP_FORMS.sub("", norm(s))
 
 
+_EXCLUDE = json.loads((ROOT / "data" / "exclude.json").read_text(encoding="utf-8"))
+EXCLUDE_NOS = set(_EXCLUDE.get("offices", {}))
+EXCLUDE_CORPS = set(_EXCLUDE.get("corps", {}))
+
+
 def load_offices():
     """県ごとの、いま公表データに載っている B型 事業所。"""
     latest = sorted((ROOT / "data" / "slim" / B).glob("*.csv.gz"))[-1]
@@ -67,6 +73,8 @@ def load_offices():
     nos = set()
     with gzip.open(latest, "rt", encoding="utf-8") as f:
         for r in csv.DictReader(f):
+            if r["no"] in EXCLUDE_NOS or r.get("corp_key", "") in EXCLUDE_CORPS:
+                continue
             by_pref[int(r["pref"])].append(r)
             nos.add(r["no"])
     return by_pref, nos
