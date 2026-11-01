@@ -660,3 +660,20 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
   .kit-card-site { font-weight: 700; color: #1f4d3a; margin-top: 2mm; }
   .kit-card-in img { width: 38mm; height: 38mm; }
 }
+
+/* ---- 費用のめやす：利用料と、別にかかるお金 ---- */
+.hy-result { gap: 12px; }
+.hy-part { display: grid; gap: 2px; }
+.hy-extra { border-top: 1px solid rgb(255 255 255 / .2); padding-top: 10px; }
+.hy-extra ul { margin: 4px 0 0; padding-left: 1.2em; display: grid; gap: 2px; font-size: 15px; }
+.hy-sum { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--sun-soft); color: #3a2a00; font-size: 14px; font-weight: 700; }
+.cost-note { background: var(--sun-soft); border: 1px solid var(--sun); border-radius: 12px; padding: 10px 14px; font-size: 14px; margin: 10px 0; }
+@media (prefers-color-scheme: dark) { .hy-sum { color: var(--fg); } }
+.hy-extra li b { font-family: inherit; font-size: inherit; line-height: inherit; }
+.hy-cards { display: grid; gap: 10px; }
+@media (min-width: 760px) { .hy-cards { grid-template-columns: 1fr 1fr; } }
+.hy-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; }
+.hy-card h3 { margin: 0 0 6px; font-size: 16px; }
+.hy-card dl { margin: 0; display: grid; gap: 2px; font-size: 14px; }
+.hy-card dt { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.hy-card dd { margin: 0; }

@@ -129,7 +129,12 @@ def flow_html(c, mname, rel=""):
     k = next((k for k, _, _, cs in KENGAKU if c in cs), "")
     tools = (f'<p class="flow-tools"><a href="{href(rel, HIYOU_PATH)}">費用のめやすを調べる</a>'
              f'<a href="{href(rel, KENGAKU_PATH)}{"?k=" + k if k else ""}">見学チェックシートを印刷する</a></p>') if rel else ""
-    return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol>" + tools + "<p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
+    cost = ""
+    if c == GH:
+        cost = ('<p class="cost-note"><b>お金について：</b>グループホームは、サービス利用料（世帯の収入で月0円〜37,200円が上限）のほかに、'
+                '<b>家賃・食費・光熱水費・日用品費など</b>が毎月かかります。金額はホームごとに違うので、見学のときに毎月の合計を確かめてください。'
+                '生活保護・住民税がかからない世帯などは、家賃の補助（月1万円まで）があります。</p>')
+    return "<ol class=\"flow\">" + "".join(f"<li>{x}</li>" for x in steps) + "</ol>" + cost + tools + "<p class=\"note\">手続きの細かい点は市区町村によって違います。くわしくは窓口でご確認ください。</p>"
 def fav_btn(no, name, big=False):
     """★で事業所を保存するボタン。保存先はその人の端末の中だけ（assets/saved.js）。"""
     if big:
@@ -1590,6 +1595,8 @@ def build_facilities(S, codes, periods, latest, new_nos):
         nb_sec = (f'<section><h2>近くの{E(short)}</h2><p class="sec-sub">この事業所から近い順です。距離はまっすぐ測ったもので、道のりとは違います。</p>'
                   f'<div class="dir"><details open><summary>近い順<span class="c">{nb_n}件</span></summary><ul>{nb_html}</ul></details></div>'
                   f'<p class="note"><a href="{near_url}">住所やいまいる場所から近い順に見る</a></p></section>') if nb_html else ""
+        gh_cost = (f'<p class="cost-note">グループホームは、サービス利用料のほかに<b>家賃・食費・光熱水費・日用品費など</b>が毎月かかります。'
+                   f'毎月の合計はホームに確かめてください。<a href="{href(rel, HIYOU_PATH)}">費用のめやす</a></p>')
         around_sec = ""
         if here:
             hits3 = near.find(m, *here, k=10 ** 6, skip={no}, max_km=3.0)
@@ -1612,7 +1619,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
         body = f"""<div class="fac-cols"><div class="fac-main">
 <section><h2>基本情報</h2>
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
-<p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>
+<p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>{gh_cost if GH in cs else ""}
 <p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{report}{fav_json}</section>
 {nb_sec}</div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
@@ -2143,7 +2150,7 @@ def build_saved():
 START_PATH = "start/"
 HIYOU_PATH = "start/hiyou/"
 KENGAKU_PATH = "start/kengaku/"
-HIYOU_SRC = "https://www.mhlw.go.jp/bunya/shougaihoken/service/hutan1.html"
+HIYOU_SRC = "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/hukushi_kaigo/shougaishahukushi/service/hutan1.html"
 
 # どのサービスを探せばいい？：年齢 → やりたいこと → サービス
 FINDER = [
@@ -2168,7 +2175,7 @@ FINDER = [
         ("就職したあとも続けられるよう支えてほしい", "働き始めた人の悩みや、会社との調整を手伝います。", ["62"]),
         ("日中に通う場所がほしい（介護や創作活動）", "食事や入浴の手伝い、創作や軽い作業をする通い先です。", ["22"]),
         ("ひとり暮らしや生活の練習をしたい", "家事やお金の管理など、暮らしの練習をします。", ["42", "41", "34"]),
-        ("家を出て暮らす場所がほしい", "少人数で暮らす家や、入所施設です。", ["33", "32"]),
+        ("家を出て暮らす場所がほしい", "少人数で暮らす家や、入所施設です。利用料のほかに家賃・食費・光熱水費などがかかります。", ["33", "32"]),
         ("ひとり暮らしを続けられるよう見守ってほしい", "定期的に家を訪ね、困りごとの相談に乗ります。", ["61", "54"]),
         ("家での介護や家事を手伝ってほしい", "ホームヘルプ（入浴・排せつ・食事・家事）です。", ["11", "12"]),
         ("外出に付きそってほしい", "目の不自由な人の付きそい、行動の支援、市区町村の移動支援です。", ["15", "13", "ido"]),
@@ -2295,60 +2302,87 @@ def build_start(S, codes, latest):
   {crumbs(rel, [("はじめての方へ", href(rel, START_PATH)), ("費用のめやす", None)])}
   <div class="eyebrow" style="margin-top:12px">はじめての方へ</div>
   <h1>障害福祉サービスの費用のめやす</h1>
-  <p class="lede">サービスの利用料は、原則1割です。ただし世帯の収入に応じて「1か月に払う上限」が決まっていて、たくさん使ってもそれ以上はかかりません。3つ選ぶと、上限の金額がわかります。</p>
+  <p class="lede">毎月かかるお金は、大きく2つに分かれます。ひとつは<b>サービス利用料</b>（原則1割。世帯の収入で1か月の上限が決まる）。もうひとつは<b>食費・家賃・光熱水費などの実費</b>で、こちらは利用料の上限とは別にかかります。</p>
 </div>"""
     def radios(name, opts):
-        return "".join(f'<label class="hy-opt"><input type="radio" name="{name}" value="{v}"{" checked" if i == 0 else ""}><span>{E(t)}</span></label>' for i, (v, t) in enumerate(opts))
+        return "".join(f'<label class="hy-opt" data-v="{v}"><input type="radio" name="{name}" value="{v}"{" checked" if i == 0 else ""}><span>{E(t)}</span></label>' for i, (v, t) in enumerate(opts))
     body = f"""
-<section><h2>上限の金額を調べる</h2>
+<section><h2>毎月かかるお金を調べる</h2>
 <form class="hy-form" id="hy" onsubmit="return false">
 <fieldset><legend>使う人</legend>{radios("who", [("adult", "18歳以上"), ("kid", "18歳未満の子ども")])}</fieldset>
 <fieldset id="hy-age-f" hidden><legend>子どもの年齢</legend>{radios("age", [("pre", "3歳から5歳（小学校に入る前の3年間）"), ("other", "それ以外")])}</fieldset>
-<fieldset><legend>使うサービス</legend>{radios("svc", [("day", "通う・家に来てもらう（就労B型、放課後等デイ、ホームヘルプなど）"), ("live", "グループホーム・入所施設")])}</fieldset>
-<fieldset><legend id="hy-inc-l">世帯の収入</legend>{radios("inc", [("hogo", "生活保護を受けている"), ("hika", "住民税がかからない（非課税）"), ("ippan1", "住民税がかかる：年収およそ600万円まで"), ("ippan2", "住民税がかかる：それより多い")])}</fieldset>
+<fieldset><legend>使うサービス</legend>{radios("svc", [("day", "通う・家に来てもらう（就労B型、生活介護、放課後等デイ、ホームヘルプなど）"), ("gh", "グループホーム"), ("nyusho", "入所施設")])}</fieldset>
+<fieldset><legend>世帯の収入</legend>{radios("inc", [("hogo", "生活保護を受けている"), ("hika", "住民税がかからない（非課税）"), ("ippan1", "住民税がかかる：年収およそ600万円まで"), ("ippan2", "住民税がかかる：それより多い")])}</fieldset>
 </form>
-<div class="hy-result" aria-live="polite"><span>1か月の上限</span><b id="hy-yen" class="tnum">0円</b><p id="hy-note"></p></div>
+<div class="hy-result" aria-live="polite">
+  <div class="hy-part"><span>① サービス利用料の上限（1か月）</span><b id="hy-yen" class="tnum">0円</b><p id="hy-note"></p></div>
+  <div class="hy-part hy-extra"><span>② これとは別に、毎月かかるお金</span><ul id="hy-extra"></ul></div>
+  <p class="hy-sum" id="hy-sum"></p>
+</div>
 <p class="note">「世帯」は、18歳以上の人は本人と配偶者だけで数えます（親の収入は入りません）。18歳未満の子どもは、保護者の世帯で数えます。年収は、住民税の「所得割」の金額（18歳以上は16万円未満、子どもは28万円未満）をおおまかに言いかえた目安です。正しい区分は市区町村の窓口で確かめてください。</p></section>
-<section><h2>上限の金額の表</h2>
+<section><h2>① サービス利用料の上限（1か月）</h2>
+<p class="sec-sub">サービスを使った分の1割を払います。たくさん使っても、下の金額より多くはかかりません。<b>食費・家賃・光熱水費などは、この金額に入っていません。</b></p>
 <div class="table-wrap"><table class="info"><thead><tr><th scope="col">世帯の収入</th><th scope="col">18歳以上</th><th scope="col">18歳未満</th></tr></thead><tbody>
 <tr><th scope="row">生活保護</th><td>0円</td><td>0円</td></tr>
 <tr><th scope="row">住民税がかからない</th><td>0円</td><td>0円</td></tr>
-<tr><th scope="row">住民税がかかる（少なめ）</th><td>9,300円<br><span class="note">グループホーム・入所は37,200円</span></td><td>4,600円（通う・家に来る）<br>9,300円（入所）</td></tr>
+<tr><th scope="row">住民税がかかる（少なめ）</th><td>9,300円<br><span class="note">グループホーム・入所施設（20歳以上）は37,200円</span></td><td>4,600円（通う・家に来る）<br>9,300円（入所）</td></tr>
 <tr><th scope="row">住民税がかかる（多め）</th><td>37,200円</td><td>37,200円</td></tr>
 </tbody></table></div>
 <p class="note">3歳から5歳（小学校に入る前の3年間）の子どもの児童発達支援などは、利用料がかかりません。</p></section>
-<section><h2>上限とは別にかかるお金</h2>
-<ul class="plain">
-<li>食事代、おやつ代、作業や活動の材料費、行事の費用など</li>
-<li>グループホームの家賃・食費・光熱費・日用品。住民税がかからない世帯などは、家賃の補助（月1万円まで）があります</li>
-<li>入所施設の食費・光熱費（収入に応じた軽くする仕組みがあります）</li>
-</ul>
-<p class="note">市区町村によっては、独自にさらに軽くしていることがあります。この表は国の決まり（厚生労働省「<a href="{HIYOU_SRC}" rel="noopener" target="_blank">障害者の利用者負担</a>」）をもとにしたもので、実際の金額は市区町村が決めます。</p></section>
+<section><h2>② 利用料とは別にかかるお金（実費）</h2>
+<p class="sec-sub">金額は事業所ごとに違います。見学のときに「毎月の合計はいくらか」を必ず確かめてください。</p>
+<div class="hy-cards"><div class="hy-card"><h3>グループホーム</h3><dl><dt>別にかかるお金</dt><dd>家賃、食費、光熱水費、日用品費など。<b>毎月の合計は利用料より大きくなることが多い</b>ので、ホームごとに確かめてください。</dd><dt>国の軽くする仕組み</dt><dd>生活保護・住民税がかからない世帯などは、家賃の補助があります（1人あたり月1万円まで。家賃が1万円より安ければその額）。</dd></dl></div><div class="hy-card"><h3>入所施設</h3><dl><dt>別にかかるお金</dt><dd>食費、光熱水費など。</dd><dt>国の軽くする仕組み</dt><dd>生活保護・住民税がかからない世帯などは、食費・光熱水費を払っても<b>手元に少なくとも月25,000円</b>が残るよう、補助があります。</dd></dl></div><div class="hy-card"><h3>通う（就労B型・生活介護など）</h3><dl><dt>別にかかるお金</dt><dd>食事代、作業や活動の材料費、行事・交通費など。</dd><dt>国の軽くする仕組み</dt><dd>生活保護・住民税がかからない世帯と、住民税が少なめの世帯は、食事代が材料費だけになります（国の例では、月22日使って約5,100円）。</dd></dl></div><div class="hy-card"><h3>子どもが通う（放課後等デイなど）</h3><dl><dt>別にかかるお金</dt><dd>おやつ代、教材・活動費、行事の費用など。</dd></dl></div></div>
+<p class="note">市区町村によっては、独自にさらに軽くしていることがあります。この表は国の決まり（厚生労働省「<a href="{HIYOU_SRC}" rel="noopener" target="_blank">障害者の利用者負担</a>」）をもとにしたもので、実際の金額は市区町村と事業所に確かめてください。</p></section>
 {start_links(rel, "hiyou")}"""
     script = """<script>
 (function () {
   var f = document.getElementById('hy'), yen = document.getElementById('hy-yen'), note = document.getElementById('hy-note');
+  var extra = document.getElementById('hy-extra'), sum = document.getElementById('hy-sum');
   function v(n) { var x = f.querySelector('input[name=' + n + ']:checked'); return x ? x.value : ''; }
+  function li(a) { return a.map(function (t) { return '<li>' + t + '</li>'; }).join(''); }
   function calc() {
-    var who = v('who'), age = v('age'), svc = v('svc'), inc = v('inc'), y = 0, n = '';
+    var who = v('who');
+    var ghOpt = f.querySelector('.hy-opt[data-v=gh]');
+    ghOpt.hidden = who === 'kid';
+    if (who === 'kid' && v('svc') === 'gh') f.querySelector('input[name=svc][value=nyusho]').checked = true;
+    var age = v('age'), svc = v('svc'), inc = v('inc'), low = inc === 'hogo' || inc === 'hika', y = 0, n = '';
     document.getElementById('hy-age-f').hidden = who !== 'kid';
-    f.querySelector('input[name=inc][value=ippan1]').nextElementSibling.textContent =
+    f.querySelector('.hy-opt[data-v=ippan1] span').textContent =
       who === 'kid' ? '住民税がかかる：年収およそ920万円まで' : '住民税がかかる：年収およそ600万円まで';
-    if (inc === 'hogo' || inc === 'hika') { y = 0; n = '利用料はかかりません。食事代などは別にかかります。'; }
-    else if (inc === 'ippan2') { y = 37200; }
-    else if (who === 'kid') { y = svc === 'live' ? 9300 : 4600; }
-    else { y = svc === 'live' ? 37200 : 9300; }
-    if (who === 'kid' && age === 'pre' && svc === 'day') { y = 0; n = '3歳から5歳の児童発達支援などは、利用料がかかりません。おやつ代などは別にかかります。'; }
-    if (y) n = '使った量が少なければ、これより安くなります（原則1割）。食事代などは別にかかります。';
+    if (low) y = 0;
+    else if (inc === 'ippan2') y = 37200;
+    else if (who === 'kid') y = svc === 'nyusho' ? 9300 : 4600;
+    else y = svc === 'day' ? 9300 : 37200;
+    if (who === 'kid' && age === 'pre' && svc === 'day') { y = 0; n = '3歳から5歳の児童発達支援などは、利用料がかかりません。'; }
+    else if (y) n = '使った量が少なければ、これより安くなります（原則1割）。';
+    else n = '利用料はかかりません。';
     yen.textContent = y.toLocaleString('ja-JP') + '円';
     note.textContent = n;
+    var ex = [];
+    if (svc === 'gh') {
+      ex = ['<b>家賃</b>（ホームごとに違います）', '<b>食費</b>', '<b>光熱水費</b>', '<b>日用品費</b>など'];
+      ex.push(low ? '家賃の補助：月1万円まで（家賃が1万円より安ければその額）' : '家賃の補助は、生活保護・住民税がかからない世帯などが対象です');
+      sum.textContent = 'グループホームでは、②の家賃・食費などのほうが①の利用料より大きくなることが多いです。毎月の合計（家賃・食費・光熱水費など）を、ホームごとに必ず確かめてください。';
+    } else if (svc === 'nyusho') {
+      ex = ['<b>食費</b>', '<b>光熱水費</b>など'];
+      if (who === 'adult') ex.push(low ? '補助：食費・光熱水費を払っても、手元に少なくとも月25,000円が残るようにする仕組みがあります' : '食費・光熱水費の補助は、生活保護・住民税がかからない世帯などが対象です');
+      sum.textContent = '②は施設ごとに違います。毎月の合計を施設に確かめてください。';
+    } else if (who === 'kid') {
+      ex = ['おやつ代', '教材・活動の費用', '行事の費用など'];
+      sum.textContent = '②は事業所ごとに違います。見学のときに確かめてください。';
+    } else {
+      ex = ['<b>食事代</b>（使う日だけ）', '作業や活動の材料費', '行事・交通費など'];
+      ex.push(inc === 'ippan2' ? '食事代はそのままかかります' : '食事代は材料費だけになります（国の例では、月22日使って約5,100円）');
+      sum.textContent = '②は事業所ごとに違います。見学のときに確かめてください。';
+    }
+    extra.innerHTML = li(ex);
   }
   f.addEventListener('change', function () { calc(); if (window.gtag) gtag('event', 'hiyou_calc'); });
   calc();
 })();
 </script>"""
-    page(HIYOU_PATH, "障害福祉サービスの費用のめやす（1か月の上限額）",
-         "障害福祉サービス（放課後等デイサービス・就労B型・グループホームなど）の利用料の1か月の上限額を、世帯の収入から調べられます。",
+    page(HIYOU_PATH, "障害福祉サービスの費用のめやす（利用料の上限と、家賃・食費など別にかかるお金）",
+         "障害福祉サービスの利用料（1か月の上限）と、グループホームの家賃・食費・光熱水費など利用料とは別にかかるお金のめやす。家賃補助（月1万円まで）なども。",
          hero, body, script)
 
     # ---- 見学チェックシート
