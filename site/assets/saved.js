@@ -106,7 +106,7 @@
 
     function cache(no) { try { return JSON.parse(localStorage.getItem('jf-rec-' + no) || 'null'); } catch (e) { return null; } }
     function load(no) {
-      return fetch(facUrl(no)).then(r => r.ok ? r.text() : '').then(t => {
+      return fetch(facUrl(no), { cache: 'no-cache' }).then(r => r.ok ? r.text() : '').then(t => {
         const m = t.match(/<script type="application\/json" id="fav-data">([\s\S]*?)<\/script>/);
         if (!m) return null;
         const rec = JSON.parse(m[1]);
