@@ -17,7 +17,7 @@
   function load() {
     if (idx || loading) return loading;
     status.textContent = input.value ? '読み込み中…' : '';
-    loading = fetch(new URL('assets/search.json', root)).then(r => r.json()).then(d => {
+    loading = fetch(new URL('assets/search.json', root), { cache: 'no-cache' }).then(r => r.json()).then(d => {
       const P = d.P, S = d.S;
       idx = [];
       d.m.forEach(([m, p]) => idx.push({
@@ -26,7 +26,7 @@
       }));
       // 事業所の索引は分けてあるので、並行して読み込み、届いたものから検索に使う
       pending = d.F.length;
-      d.F.forEach(f => fetch(new URL('assets/' + f, root)).then(r => r.json()).then(x => {
+      d.F.forEach(f => fetch(new URL('assets/' + f, root), { cache: 'no-cache' }).then(r => r.json()).then(x => {
         x.f.forEach(([no, name, ci, p, mi, cs, alt]) => {
           const corp = x.C[ci], m = mi >= 0 ? d.m[mi][0] : '', svc = cs.map(i => d.N[i]).join('・');
           idx.push({

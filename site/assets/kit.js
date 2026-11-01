@@ -27,7 +27,7 @@
     return c;
   }
 
-  fetch(new URL(`f/${no}/`, ROOT)).then(r => r.ok ? r.text() : '').then(t => {
+  fetch(new URL(`f/${no}/`, ROOT), { cache: 'no-cache' }).then(r => r.ok ? r.text() : '').then(t => {
     const m = t.match(/<script type="application\/json" id="fav-data">([\s\S]*?)<\/script>/);
     if (!m) { $('kit-none').hidden = false; return; }
     const rec = JSON.parse(m[1]);

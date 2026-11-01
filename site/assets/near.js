@@ -16,7 +16,7 @@
   const tile = (a, b) => {
     const k = a + '_' + b;
     if (!have.has(k)) return Promise.resolve([]);
-    return cache[k] || (cache[k] = fetch(`t/${k}.json`).then(r => r.ok ? r.json() : []).catch(() => []));
+    return cache[k] || (cache[k] = fetch(`t/${k}.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).catch(() => []));
   };
   function dist(la1, ln1, la2, ln2) {
     const R = 6371, r = Math.PI / 180;

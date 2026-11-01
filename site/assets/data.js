@@ -13,7 +13,7 @@
   const link = (name, url) => url ? `<a href="${esc(url)}">${esc(name)}</a>` : esc(name);
   const $ = id => document.getElementById(id);
   const cache = {};
-  const load = (dir, pi) => cache[dir + pi] || (cache[dir + pi] = fetch(`${dir}/${D.S[pi]}.json`).then(r => {
+  const load = (dir, pi) => cache[dir + pi] || (cache[dir + pi] = fetch(`${dir}/${D.S[pi]}.json`, { cache: 'no-cache' }).then(r => {
     if (!r.ok) throw new Error(r.status);
     return r.json();
   }));
