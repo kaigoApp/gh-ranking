@@ -100,6 +100,17 @@ SEARCH_NAME = {
 KIDS = {"63", "64", "65", "66", "67", "68", "69"}
 IDO_SLUG = "ido-shien"            # 移動支援のページ。WAM NET のサービスにはないので slug は SERVICES と重ならない名前
 IDO_CODES = ["15", "13", "12", "11"]  # 移動支援もあわせて行うことが多い訪問系のサービス
+WORK_CODES = ["60", "45", "46", "62"]  # 就労移行・A型・B型・就労定着。障害のある方向けの就職サイトの広告を出す
+A8_WORK = "4BGBN6+70FT9U+47GS+60OXE"  # A8.net の広告リンク（就職を目指す障害者の方へ）
+
+
+def job_ad(frm: str) -> str:
+    """就労系のページに出す A8.net の広告。広告とわかるように「広告」と報酬のことを書く。"""
+    return (f'<aside class="ad-box" aria-label="広告"><p class="ad-head"><span>一般の会社で働きたい方へ</span><span class="ad-tag">広告</span></p>'
+            f'<p class="ad-link"><a href="https://px.a8.net/svt/ejp?a8mat={A8_WORK}" rel="nofollow sponsored" data-ad="{frm}">就職を目指す障害者の方へ</a></p>'
+            '<p>障害のある方の就職・転職を手伝うサイトです。福祉の事業所を使いながら、会社で働くことを考えている方に。</p>'
+            f'<img border="0" width="1" height="1" src="https://www17.a8.net/0.gif?a8mat={A8_WORK}" alt="">'
+            f'<p class="note">このリンクは提携先サイトの広告です。{SITE_NAME}は紹介の報酬を受け取ることがあります。</p></aside>')
 
 
 def madoguchi(mname):
@@ -548,11 +559,13 @@ PAGES: list[str] = []
 OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
 # BOOTH へのボタンが押されたら booth_click として記録する（city は売り場の表の行の市区名）。
 # 地域レポートへの案内（data-cta のあるリンク）が押されたら report_cta として、どの入口からかを記録する
+# 広告（data-ad のあるリンク）が押されたら ad_click として、どのページの種類からかを記録する
 GA_TAG = """
 <script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');
 document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[href*="booth.pm"]');if(!a)return;var r=a.closest('tr[id]');gtag('event','booth_click',{{link_url:a.href,city:r?r.id:'',transport_type:'beacon'}});}});
-document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-cta]');if(a)gtag('event','report_cta',{{cta_from:a.getAttribute('data-cta'),link_url:a.href,transport_type:'beacon'}});}});</script>"""
+document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-cta]');if(a)gtag('event','report_cta',{{cta_from:a.getAttribute('data-cta'),link_url:a.href,transport_type:'beacon'}});}});
+document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-ad]');if(a)gtag('event','ad_click',{{ad_from:a.getAttribute('data-ad'),transport_type:'beacon'}});}});</script>"""
 OG_META = """
 <meta property="og:image" content="{url}">
 <meta property="og:image:width" content="1200">
@@ -1188,6 +1201,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
 <section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>{wage_note}
 {tools}
 <div class="dir"><details open><summary>{E(short)}<span class="c">{len(offs):,}件</span></summary><ul id="flt-list">{items}</ul></details></div>{ido}</section>
+{job_ad("muni_service") if c in WORK_CODES else ""}
 <section><h2>{E(mname)}で{E(short)}を使い始めるまで</h2>{flow_html(c, mname, rel)}</section>
 {area_box(rel, pi, mname, c, per, cur - pv if pv is not None else None, n_new)}
 <section><h2>{E(mname)}の{E(short)}の数の推移</h2>{trend_chart(periods, ser)}</section>
@@ -1623,6 +1637,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{report}{fav_json}</section>
 {nb_sec}</div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
+{job_ad("facility") if any(x in WORK_CODES for x in cs) else ""}
 {f'<section><h2>公表データに載っている住居</h2><p class="sec-sub">グループホームは複数の住居を持つことがありますが、公表データにすべての住居が載っているとは限りません。</p><div class="dir"><details open><summary>住居<span class="c">{len(o["houses"])}か所</span></summary><ul>{houses}</ul></details></div></section>' if m == GH and len(o["houses"]) > 1 else ''}
 {f'<section><h2>{E(o["corp"])}のほかの事業所</h2><div class="dir"><details open><summary>同じ法人<span class="c">{corp_n}件</span></summary><ul>{corp_html}</ul></details></div>{corp_more_note}</section>' if corp_html else ''}
 {around_sec}
@@ -2098,6 +2113,8 @@ def build_privacy():
 <p>送られた情報は Google のプライバシーポリシーに沿って扱われます：<a href="https://policies.google.com/technologies/partner-sites?hl=ja" rel="noopener" target="_blank">Google のサービスを使用するサイトやアプリから収集した情報の Google による使用</a></p>
 <p>送りたくない場合は、<a href="https://tools.google.com/dlpage/gaoptout?hl=ja" rel="noopener" target="_blank">Google アナリティクス オプトアウト アドオン</a>を使うか、ブラウザの設定で Cookie を止めてください。</p></section>""" if GA_ID else ""
     body = f"""{ga}
+<section><h2>広告について</h2>
+<p>就労系のサービスのページには、株式会社ファンコミュニケーションズが運営する「A8.net」を通じた広告を載せています。広告のリンクを押すと、どのサイトから来たかを数えるために、A8.net が Cookie を使うことがあります。名前や連絡先など、個人を特定する情報は{SITE_NAME}には届きません。広告から申し込みがあると、{SITE_NAME}が紹介の報酬を受け取ることがあります。</p></section>
 <section><h2>「近くの事業所」での位置情報</h2>
 <p>「いまいる場所から」を押したときの位置情報は、お使いの端末の中で距離を計算するためだけに使い、どこにも送りません。「住所で」さがすときは、入力した住所を緯度・経度に変えるために、国土地理院の住所検索に送ります。</p></section>
 <section><h2>「保存した事業所」の記録</h2>
