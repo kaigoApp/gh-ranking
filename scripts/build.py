@@ -100,15 +100,15 @@ SEARCH_NAME = {
 KIDS = {"63", "64", "65", "66", "67", "68", "69"}
 IDO_SLUG = "ido-shien"            # 移動支援のページ。WAM NET のサービスにはないので slug は SERVICES と重ならない名前
 IDO_CODES = ["15", "13", "12", "11"]  # 移動支援もあわせて行うことが多い訪問系のサービス
-WORK_CODES = ["60", "45", "46", "62"]  # 就労移行・A型・B型・就労定着。障害のある方向けの就職サイトの広告を出す
-A8_WORK = "4BGBN6+70FT9U+47GS+60OXE"  # A8.net の広告リンク（就職を目指す障害者の方へ）
+WORK_CODES = ["60", "45", "46", "62"]  # 就労移行・A型・B型・就労定着。障がいのある方向けの就職サイトの広告を出す
+A8_WORK = "4BGBN6+70FT9U+47GS+60OXE"  # A8.net の広告リンク（就職を目指す障がい者の方へ）
 
 
 def job_ad(frm: str) -> str:
     """就労系のページに出す A8.net の広告。広告とわかるように「広告」と報酬のことを書く。"""
     return (f'<aside class="ad-box" aria-label="広告"><p class="ad-head"><span>一般の会社で働きたい方へ</span><span class="ad-tag">広告</span></p>'
-            f'<p class="ad-link"><a href="https://px.a8.net/svt/ejp?a8mat={A8_WORK}" rel="nofollow sponsored" data-ad="{frm}">就職を目指す障害者の方へ</a></p>'
-            '<p>障害のある方の就職・転職を手伝うサイトです。福祉の事業所を使いながら、会社で働くことを考えている方に。</p>'
+            f'<p class="ad-link"><a href="https://px.a8.net/svt/ejp?a8mat={A8_WORK}" rel="nofollow sponsored" data-ad="{frm}">就職を目指す障がい者の方へ</a></p>'
+            '<p>障がいのある方の就職・転職を手伝うサイトです。福祉の事業所を使いながら、会社で働くことを考えている方に。</p>'
             f'<img border="0" width="1" height="1" src="https://www17.a8.net/0.gif?a8mat={A8_WORK}" alt="">'
             f'<p class="note">このリンクは提携先サイトの広告です。{SITE_NAME}は紹介の報酬を受け取ることがあります。</p></aside>')
 
