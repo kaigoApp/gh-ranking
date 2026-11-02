@@ -677,3 +677,12 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .hy-card dl { margin: 0; display: grid; gap: 2px; font-size: 14px; }
 .hy-card dt { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .hy-card dd { margin: 0; }
+
+/* 広告（A8.net）。ほかの案内とまぎれないよう、白地に「広告」の印をつける */
+.ad-box { margin: 0 0 28px; padding: 14px 18px; background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); font-size: 14px; }
+.ad-box p { margin: 0 0 8px; }
+.ad-box .ad-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ad-box .ad-tag { border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.ad-box .ad-link { font-weight: 700; font-size: 16px; }
+.ad-box img { position: absolute; width: 1px; height: 1px; }
+.ad-box .note { margin: 0; font-size: 12px; color: var(--muted); }
