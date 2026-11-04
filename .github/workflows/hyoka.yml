@@ -17,8 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 調べる
-        run: python scripts/probe_hyoka.py
+      - name: 第三者評価を受けた事業所を取得
+        run: python scripts/fetch_hyoka.py
       - name: 保存
         run: |
           git config user.name "github-actions[bot]"
