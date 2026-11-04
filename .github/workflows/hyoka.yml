@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: 第三者評価を受けた事業所を取得
-        run: python scripts/fetch_hyoka.py
+        run: python -u scripts/fetch_hyoka.py
       - name: 保存
         run: |
           git config user.name "github-actions[bot]"

@@ -23,9 +23,12 @@ op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiej
 
 
 def get(url):
+    t0 = time.time()
     for i in range(3):
         try:
-            t = op.open(urllib.request.Request(url, headers=UA), timeout=90).read().decode("utf-8", "replace")
+            t = op.open(urllib.request.Request(url, headers=UA), timeout=40).read().decode("utf-8", "replace")
+            if time.time() - t0 > 5:
+                print("  slow", round(time.time() - t0), "s")
             time.sleep(1.5)  # 相手のサーバーに負担をかけないよう、1件ずつ間をあける
             return t
         except Exception as e:
@@ -81,7 +84,11 @@ def main():
         row = 40
         while row < total:
             fn["ROW"] = str(row)
-            got += list(rows(get(B + "controller?" + urllib.parse.urlencode(fn))))
+            page = list(rows(get(B + "controller?" + urllib.parse.urlencode(fn))))
+            print(" ", code, row, len(page))
+            if not page:
+                break
+            got += page
             row += 40
         print(code, "total", total, "got", len(got))
         for r in got:
@@ -116,7 +123,7 @@ def check_detail(t, r):
     fresh = urllib.request.build_opener()
     for k, p in tries.items():
         u = B + "controller?" + urllib.parse.urlencode(p)
-        x = fresh.open(urllib.request.Request(u, headers=UA), timeout=90).read().decode("utf-8", "replace")
+        x = fresh.open(urllib.request.Request(u, headers=UA), timeout=40).read().decode("utf-8", "replace")
         print("detail fresh", k, "表示することができません" not in x, len(x))
         time.sleep(1.5)
 
