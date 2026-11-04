@@ -1,0 +1,285 @@
+
+
+
+
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<title>サービスから検索（サービスの分類選択）</title>
+<link href="common/hyokacss/search.css" rel="stylesheet" type="text/css" />
+<script src="controller?cmd=area_h&actionID=common"></script>
+<script language="JavaScript">
+	// 名称の入力アシストダイアログ表示
+	win = null;
+	function openWin(mode){
+		if (win != null && !win.closed) {
+			win.close();
+		}
+	    win = window.open("common/input_h.html?" + mode, "popup", "width=450,height=470");
+	}
+
+	// 戻る処理
+	function doBack() {
+		document.FRM_BK.submit();
+	}
+
+	// やり直すボタン押下時処理
+	function doReset() {
+		document.FRM.H_NAME.value = "";
+		document.FRM.J_NAME.value = "";
+	}
+
+	// 検索ボタン押下時処理
+	function doSearch(cd) {
+
+		document.FRM.SVCDBR_CD.value = cd;
+
+		document.FRM.submit();
+	}
+
+	// submit対応
+	function doSubmit() {
+		if (window.event.keyCode == 13) {
+
+			doSearch('');
+		}
+	}
+</script>
+<style>
+input[type="button"],input[type="submit"] {
+	cursor: pointer;
+}
+</style>
+<link rel="canonical" href="https://www.fukunavi.or.jp/fukunavi/controller?actionID=hyksearch&cmd=svcdbrlist&S_MODE=service&SVCDBR_CD=23&STEP_SVCSBRCD=342&H_NAME=&J_NAME=&DISP_YR=&SVCDBRCD=&SCHSVCSBRCD=&SVCSBRCDALL=&NAME=&AREA1=&AREA2=&AREA3=&HYK_YR=&SCHHYK_YR=&HYK_ID1=&HYK_ID2=&HYK_ID3=&HYK_ID4=&HYK_ID5=&JGY_CD1=&JGY_CD2=&JGY_CD3=&JGY_CD4=&JGY_CD5=&MODE=multi&ROW=&MLT_SVCSBR_CD1=&MLT_SVCSBR_CD2=&MLT_SVCSBR_CD3=&MLT_SVCSBR_CD4=&MLT_SVCSBR_CD5=&MLT_SVCSBR_CD6=&MLT_SVCSBR_CD7=&MLT_SVCSBR_CD8=&COLOR_FLG=&COLOR_HYK_ID=&BEFORE_FLG=&TELOPN001_NO1=&TELOPN002_NO1=&TELOPN003_NO1=&TELOPN001_NO2=&TELOPN002_NO2=&TELOPN002_NO3=&TELOPN001_NO3=&TELOPN003_NO2=&TELOPN003_NO3=&MLT_AREA=3">
+<script type="text/javascript" src="analytics_hyouka.js"></script>
+</head>
+<body bgcolor="white">
+<a name="this_top"></a>
+
+<a name="this_top"><a>
+<table id="Table_01" width="1024" height="100" border="0" cellpadding="0" cellspacing="0">
+<tr>
+	<td rowspan="2"><a href="/fukunavi/"><img src="images/hyouka_01.gif" width="130" height="100" border="0" alt="福ナビトップへ"></a></td>
+	<td><img src="images/hyouka_02.gif" width="700" height="52" alt=""></td>
+	<td><a href="/fukunavi/contents/others/sitemap.html"><img src="images/hyouka_03.gif" width="88" height="52"border="0" alt="サイトマップへ"></a></td>
+	<td rowspan="2"><img src="images/hyouka_04.gif" width="106" height="100" alt=""></td>
+</tr>
+<tr>
+	<td><a href="/fukunavi/hyouka/hyouka01.html"><img src="images/hyouka_05.gif" width="700" height="48" border="0" alt="福祉サービス第三者評価トップへ"></a></td>
+	<td><a href="javascript:history.back();"><img src="images/hyouka_06.gif" width="88" height="48" border="0" alt="一つ前のページへ"></a></td>
+</tr>
+</table>
+
+
+<form name="FRM_BK" method="get" action="controller">
+	<input type="hidden" name="actionID"  value="hyksearch"/>
+	<input type="hidden" name="cmd"       value="arealist"/>
+	<input type="hidden" name="S_MODE" value="service"/>
+
+	<input type="hidden" name="MLT_AREA" value="3"/>
+
+	<input type="hidden" name="pageId" value="back"/>
+</form>
+
+<form name="FRM" method="get" action="controller" onsubmit="return false">
+	<input type="hidden" name="actionID"  value="hyksearch"/>
+	<input type="hidden" name="cmd"       value="svcsbr"/>
+	<input type="hidden" name="S_MODE" value="service"/>
+	<input type="hidden" name="SVCDBR_CD" value=""/>
+
+	<input type="hidden" name="MLT_AREA" value="3"/>
+
+
+	<input type="hidden" name="STEP_SVCSBRCD" value=""/>
+
+	<input type="hidden" name="DISP_YR"        value=""/>
+	<input type="hidden" name="SVCDBRCD"       value=""/>
+	<input type="hidden" name="SCHSVCSBRCD"    value=""/>
+	<input type="hidden" name="SVCSBRCDALL"    value=""/>
+	<input type="hidden" name="NAME"           value=""/>
+	<input type="hidden" name="AREA1"          value=""/>
+	<input type="hidden" name="AREA2"          value=""/>
+	<input type="hidden" name="AREA3"          value=""/>
+	<input type="hidden" name="HYK_YR"         value=""/>
+	<input type="hidden" name="SCHHYK_YR"      value=""/>
+	<input type="hidden" name="HYK_ID1"        value=""/>
+	<input type="hidden" name="HYK_ID2"        value=""/>
+	<input type="hidden" name="HYK_ID3"        value=""/>
+	<input type="hidden" name="HYK_ID4"        value=""/>
+	<input type="hidden" name="HYK_ID5"        value=""/>
+	<input type="hidden" name="JGY_CD1"        value=""/>
+	<input type="hidden" name="JGY_CD2"        value=""/>
+	<input type="hidden" name="JGY_CD3"        value=""/>
+	<input type="hidden" name="JGY_CD4"        value=""/>
+	<input type="hidden" name="JGY_CD5"        value=""/>
+	<input type="hidden" name="MODE"           value="multi"/>
+	<input type="hidden" name="ROW"            value=""/>
+	<input type="hidden" name="MLT_SVCSBR_CD1" value="" id="MLT_SVCSBR_CD1"/>
+	<input type="hidden" name="MLT_SVCSBR_CD2" value="" id="MLT_SVCSBR_CD2"/>
+	<input type="hidden" name="MLT_SVCSBR_CD3" value="" id="MLT_SVCSBR_CD3"/>
+	<input type="hidden" name="MLT_SVCSBR_CD4" value="" id="MLT_SVCSBR_CD4"/>
+	<input type="hidden" name="MLT_SVCSBR_CD5" value="" id="MLT_SVCSBR_CD5"/>
+	<input type="hidden" name="MLT_SVCSBR_CD6" value="" id="MLT_SVCSBR_CD6"/>
+	<input type="hidden" name="MLT_SVCSBR_CD7" value="" id="MLT_SVCSBR_CD7"/>
+
+	<input type="hidden" name="MLT_SVCSBR_CD8" value="" id="MLT_SVCSBR_CD8"/>
+
+	<input type="hidden" name="COLOR_FLG"      value=""/>
+	<input type="hidden" name="COLOR_HYK_ID"   value=""/>
+	<input type="hidden" name="BEFORE_FLG"     value=""/>
+	<input type="hidden" name="TELOPN001_NO1"  value=""/>
+	<input type="hidden" name="TELOPN002_NO1"  value=""/>
+	<input type="hidden" name="TELOPN003_NO1"  value=""/>
+	<input type="hidden" name="TELOPN001_NO2"  value=""/>
+	<input type="hidden" name="TELOPN002_NO2"  value=""/>
+	<input type="hidden" name="TELOPN002_NO3"  value=""/>
+	<input type="hidden" name="TELOPN001_NO3"  value=""/>
+	<input type="hidden" name="TELOPN003_NO2"  value=""/>
+	<input type="hidden" name="TELOPN003_NO3"  value=""/>
+
+<div id="crumb">
+	<table cellspacing="0" cellpadding="0" width="100%" border="0">
+	<tbody>
+	<tr>
+		<td width="50">&nbsp;</td>
+		<td>
+
+			<a title="評価情報メニューへ戻る" href="hyouka/hyouka01.html">福祉サービス第三者評価情報</a>&nbsp;&nbsp;&gt;&nbsp;&nbsp;
+
+			サービスの分類を選択
+		</td>
+	</tr>
+	</tbody>
+	</table>
+</div>
+<br/>
+
+<div id="mainbody">
+	<table class="searchbox">
+	<tbody>
+	<tr>
+		<td class="koumoku" colspan="2">
+
+			サービスから評価結果を探す&nbsp;&nbsp;&nbsp;&nbsp;
+		</td>
+	</tr>
+	<tr>
+		<td class="nyuuryoku">
+
+
+
+
+
+			<input type="hidden" name="H_NAME" value="" />
+			<input type="hidden" name="J_NAME" value="" />
+
+
+
+
+			<span class="line"><font class="chas"><font size="3">サービスの分類を選択してください。</font></font></span>
+			<table cellspacing="10" cellpadding="0" border="0">
+			<tbody>
+			<tr>
+				<td width="5%">&nbsp;&nbsp;</td>
+
+				<td width="19%" style="background-color: #1E90FF; text-align:center;">
+					<a href="javascript:doSearch('21');" style="text-decoration: none;display:block;width:100%;padding:3px 0;">
+						<font size="3" color="#FFFFFF">高齢者</font>
+					</a>
+				</td>
+
+				<td width="19%" style="background-color: #1E90FF; text-align:center;">
+					<a href="javascript:doSearch('22');" style="text-decoration: none;display:block;width:100%;padding:3px 0;">
+						<font size="3" color="#FFFFFF">子ども・ひとり親</font>
+					</a>
+				</td>
+
+				<td width="19%" style="background-color: #1E90FF; text-align:center;">
+					<a href="javascript:doSearch('23');" style="text-decoration: none;display:block;width:100%;padding:3px 0;">
+						<font size="3" color="#FFFFFF">障害者・児</font>
+					</a>
+				</td>
+
+				<td width="19%" style="background-color: #1E90FF; text-align:center;">
+					<a href="javascript:doSearch('25');" style="text-decoration: none;display:block;width:100%;padding:3px 0;">
+						<font size="3" color="#FFFFFF">生活保護</font>
+					</a>
+				</td>
+
+        	</tr>
+			</tbody>
+			</table>
+			<br/>&nbsp;&nbsp;
+
+		</td>
+	</tr>
+	</tbody>
+	</table>
+
+
+
+
+</div>
+</form>
+
+	<br>
+
+<div id="footer">
+	<noscript>
+
+
+		<a href="information/noscript.html">本サイトはJavaScriptの使用が前提となっております。<br>
+
+		JavaScript対応ブラウザの利用が困難な場合には、申し訳ございませんが、次の代替の方法でサービスをご利用ください。</a>
+	</noscript>
+	<br>
+	<br>
+	<center>
+	<font size="3px"><a href="#this_top">▲このページのトップへ</a></font><br>
+	</center>
+	<br>
+</div>
+<img src="common/images/dami.gif" width="1" height="1" border="0" alt="サブメニュー">
+
+<style type="text/css">
+<!--
+	#footerlink {
+		width: 100%;
+		font-size: 85%;
+		color: #333333;
+		text-align: center;
+		clear: both;
+		background-color: #E7EFCB;
+		line-height: 1.3;
+		padding: 3px 0px 0px;
+	}
+	#foot {
+		background-color: #FFFFFF;
+		padding: 5px 0px;
+		margin-top: 3px;
+	}
+-->
+</style>
+
+<font size="3px">
+<div id="footerlink">
+	<a href="/fukunavi/">福ナビトップへ</a>｜
+	<a href="/fukunavi/information/sitemap.html">サイトマップ</a>｜
+	<a href="/fukunavi/controller?cmd=insert&amp;actionID=melma">メルマガ登録</a>｜
+	<a href="/fukunavi/information/sendmail.html">ご意見・ご要望</a>
+	<div id="foot">
+		<a href="/fukunavi/information/toiawase.html">お問い合わせはこちらから</a><br>
+		<font size="small"><a href="http://www.fukushizaidan.jp">公益財団法人東京都福祉保健財団</a></font><br>
+		Copyright&copy;2003-2014 Tokyo Metropolitan Foundation of Social Welfare and Public Health. All Rights Reserved.<br>
+	</div>
+</div>
+</font>
+
+</body>
+</html>
