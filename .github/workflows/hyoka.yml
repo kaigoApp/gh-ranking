@@ -3,7 +3,10 @@ name: 第三者評価の取得
 on:
   push:
     branches: [main, hyoka]
-    paths: [scripts/probe_hyoka.py, scripts/fetch_hyoka.py, .github/workflows/hyoka.yml]
+    paths: [scripts/fetch_hyoka.py, scripts/parse_hyoka.py, .github/workflows/hyoka.yml]
+  schedule:
+    # 毎月28日 9:43（日本時間）。月1日のページ更新で取りこまれる
+    - cron: "43 0 28 * *"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +21,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: 第三者評価を受けた事業所を取得
+        timeout-minutes: 90
         run: python -u scripts/fetch_hyoka.py
+      - name: 事業所番号に結びつける
+        run: python scripts/parse_hyoka.py
       - name: 保存
         run: |
           git config user.name "github-actions[bot]"

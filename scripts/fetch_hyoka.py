@@ -96,6 +96,8 @@ def main():
             if k not in seen:
                 seen.add(k)
                 out.append(r)
+    if len(out) < 1000:  # 相手のサイトの作りが変わったときなど。前の一覧を消さないように止める
+        sys.exit(f"取れた事業所が少なすぎます（{len(out)}件）。fukunavi の検索ページの作りが変わっていないか確かめてください")
     with (OUT / "hyoka.csv").open("w", encoding="utf-8", newline="") as fp:
         w = csv.DictWriter(fp, fieldnames=["no", "svc", "svcname", "hyk_id", "year", "years", "name", "corp", "addr"])
         w.writeheader()
