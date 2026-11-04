@@ -686,3 +686,6 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .ad-box .ad-link { font-weight: 700; font-size: 16px; }
 .ad-box img { position: absolute; width: 1px; height: 1px; }
 .ad-box .note { margin: 0; font-size: 12px; color: var(--muted); }
+/* 東京都の第三者評価を受けた事業所の印 */
+.chip.eval { background: #e6f0fb; color: #1f4f8a; }
+@media (prefers-color-scheme: dark) { .chip.eval { background: #1c2f47; color: #a9cdf5; } }
