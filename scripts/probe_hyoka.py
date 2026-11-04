@@ -32,6 +32,10 @@ t2 = get("s2_area", B + "controller?" + urllib.parse.urlencode(f))
 f2 = form(t2)
 print("form2", f2)
 f2["MLT_AREA"] = "3"
+f2["actionID"], f2["cmd"] = "hyk", "hyklst"
 t3 = get("s3_list", B + "controller?" + urllib.parse.urlencode(f2))
-f3 = form(t3)
-print("form3", f3)
+links = sorted(set(re.findall(r'href="([^"]+)"', t3)))
+print("links", len(links)); [print(" ", x[:300]) for x in links[:80]]
+for m in re.findall(r"javascript:(\w+\([^)]*\))", t3)[:40]:
+    print(" js", m)
+print("form3", form(t3))
