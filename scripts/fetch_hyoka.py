@@ -96,36 +96,11 @@ def main():
             if k not in seen:
                 seen.add(k)
                 out.append(r)
-        if code == codes[0]:  # 評価結果ページを直接開けるか（リンクの形）を確かめる
-            check_detail(t, got[0] if got else None)
     with (OUT / "hyoka.csv").open("w", encoding="utf-8", newline="") as fp:
         w = csv.DictWriter(fp, fieldnames=["no", "svc", "svcname", "hyk_id", "year", "years", "name", "corp", "addr"])
         w.writeheader()
         w.writerows(sorted(out, key=lambda r: (r["no"], r["svc"])))
     print("written", len(out))
-
-
-def check_detail(t, r):
-    if not r:
-        return
-    fd = form(t, "FRM_DTL")
-    fd.update(cmd="hyklstdtldigest", HYK_ID=r["hyk_id"], SVCSBRCD=r["svc"], JGY_CD=r["no"])
-    short = dict(actionID="hyk", cmd="hyklstdtldigest", BEF_PRC="hyk", HYK_ID=r["hyk_id"], SVCSBRCD=r["svc"],
-                 JGY_CD=r["no"])
-    tries = {"full_session": fd, "short_session": short}
-    for k, p in tries.items():
-        u = B + "controller?" + urllib.parse.urlencode(p)
-        x = get(u)
-        ok = "表示することができません" not in x
-        print("detail", k, ok, len(x), u)
-        (OUT / f"detail_{k}.html").write_text(x, encoding="utf-8")
-    # 新しいセッション（リンクを踏んだ人と同じ状態）
-    fresh = urllib.request.build_opener()
-    for k, p in tries.items():
-        u = B + "controller?" + urllib.parse.urlencode(p)
-        x = fresh.open(urllib.request.Request(u, headers=UA), timeout=40).read().decode("utf-8", "replace")
-        print("detail fresh", k, "表示することができません" not in x, len(x))
-        time.sleep(1.5)
 
 
 if __name__ == "__main__":
