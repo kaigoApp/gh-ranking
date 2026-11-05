@@ -748,7 +748,8 @@ def build():
 {stats}
 <section id="purpose"><span id="services"></span><h2>目的からさがす</h2><p class="sec-sub">どんな支援を探しているかを選ぶと、次に地域を選べます。数字は全国の事業所数です。</p>
 <div class="purposes">{"".join(purpose_html)}</div>
-<p class="start-cta"><a href="{START_PATH}"><b>どのサービスを探せばいいかわからない方へ</b><span>年齢とやりたいことを選ぶだけで、探すサービスがわかります。費用のめやす・見学チェックシートもあります。</span></a></p></section>
+<p class="start-cta"><a href="{START_PATH}"><b>どのサービスを探せばいいかわからない方へ</b><span>年齢とやりたいことを選ぶだけで、探すサービスがわかります。費用のめやす・見学チェックシートもあります。</span></a></p>
+<p class="start-cta"><a href="{KURASHI_DIR}"><b>住んでいる街・引っ越し先のくらしやすさ</b><span>子ども・働く・住まいなどの分野ごとに、障がい福祉の事業所がどれくらいあるかを全国とくらべて見られます。</span></a></p></section>
 <a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 <a class="pro-link" href="report/{latest}/"><span class="eyebrow">レポート</span><b>障害福祉の事業所はどう変わったか（{E(LATEST_LABEL)}）</b><span>増え方、地域の差、入れ替わり、運営法人の変化を、国の公表データからまとめました。データが新しくなるたびに更新します。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
@@ -1032,7 +1033,7 @@ def build():
   <h1>{E(mname)}の障害福祉事業所</h1>
   <div class="big"><div><span class="n">{cur:,}</span><span class="u">事業所</span></div>
     <div class="meta"><span>半年で <b>{delta(cur - pv)}</b></span><span>{E(pref)}内 <b>{prank}位</b> / {len(siblings)}</span></div></div>
-  <p class="since"><a href="{href(rel, matome_path(pi, mname))}">お仕事で使う方へ：{E(mname)}のまとめ（印刷できます）</a></p>
+  <p class="since">{f'<a href="{href(rel, kurashi_path(pi, mname))}">障がいのある方のくらしやすさ（分野ごとの充実度）</a>　' if kurashi_ok(mk, siblings) else ""}<a href="{href(rel, matome_path(pi, mname))}">お仕事で使う方へ：{E(mname)}のまとめ（印刷できます）</a></p>
 </div>"""
         rows, dirs = [], []
         for c in sorted((c for c in codes if S[c][latest]["muni"].get(mk) or (prev in S[c] and S[c][prev]["muni"].get(mk))), key=order.get):
@@ -1083,6 +1084,7 @@ def build():
     # ---------- お仕事で使う方へ（データ）
     build_data(S, codes, periods, latest, prev, year_ago, new_nos)
     build_matome(S, codes, periods, latest, prev, year_ago, new_nos)
+    build_kurashi(S, codes, periods, latest, prev)
     build_corps(S, codes, periods, latest, prev, new_nos)
     build_near(S, codes, latest)
     build_privacy()
@@ -2001,6 +2003,234 @@ def build_matome(S, codes, periods, latest, prev, year_ago, new_nos):
     print(f"まとめページ: {len(munis):,}")
 
 
+# ---------------------------------------------------------------- くらしやすさ（障がいのある方・家族の目線）
+
+KURASHI_DIR = "kurashi/"
+# 分野：(見出し, 一言, サービス)。数は延べ（1つの事業所が複数のサービスを行うときはサービスごとに数える）
+KURASHI_FIELDS = [
+    ("子ども", "発達の支援や、放課後・休みの日に通う場所", ["63", "65", "67", "66", "64"]),
+    ("働く", "就職をめざす訓練や、自分のペースで働く場所", ["60", "45", "46", "62"]),
+    ("日中に通う", "介護を受けながら日中を過ごす場所や、生活の訓練", ["22", "42", "41", "21"]),
+    ("住まい", "グループホームや入所施設、泊まりで使えるショートステイ", ["33", "32", "24", "61", "34"]),
+    ("家での支え", "ヘルパーが家に来るサービスや、外出の付きそい", ["11", "12", "15", "13", "14"]),
+    ("相談", "サービスを使うための計画づくりや、くらしの相談", ["52", "70", "53", "54"]),
+]
+KURASHI_OPEN = ["65", "63", "60", "45", "46", "22", "42", "41"]   # 土曜・夕方に開いているかを数える通うサービス
+
+
+def kurashi_ok(mk, munis):
+    """くらしやすさのページを作る市区町村か。人口がわかり、区に分かれた政令市そのものでないもの。"""
+    pi, m = mk
+    return bool(pop_of(pi, m)) and not any(x[0] == pi and x[1] != m and x[1].startswith(m) and x[1].endswith("区") for x in munis)
+
+
+def kurashi_path(pi, name):
+    return f"{KURASHI_DIR}{PREF_SLUGS[pi]}/{name}/"
+
+
+def kurashi_word(a, nat):
+    """人口1万人あたりの数を全国とくらべた言い方。"""
+    if a is None or not nat:
+        return None, ""
+    if a == 0:
+        return "none", "ない"
+    r = a / nat
+    return ("hi", "多い") if r >= 1.2 else ("lo", "少ない") if r <= 0.8 else ("mid", "ふつう")
+
+
+def build_kurashi(S, codes, periods, latest, prev):
+    """市区町村ごとの「障がいのある方のくらしやすさ」。分野ごとの充実度を、人口あたりの数で全国・県とくらべる。
+    総合点や順位はつけない（数の多さだけでくらしやすさは決まらないため）。"""
+    L = {c: S[c][latest] for c in codes}
+    P = {c: S[c].get(prev) for c in codes}
+    fields = [(h, d, [c for c in cs if c in L]) for h, d, cs in KURASHI_FIELDS]
+    munis = sorted({mk for c in codes for mk in L[c]["muni"]})
+    nat_pop = sum(POP_PREF.values()) or None
+
+    def fcount(cs, mk=None, pi=None, src=L):
+        if mk is not None:
+            return sum(src[c]["muni"].get(mk, 0) for c in cs if src.get(c))
+        if pi is not None:
+            return sum(src[c]["pref"].get(pi, 0) for c in cs if src.get(c))
+        return sum(src[c]["n"] for c in cs if src.get(c))
+
+    nat_per = {h: (fcount(cs) / nat_pop * 10000 if nat_pop else None) for h, _, cs in fields}
+    # 市区町村ごとの位置（事業所の位置の真ん中）と、土曜・夕方に開いている通う場所の数、B型の工賃
+    pts = collections.defaultdict(list)
+    opens = collections.defaultdict(lambda: [0, 0, 0])   # [わかる数, 土曜も開く, 17時以降も開く]
+    wages = collections.defaultdict(list)
+    pref_wages = collections.defaultdict(list)
+    for c in codes:
+        for no, o in L[c]["offices"].items():
+            ll = Nearby.ll(o)
+            sat, _ = open_days(o.get("closed")) if c in KURASHI_OPEN else (None, None)
+            e = end_min(o.get("hours")) if c in KURASHI_OPEN else None
+            if c == B_CODE and no in KOUCHIN:
+                pref_wages[o["p"]].append(KOUCHIN[no]["yen"])
+            for mk in o["munis"]:
+                if ll:
+                    pts[mk].append(ll)
+                if sat is not None:
+                    x = opens[mk]
+                    x[0] += 1
+                    x[1] += int(sat)
+                    x[2] += int(bool(e and e >= 17 * 60))
+                if c == B_CODE and no in KOUCHIN:
+                    wages[mk].append(KOUCHIN[no]["yen"])
+    center = {}
+    for mk, ps in pts.items():
+        las, lns = sorted(p[0] for p in ps), sorted(p[1] for p in ps)
+        center[mk] = (las[len(las) // 2], lns[len(lns) // 2])
+    is_city_with_wards = {(pi, m[:m.index("市") + 1]) for pi, m in munis if re.search(r"市.+区$", m)}
+
+    def neighbors(mk, k=6):
+        if mk not in center:
+            return []
+        la, ln = center[mk]
+        cand = [(dist_km(la, ln, *center[m]), m) for m in center if m != mk and m not in is_city_with_wards]
+        return [m for d, m in sorted(cand)[:k] if d <= 40]
+
+    def per_of(n, pop):
+        return n / pop * 10000 if pop else None
+
+    def field_rows(mk, pop):
+        out = []
+        for h, d, cs in fields:
+            n = fcount(cs, mk)
+            n0 = fcount(cs, mk, src=P) if prev else None
+            a = per_of(n, pop)
+            out.append(dict(h=h, d=d, cs=cs, n=n, n0=n0, per=a, word=kurashi_word(a, nat_per[h])))
+        return out
+
+    rel = "../../../"
+    made = 0
+    for mk in munis:
+        pi, mname = mk
+        if mk in is_city_with_wards or not pop_of(pi, mname):
+            continue
+        pref = PREFS[pi]
+        pop = pop_of(pi, mname)
+        ppop = POP_PREF.get(pi)
+        rows = field_rows(mk, pop)
+        many = [r["h"] for r in rows if r["word"][0] == "hi"]
+        few = [r["h"] for r in rows if r["word"][0] in ("lo", "none")]
+        lead = f"{E(mname)}は、全国とくらべて"
+        if len(few) == len(rows):
+            lead += "どの分野も、人口のわりに事業所が少なめです。となりの市区町村の事業所を使えることもあります。"
+        elif many and few:
+            lead += f"「{'」「'.join(many)}」の事業所が多く、「{'」「'.join(few)}」が少なめです。"
+        elif many:
+            lead += f"「{'」「'.join(many)}」の事業所が多く、ほかの分野もふつう以上です。"
+        elif few:
+            lead += f"「{'」「'.join(few)}」の事業所が少なめです。" + ("ほかの分野はふつうです。" if len(few) < len(rows) else "")
+        else:
+            lead += "どの分野もふつうの数です。"
+        cards = []
+        missing_all = []
+        for r in rows:
+            k, w = r["word"]
+            pp = per_of(fcount(r["cs"], pi=pi), ppop)
+            nat = nat_per[r["h"]]
+            scale = max(r["per"] or 0, pp or 0, nat or 0) or 1
+            def bar(lbl, v, cls=""):
+                return (f'<div class="ks-bar{cls}"><span>{lbl}</span><div class="bar"><i style="width:{min(100, (v or 0) / scale * 100):.0f}%"></i></div>'
+                        f'<b class="tnum">{(v or 0):.1f}</b></div>')
+            svc = []
+            for c in r["cs"]:
+                v = L[c]["muni"].get(mk, 0)
+                if v:
+                    svc.append(f'<a href="{href(rel, ms_path(pi, mname, c))}">{E(SERVICES[c][1])} <b>{v:,}</b></a>')
+                else:
+                    missing_all.append(SERVICES[c][1])
+                    svc.append(f'<span class="none">{E(SERVICES[c][1])} 0</span>')
+            ch = "" if r["n0"] is None else f'<span class="ks-ch">半年で {delta(r["n"] - r["n0"])}</span>'
+            cards.append(f"""<div class="ks-card">
+  <div class="ks-top"><h3>{E(r["h"])}</h3><span class="ks-w {k}">{E(w)}</span></div>
+  <p class="ks-d">{E(r["d"])}</p>
+  <p class="ks-n"><span class="tnum">{r["n"]:,}</span>か所{ch}</p>
+  <div class="ks-bars"><p class="ks-cap">人口1万人あたり</p>{bar(E(mname) if len(mname) <= 6 else "この街", r["per"], " me")}{bar(E(pref), pp)}{bar("全国", nat)}</div>
+  <div class="ks-svcs">{"".join(svc)}</div>
+</div>""")
+        # 土曜・夕方
+        op = opens.get(mk)
+        open_html = ""
+        if op and op[0]:
+            open_html = f"""<section><h2>土曜や夕方も開いている通う場所</h2><p class="sec-sub">放課後等デイ・児童発達支援・就労系・生活介護など、通うサービスの事業所のうち、公表データに休みの日や時間が書かれている{op[0]:,}か所を数えました。</p>
+<div class="kpis"><div class="kpi"><span class="k">土曜も開いている</span><span class="v">{op[1]:,}<small>か所（{op[1] / op[0] * 100:.0f}%）</small></span></div>
+<div class="kpi"><span class="k">平日17時以降も開いている</span><span class="v">{op[2]:,}<small>か所（{op[2] / op[0] * 100:.0f}%）</small></span></div></div>
+<p class="note">休みの日や時間は事業所が届け出た内容で、祝日や月ごとの予定は書かれていないことがあります。くわしくは各事業所に確かめてください。</p></section>"""
+        wg = wages.get(mk, [])
+        pw = pref_wages.get(pi, [])
+        wage_html = ""
+        if len(wg) >= 3 and pw:
+            a, b = sum(wg) / len(wg), sum(pw) / len(pw)
+            wage_html = (f'<section><h2>就労B型の平均工賃</h2><p class="sec-sub">B型で働いたときに受け取るお金（工賃）の月平均です。{E(pref)}の工賃実績の公表資料にある{len(wg)}か所の平均です。</p>'
+                         f'<div class="kpis"><div class="kpi"><span class="k">{E(mname)}</span><span class="v">{a:,.0f}<small>円</small></span></div>'
+                         f'<div class="kpi"><span class="k">{E(pref)}全体</span><span class="v">{b:,.0f}<small>円</small></span></div></div>'
+                         f'<p class="sec-sub"><a href="{href(rel, ms_path(pi, mname, B_CODE))}">{E(mname)}の就労B型を工賃の高い順に見る</a></p></section>')
+        nb = neighbors(mk)
+        nb_rows = []
+        for m in nb:
+            mp = pop_of(*m)
+            if not mp:
+                continue
+            cells = "".join(f'<td class="c"><span class="ks-w {kurashi_word(per_of(fcount(cs, m), mp), nat_per[h])[0]}">{E(kurashi_word(per_of(fcount(cs, m), mp), nat_per[h])[1])}</span></td>'
+                            for h, _, cs in fields)
+            nb_rows.append(f'<tr><td class="name"><a href="{href(rel, kurashi_path(*m))}">{E(m[1])}</a></td>{cells}</tr>')
+        me_cells = "".join(f'<td class="c"><span class="ks-w {r["word"][0]}">{E(r["word"][1])}</span></td>' for r in rows)
+        nb_html = ""
+        if nb_rows:
+            nb_html = f"""<section><h2>近くの市区町村とくらべる</h2><p class="sec-sub">通うサービスは、となりの市区町村の事業所を使えることも多くあります。お住まいの市区町村の窓口で、使えるかどうかを確かめてください。</p>
+<div class="table-wrap"><table class="ks-table"><thead><tr><th>市区町村</th>{"".join(f'<th class="c">{E(h)}</th>' for h, _, _ in fields)}</tr></thead>
+<tbody><tr class="me"><td class="name">{E(mname)}</td>{me_cells}</tr>{"".join(nb_rows)}</tbody></table></div></section>"""
+        small = '<p class="note">人口が少ない町村では、1か所の違いで「多い」「少ない」が大きく変わります。</p>' if pop < 20000 else ""
+        x = area_report_for(pi, mname)
+        hero = f"""<div>
+  {crumbs(rel, [(pref, href(rel, f"p/{PREF_SLUGS[pi]}/")), (mname, href(rel, muni_path(pi, mname))), ("くらしやすさ", None)])}
+  <div class="eyebrow" style="margin-top:12px">{E(pref)}　{E(LATEST_LABEL)}時点</div>
+  <h1>{E(mname)}の障がいのある方のくらしやすさ</h1>
+  <p class="ks-lead">{lead}</p>
+  <p class="since noprint"><button class="print" onclick="window.print()">このページを印刷する</button>　<a href="{href(rel, muni_path(pi, mname))}">{E(mname)}の事業所の一覧へ</a></p>
+</div>"""
+        body = f"""
+<section><h2>分野ごとの事業所の数</h2><p class="sec-sub">人口1万人あたりの事業所の数を、全国とくらべて「多い」（全国の1.2倍以上）「ふつう」「少ない」（0.8倍以下）で表しています。数が多いほど選べる事業所が多いということで、サービスの良し悪しを表すものではありません。</p>
+{small}<div class="ks-cards">{"".join(cards)}</div>
+{f'<p class="note"><b>{E(mname)}にまだないサービス：</b>{E("、".join(missing_all))}</p>' if missing_all else ''}</section>
+{open_html}{wage_html}{nb_html}
+<section><h2>この数字の見方</h2><ul class="ks-how">
+<li>数は国の公表データ（{E(LATEST_LABEL)}時点）に載っている事業所の数です。1つの事業所が複数のサービスを行うときは、サービスごとに数えています。</li>
+<li>人口あたりの数は、障がいのある方の数ではなく、全体の人口で割っています。子どもの分野も同じです。</li>
+<li>空きがあるか、どんな支援をしているかは、事業所ごとに違います。気になる事業所には見学を申しこんでみてください（<a href="{href(rel, "start/kengaku/")}">見学チェックシート</a>）。</li>
+<li>どのサービスを使えばいいかわからないときは、<a href="{href(rel, "start/")}">どのサービスを探せばいい？</a>や、{E(mname)}の障がい福祉の窓口・相談支援事業所に相談できます。</li>
+</ul></section>
+<aside class="ks-pro noprint"><p>{E(mname)}で事業所の開設を考えている方へ：人口あたりの数や競合の状況、収支の試算をまとめた<a data-cta="kurashi" href="{href(rel, AREA_PATH)}{('#' + urllib.parse.quote(x['city'])) if x else ''}">地域レポート（有料）</a>もあります。</p></aside>
+<p class="note">{E(CSV_SOURCE)}（{E(LATEST_LABEL)}時点）。{E(POP_SOURCE)}（{E(POP_ASOF[0])}）。{"就労B型の工賃は各都道府県の工賃実績の公表資料から。" if wage_html else ""}</p>"""
+        words = "・".join(f"{r['h']}{r['word'][1]}" for r in rows)
+        page(kurashi_path(pi, mname), f"{mname}（{pref}）の障がいのある方のくらしやすさ｜福祉サービスの充実度",
+             f"{pref}{mname}の障がい福祉サービスを、子ども・働く・日中に通う・住まい・家での支え・相談の分野ごとに、人口あたりの事業所の数で全国とくらべました（{words}）。{LATEST_LABEL}時点。",
+             hero, body, og=muni_og(pi, mname))
+        made += 1
+    # 入口：都道府県ごとの市区町村の一覧
+    rel = "../"
+    by_pref = collections.defaultdict(list)
+    for pi, m in munis:
+        if (pi, m) not in is_city_with_wards and pop_of(pi, m):
+            by_pref[pi].append(m)
+    blocks = "".join(f'<details><summary>{E(PREFS[pi])}<span class="c">{len(ms)}</span></summary><div class="pref-grid">'
+                     + "".join(f'<a href="{href(rel, kurashi_path(pi, m))}"><span>{E(m)}</span></a>' for m in ms) + "</div></details>"
+                     for pi, ms in sorted(by_pref.items()))
+    hero = f"""<div>
+  <div class="eyebrow">障がいのある方・ご家族へ</div>
+  <h1>市区町村ごとのくらしやすさ</h1>
+  <p class="ks-lead">お住まいの市区町村や、引っ越しを考えている街に、障がい福祉の事業所がどれくらいあるかを、子ども・働く・住まいなどの分野ごとに全国とくらべて見られます。無料で、登録もいりません。</p>
+</div>"""
+    body = f'<section><h2>都道府県から選ぶ</h2><div class="dir">{blocks}</div></section>'
+    page(KURASHI_DIR, "市区町村ごとの障がいのある方のくらしやすさ｜福祉サービスの充実度",
+         "全国の市区町村の障がい福祉サービスを、子ども・働く・日中に通う・住まい・家での支え・相談の分野ごとに、人口あたりの事業所の数で全国とくらべて見られます。",
+         hero, body)
+    print(f"くらしやすさ: {made:,}")
+
+
 def build_corps(S, codes, periods, latest, prev, new_nos):
     """法人ごとのページ。どの地域で何を運営しているかを一覧にする。"""
     cur = collections.defaultdict(dict)    # 法人番号 → 事業所番号 → [サービス, ...], o
@@ -2481,7 +2711,8 @@ def start_links(rel, here):
     items = [("finder", START_PATH, "どのサービスを探せばいい？", "年齢と、やりたいことから選ぶ"),
              ("hiyou", HIYOU_PATH, "費用のめやす", "1か月に払う上限の金額"),
              ("kengaku", KENGAKU_PATH, "見学チェックシート", "見学で聞くことを印刷"),
-             ("saved", "saved/", "保存した事業所", "気になる事業所を比べる・印刷")]
+             ("saved", "saved/", "保存した事業所", "気になる事業所を比べる・印刷"),
+             ("kurashi", KURASHI_DIR, "市区町村ごとのくらしやすさ", "分野ごとの事業所の多さを全国とくらべる")]
     cards = "".join(f'<a href="{href(rel, p)}"><b>{E(t)}</b><span>{E(d)}</span></a>' for k, p, t, d in items if k != here)
     return f'<section class="noprint"><h2>はじめての方へ</h2><div class="start-links">{cards}</div></section>'
 
