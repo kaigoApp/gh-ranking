@@ -1476,6 +1476,9 @@ AROUND_KINDS = [  # (種類, 見出し, さがす範囲 km, 出典)
 ]
 
 
+CLINIC_SKIP = re.compile(r"医務室|老人ホーム|老人保健|健康管理|健診|検診|保健室|刑務所|拘置所|自衛隊|社員|職員|企業内|工場")  # 施設の中だけの診療所は外す
+
+
 class Places:
     """駅・病院・お店などの位置を、緯度・経度のます目（約2km）で引く。"""
     CELL = 0.02
@@ -1495,6 +1498,8 @@ class Places:
                     self.add(r["kind"], r["name"], r["sub"], r["lat"], r["lng"])
 
     def add(self, k, name, sub, la, ln):
+        if k == "clinic" and CLINIC_SKIP.search(name):
+            return
         try:
             la, ln = float(la), float(ln)
         except ValueError:
@@ -1526,7 +1531,7 @@ def walk_text(d):
     return t + (f"・歩いて約{max(1, math.ceil(m / 80))}分" if m <= 2400 else "")
 
 
-def around_gh(la, ln):
+def around_gh(la, ln, mname=""):
     """グループホームの事業所ページに出す「くらしのまわり」。"""
     if not PLACES:
         PLACES.append(Places())
@@ -1537,14 +1542,21 @@ def around_gh(la, ln):
     for k, h, km, src in AROUND_KINDS:
         if not pl.n.get(k):
             continue
-        hits = pl.find(k, la, ln, km, n=None if k == "clinic" else 1)
+        hits = pl.find(k, la, ln, km, n=None if k in ("clinic", "office") else 1)
+        if k == "office":   # ちがう市区町村の役所は出さない（政令市の区は「〇〇区役所」）
+            ward = re.sub(r"^.+?市(?=.+区$)", "", mname) if mname else ""
+            hits = [x for x in hits if mname and (x[1].startswith(mname) or ward != mname and x[1].startswith(ward))][:1]
+            if not hits:
+                continue
         if hits:
             d, name, sub = hits[0]
-            extra = f"（{E(sub)}）" if sub and k == "station" else ""
+            extra = f"（{E(sub)}）" if sub and k == "station" and sub != "本線" else ""
             v = f"<b>{E(name)}</b>{extra}<br><span class=\"tnum\">{walk_text(d)}</span>"
             if k == "clinic":
                 n1 = sum(1 for x in hits if x[0] <= 1.0)
-                v = f"<b>1km以内に{n1}か所</b><br><span class=\"note\">いちばん近い所：{E(name)}（<span class=\"tnum\">{walk_text(d)}</span>）</span>"
+                d, name, sub = next((x for x in hits if "内" in x[2]), hits[0])
+                v = (f"<b>1km以内に{n1}か所</b><br><span class=\"note\">いちばん近い内科：{E(name)}（<span class=\"tnum\">{walk_text(d)}</span>）</span>"
+                     if "内" in sub else f"<b>1km以内に{n1}か所</b><br><span class=\"note\">いちばん近い所：{E(name)}（<span class=\"tnum\">{walk_text(d)}</span>）</span>")
         else:
             v = f'<span class="note">{km:g}km以内に見つかりませんでした' + ("（地図データに載っていないお店もあります）" if src == "osm" else "") + "</span>"
         srcs.add(src)
@@ -1736,7 +1748,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>{gh_cost if GH in cs else ""}
 <p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{report}{fav_json}</section>
-{around_gh(*here) if GH in cs and here else ""}
+{around_gh(*here, mk[1] if mk else "") if GH in cs and here else ""}
 {nb_sec}</div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {job_ad("facility") if any(x in WORK_CODES for x in cs) else ""}
