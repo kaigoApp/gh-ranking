@@ -1463,6 +1463,105 @@ def km_text(d):
     return f"{d * 1000:.0f}m" if d < 1 else f"{d:.1f}km"
 
 
+# ---------------------------------------------------------------- グループホームのまわり（駅・病院・お店）
+
+AROUND_KINDS = [  # (種類, 見出し, さがす範囲 km, 出典)
+    ("station", "最寄りの駅", 5.0, "ksj"),
+    ("hospital", "病院", 5.0, "ksj"),
+    ("clinic", "診療所（クリニック）", 3.0, "ksj"),
+    ("super", "スーパー", 3.0, "osm"),
+    ("conv", "コンビニ", 3.0, "osm"),
+    ("drug", "ドラッグストア・薬局", 3.0, "osm"),
+    ("office", "市区町村の役所", 10.0, "ksj"),
+]
+
+
+class Places:
+    """駅・病院・お店などの位置を、緯度・経度のます目（約2km）で引く。"""
+    CELL = 0.02
+
+    def __init__(self):
+        self.g = collections.defaultdict(lambda: collections.defaultdict(list))
+        self.n = collections.Counter()
+        f = ROOT / "data" / "report" / "stations.csv"
+        if f.exists():
+            with f.open(encoding="utf-8") as fh:
+                for r in csv.DictReader(fh):
+                    self.add("station", r["name"] + "駅", r["line"], r["lat"], r["lng"])
+        f = ROOT / "data" / "around" / "poi.csv.gz"
+        if f.exists():
+            with gzip.open(f, "rt", encoding="utf-8") as fh:
+                for r in csv.DictReader(fh):
+                    self.add(r["kind"], r["name"], r["sub"], r["lat"], r["lng"])
+
+    def add(self, k, name, sub, la, ln):
+        try:
+            la, ln = float(la), float(ln)
+        except ValueError:
+            return
+        self.g[k][(int(la / self.CELL), int(ln / self.CELL))].append((la, ln, name, sub))
+        self.n[k] += 1
+
+    def find(self, k, la, ln, max_km, n=1):
+        a, b = int(la / self.CELL), int(ln / self.CELL)
+        r = int(max_km / (self.CELL * 78)) + 1
+        out = []
+        for x in range(a - r, a + r + 1):
+            for y in range(b - r, b + r + 1):
+                for la2, ln2, name, sub in self.g[k].get((x, y), ()):
+                    d = dist_km(la, ln, la2, ln2)
+                    if d <= max_km:
+                        out.append((d, name, sub))
+        out.sort()
+        return out if n is None else out[:n]
+
+
+PLACES: list = []
+
+
+def walk_text(d):
+    """まっすぐ測った距離と、歩いた時間のめやす（1分80m）。"""
+    m = d * 1000
+    t = f"約{m / 1000:.1f}km" if m >= 1000 else f"約{max(50, round(m / 50) * 50):,}m"
+    return t + (f"・歩いて約{max(1, math.ceil(m / 80))}分" if m <= 2400 else "")
+
+
+def around_gh(la, ln):
+    """グループホームの事業所ページに出す「くらしのまわり」。"""
+    if not PLACES:
+        PLACES.append(Places())
+    pl = PLACES[0]
+    if not pl.n.get("station") and not pl.n.get("hospital"):
+        return ""
+    rows, srcs = [], set()
+    for k, h, km, src in AROUND_KINDS:
+        if not pl.n.get(k):
+            continue
+        hits = pl.find(k, la, ln, km, n=None if k == "clinic" else 1)
+        if hits:
+            d, name, sub = hits[0]
+            extra = f"（{E(sub)}）" if sub and k == "station" else ""
+            v = f"<b>{E(name)}</b>{extra}<br><span class=\"tnum\">{walk_text(d)}</span>"
+            if k == "clinic":
+                n1 = sum(1 for x in hits if x[0] <= 1.0)
+                v = f"<b>1km以内に{n1}か所</b><br><span class=\"note\">いちばん近い所：{E(name)}（<span class=\"tnum\">{walk_text(d)}</span>）</span>"
+        else:
+            v = f'<span class="note">{km:g}km以内に見つかりませんでした' + ("（地図データに載っていないお店もあります）" if src == "osm" else "") + "</span>"
+        srcs.add(src)
+        rows.append(f'<tr><th scope="row">{E(h)}</th><td class="name">{v}</td></tr>')
+    if not rows:
+        return ""
+    cite = []
+    if "ksj" in srcs:
+        cite.append("駅・病院・診療所・役所：国土数値情報（鉄道 2023年、医療機関 2020年、市町村役場等 2022年）")
+    if "osm" in srcs:
+        cite.append('お店：<a href="https://www.openstreetmap.org/copyright" rel="noopener" target="_blank">© OpenStreetMap contributors</a>')
+    return (f'<section class="gh-around"><h2>くらしのまわり</h2><p class="sec-sub">届け出の住所から、いちばん近い駅・病院・お店などです。'
+            f'グループホームの住まいが届け出の住所と別の場所にあることもあります。距離はまっすぐ測ったもので、歩く時間は1分80mで計算しためやすです。</p>'
+            f'<div class="table-wrap"><table class="info"><tbody>{"".join(rows)}</tbody></table></div>'
+            f'<p class="note">{"。".join(cite)}。お店は開いた・閉じたが反映されていないことがあります。</p></section>')
+
+
 def build_facilities(S, codes, periods, latest, new_nos):
     """事業所ページ。1つの事業所番号で複数のサービスを行う事業所は、1ページにまとめる。"""
     first_seen = {}
@@ -1637,6 +1736,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
 <div class="table-wrap"><table class="info"><tbody>{info_html}</tbody></table></div>
 <p class="note">{E(LATEST_LABEL)}時点の国の公表データです。空き状況や費用などは、事業所に直接お問い合わせください。</p>{gh_cost if GH in cs else ""}
 <p class="note">「保存する」を押すと、<a href="{rel}saved/">保存した事業所</a>のページで、ほかの事業所と並べて比べたり、地図つきの一覧を印刷したりできます。</p>{report}{fav_json}</section>
+{around_gh(*here) if GH in cs and here else ""}
 {nb_sec}</div><div class="fac-side">
 <section><h2>行っているサービス</h2><p class="sec-sub">同じ事業所番号で公表されているサービスです。サービス名を押すと、{E(mk[1] if mk else pref)}の同じサービスの事業所が見られます。</p><div class="dir"><details open><summary>サービス<span class="c">{len(cs)}種類</span></summary><ul>{svcs}</ul></details></div></section>
 {job_ad("facility") if any(x in WORK_CODES for x in cs) else ""}
