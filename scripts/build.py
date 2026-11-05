@@ -1606,7 +1606,7 @@ def around_gh(la, ln, mname=""):
     return (f'<section class="gh-around"><h2>くらしのまわり</h2><p class="sec-sub">届け出の住所から、いちばん近い駅・病院・お店などです。'
             f'グループホームの住まいが届け出の住所と別の場所にあることもあります。距離はまっすぐ測ったもので、歩く時間は1分80mで計算しためやすです。</p>'
             f'<div class="table-wrap"><table class="info"><tbody>{"".join(rows)}</tbody></table></div>'
-            f'<p class="note">{"。".join(cite)}。お店は開いた・閉じたが反映されていないことがあります。</p></section>')
+            f'<p class="note">{"。".join(cite)}。お店は開業・閉業が反映されていないことがあります。</p></section>')
 
 
 def build_facilities(S, codes, periods, latest, new_nos):
