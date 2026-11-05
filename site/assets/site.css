@@ -686,3 +686,36 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .ad-box .ad-link { font-weight: 700; font-size: 16px; }
 .ad-box img { position: absolute; width: 1px; height: 1px; }
 .ad-box .note { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* くらしやすさ（/kurashi/） */
+.ks-lead { font-size: 16px; line-height: 1.8; max-width: 46em; margin: 10px 0 0; }
+.ks-cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.ks-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); break-inside: avoid; }
+.ks-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ks-top h3 { margin: 0; font-family: var(--f-display); font-size: 19px; }
+.ks-d { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+.ks-n { margin: 0 0 8px; font-size: 13px; }
+.ks-n .tnum { font-family: var(--f-num); font-weight: 700; font-size: 26px; margin-right: 2px; }
+.ks-ch { margin-left: 10px; color: var(--muted); }
+.ks-w { display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; white-space: nowrap; background: var(--accent-soft); color: var(--accent); }
+.ks-w.hi { background: var(--brand); color: var(--on-brand); }
+.ks-w.lo { background: var(--sun-soft); color: var(--hot); }
+.ks-w.none { background: transparent; color: var(--down); border: 1px solid currentColor; }
+.ks-cap { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.ks-bars { display: grid; gap: 4px; margin-bottom: 10px; }
+.ks-bar { display: grid; grid-template-columns: 5.5em 1fr 3em; align-items: center; gap: 8px; font-size: 12px; }
+.ks-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.ks-bar b { text-align: right; font-family: var(--f-num); font-size: 14px; }
+.ks-bar .bar { height: 8px; }
+.ks-bar.me span { color: var(--fg); font-weight: 700; }
+.ks-bar.me .bar i { background: var(--brand); }
+.ks-svcs { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.ks-svcs a, .ks-svcs .none { padding: 2px 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); text-decoration: none; }
+.ks-svcs .none { color: var(--muted); border-style: dashed; }
+.ks-table td.c, .ks-table th.c { text-align: center; }
+.ks-table tr.me td { background: var(--accent-soft); font-weight: 700; }
+.ks-table .ks-w { font-size: 12px; padding: 1px 8px; }
+.ks-how { padding-left: 1.2em; line-height: 1.8; }
+.ks-pro { margin: 20px 0; padding: 12px 16px; border: 1px dashed var(--line); border-radius: var(--radius); font-size: 13px; color: var(--muted); }
+.ks-pro p { margin: 0; }
+@media print { .ks-card { box-shadow: none; } .ks-cards { grid-template-columns: 1fr 1fr; } }
