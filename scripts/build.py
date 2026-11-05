@@ -215,9 +215,37 @@ def excluded(r) -> bool:
     return r["no"] in EXCLUDE_NOS or r.get("corp_key", "") in EXCLUDE_CORPS
 
 
+# 国の公表データにまだ載っていない事業所を手で足す（data/additions.json）。開所したばかり・運営法人が変わったばかりなど
+ADDITIONS = json.loads((ROOT / "data" / "additions.json").read_text(encoding="utf-8"))["offices"]
+REPLACED = {old: no for no, a in ADDITIONS.items() for old in a.get("replaces", ())}   # 前の事業所番号 → 足した事業所
+
+
+def _addr_key(s: str) -> str:
+    return re.sub(r"[\s\-−‐－ー―]", "", s)
+
+
+def addition_rows(code: str, period: str, rows):
+    """その時点・サービスのファイルに足す行。公表データに同じ番号、または同じ法人・同じ住所の行があれば足さない。"""
+    have_no = {r["no"] for r in rows}
+    have_addr = {(r.get("corp_key", ""), _addr_key(r["muni"] + r["addr"])) for r in rows}
+    out = []
+    for no, a in ADDITIONS.items():
+        if code not in a["services"] or period < a["from"] or no in have_no:
+            continue
+        if any((a["corp_key"], _addr_key(a["muni"] + h["addr"])) in have_addr for h in a["houses"]):
+            continue
+        for h in a["houses"]:
+            out.append(dict(no=no, pref=a["pref"], muni=a["muni"], corp_key=a["corp_key"], corp=a["corp"], name=h["name"],
+                            addr=h["addr"], lat=h.get("lat", ""), lng=h.get("lng", ""), tel=a.get("tel", ""), url=a.get("url", ""),
+                            cap=a.get("cap", ""), hours=a.get("hours", ""), closed=a.get("closed", ""), title=a.get("title", "")))
+    return out
+
+
 def read_slim(path: pathlib.Path):
     with gzip.open(path, "rt", encoding="utf-8") as f:
-        yield from (r for r in csv.DictReader(f) if not excluded(r))
+        rows = [r for r in csv.DictReader(f) if not excluded(r)]
+    yield from rows
+    yield from addition_rows(path.parent.name, path.name[:6], rows)
 
 
 CORP_FORMS = ["株式会社", "社会福祉法人", "合同会社", "特定非営利活動法人", "一般社団法人", "医療法人", "有限会社"]
@@ -236,7 +264,7 @@ def summarize(path: pathlib.Path, keep: bool):
         o = offices.get(r["no"])
         if o is None:
             o = offices[r["no"]] = dict(p=pi, corp_key=r["corp_key"], corp=r["corp"], name=r["name"],
-                                        rows=0, munis={}, houses=[], tel="", url="", cap="", hours="", closed="")
+                                        rows=0, munis={}, houses=[], tel="", url="", cap="", hours="", closed="", title=r.get("title", ""))
         o["rows"] += 1
         if mname:
             mk = (pi, mname)
@@ -540,6 +568,8 @@ def ms_path(pi, name, code):
 
 def display_name(o):
     """グループホームは住居ごとに名前が違うことがあるので、いちばん多い名前を事業所名にする。"""
+    if o.get("title"):   # 手で足した事業所（data/additions.json）は、住居名ではなく事業所名を出す
+        return o["title"]
     names = [h[0] for h in o["houses"]] or [o["name"]]
     return collections.Counter(names).most_common(1)[0][0]
 
@@ -1425,6 +1455,11 @@ def build_gone(S, codes, periods, latest, offs, names, near_html):
             same_html = ('<div class="gone-same"><b>同じ名前の事業所が、別の事業所番号で載っています。</b>番号が変わっただけかもしれません。<ul>'
                          + "".join(f'<li><a href="{href(rel, fac_path(x))}">{E(names[x])}</a>（{E(offs[x][next(iter(offs[x]))]["corp"])}）</li>' for x in same[:5])
                          + '</ul></div>')
+        new_no = REPLACED.get(no)
+        if new_no in offs:   # 運営法人が変わり、手で足した事業所（data/additions.json）として続いている
+            nc = offs[new_no][next(iter(offs[new_no]))]
+            same_html = (f'<div class="gone-same"><b>運営法人が変わり、「{E(names[new_no])}」として続いています。</b>'
+                         f'いまの運営法人は{E(nc["corp"])}です。<ul><li><a href="{href(rel, fac_path(new_no))}">{E(names[new_no])}のページを見る</a></li></ul></div>')
         labels = "・".join(svc_label(c) for c in cs)
         hero = f"""<div>
   {crumbs(rel, items)}
