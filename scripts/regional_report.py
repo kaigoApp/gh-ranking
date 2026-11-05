@@ -30,6 +30,9 @@ TARGETS = [
     ("静岡県", "浜松市"), ("新潟県", "新潟市"), ("東京都", "練馬区"), ("東京都", "大田区"), ("熊本県", "熊本市"),
     ("千葉県", "船橋市"),
 ]
+# 注文を受けて作る市区町村（主要市区の順位の母数には入れない）
+ORDERS = [("東京都", "町田市")]
+ALL = TARGETS + ORDERS
 MAIN = ["65", "63", "46", "33", "22", "52", "60", "45", "11", "24"]  # 詳しく見るサービス
 MAPS = ["65", "63", "46", "33"]  # 近くにない地域の地図を作るサービス
 
@@ -1385,16 +1388,19 @@ def build_one(ctx, pi, city, geo_dir, ranks, ed="child"):
              + '</section>')
     h.append('<!--EXEC-->')
 
+    rk_head = f'主要{len(TARGETS)}市区の中で' if (PREFS[pi], city) in TARGETS else f'主要{len(TARGETS)}市区と比べて'
     h.append('<section class="pb"><h2>§要点</h2><ol class="points">' + "".join(f"<li>{x}</li>" for x in pts) + "</ol>")
     h.append(f'<h3>事業所の数</h3><table><tr><th>サービス</th><th>{E(l0)}</th><th>{E(lp)}</th><th>増えた数</th>'
-             f'<th>人口1万人あたり</th><th>主要{len(TARGETS)}市区の中で</th></tr>')
+             f'<th>人口1万人あたり</th><th>{rk_head}</th></tr>')
     for c in SV:
         a, f = now[c], ser[c][0]
         h.append(f'<tr><th>{E(short(c))}</th><td>{f if f is not None else "—"}</td><td>{a:,}</td>'
                  f'<td>{(a - f) if f is not None else "—":+}</td><td>{comp[c][0]:.2f}</td><td>{ranks[c].get((pi, city), "—")}位</td></tr>'
                  if f is not None else
                  f'<tr><th>{E(short(c))}</th><td>—</td><td>{a:,}</td><td>—</td><td>{comp[c][0]:.2f}</td><td>{ranks[c].get((pi, city), "—")}位</td></tr>')
-    h.append(f'</table><p class="note">「主要{len(TARGETS)}市区の中で」は、人口1万人あたりの数が多い順の順位である（1位が最も多い）。</p></section>')
+    h.append(f'</table><p class="note">「{rk_head}」は、人口1万人あたりの数が多い順の順位である（1位が最も多い）。'
+             + ('' if (PREFS[pi], city) in TARGETS else f'主要{len(TARGETS)}市区（人口の多い20市区と船橋市）に{E(city)}を加えた{len(TARGETS) + 1}市区で比べた。')
+             + '</p></section>')
 
 
     # 結論
@@ -2663,7 +2669,7 @@ def main():
     ranks = {}
     for c in MAIN:
         v = []
-        for pref, city in TARGETS:
+        for pref, city in TARGETS + [w for w in want if w not in TARGETS]:
             pi = PREFS.index(pref)
             pop = B.POP_MUNI[pi].get(city)
             v.append(((city_counts(S, c, latest, pi, city) or 0) / pop, (pi, city)))

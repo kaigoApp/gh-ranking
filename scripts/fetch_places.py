@@ -13,7 +13,7 @@ import shapefile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from regional_report import TARGETS  # noqa: E402
+from regional_report import ALL as TARGETS  # noqa: E402
 from services import PREFS  # noqa: E402
 
 P29 = "https://nlftp.mlit.go.jp/ksj/gml/data/P29/P29-21/P29-21_{:02d}_GML.zip"
