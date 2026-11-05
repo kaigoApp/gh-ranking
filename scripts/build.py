@@ -3010,9 +3010,13 @@ def build_area_reports():
     eds = "".join(
         f'<div><h3>{E(e["name"])}</h3><p class="note">{E(e["for"])}</p><ul>' + "".join(f"<li>{E(s)}</li>" for s in e["points"]) + "</ul></div>"
         for e in SHOP["editions"])
+    def city_cell(x):
+        name = E(x["city"])
+        if x["booth"]:
+            name = f'<a href="{E(x["booth"])}" rel="noopener" target="_blank">{name}</a>'
+        return f'<th>{name}<small>{E(x["pref"])}</small></th>'
     rows = "".join(
-        f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small></th>'
-        '<td>放デイ・児発／グループホーム／就労B型</td>'
+        f'<tr id="{E(x["city"])}">{city_cell(x)}'
         f'<td>{buy(x, "BOOTH で買う")}</td></tr>'
         for x in SHOP["cities"])
     sample = SHOP.get("sample_pdf")
@@ -3037,8 +3041,8 @@ def build_area_reports():
 {f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を見る</a>' if sample else ''}</section>
 <section><h2>3つの版の内容</h2><div class="report-cols area-eds">{eds}</div>
 <h3>どの版にも入っている内容</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
-<section><h2>すぐにダウンロードできる市区</h2><p class="sec-sub">作成済みの市区です。ボタンを押すと BOOTH の商品ページに移り、そこで版を選べます。</p>
-<div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th>版</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
+<section><h2>すぐにダウンロードできる市区</h2><p class="sec-sub">作成済みの市区です。どの市区も3つの版（放デイ・児発／グループホーム／就労B型）があります。市区の名前か「BOOTH で買う」を押すと BOOTH の商品ページに移り、そこで版を選べます。</p>
+<div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
 <section id="order"><h2>ほかの市区町村のレポート</h2>
 <p>上の一覧にない市区町村も作成できます。<a href="{contact}">お問い合わせ</a>から、種類で「レポートについて」を選び、市区町村名と版（放デイ・児発／グループホーム／就労B型）をお知らせください。作成できるかを確認したうえで、お届けの時期と購入方法をメールでご案内します。価格は上と同じです。</p>
 <a class="area-btn" href="{contact}">お問い合わせから注文する</a></section>
