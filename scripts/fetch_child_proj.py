@@ -15,7 +15,7 @@ import openpyxl
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from regional_report import TARGETS  # noqa: E402
+from regional_report import ALL as TARGETS  # noqa: E402
 from services import PREFS  # noqa: E402
 
 URL = "https://www.ipss.go.jp/pp-shicyoson/j/shicyoson23/3kekka/Municipalities/{:02d}.xlsx"

@@ -16,7 +16,7 @@ import shapefile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from regional_report import TARGETS  # noqa: E402
+from regional_report import ALL as TARGETS  # noqa: E402
 from services import PREFS  # noqa: E402
 
 URL = "https://nlftp.mlit.go.jp/ksj/gml/data/L01/L01-{yy}/L01-{yy}_{pi:02d}_GML.zip"

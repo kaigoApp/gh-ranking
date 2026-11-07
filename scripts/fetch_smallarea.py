@@ -19,7 +19,7 @@ import shapefile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from regional_report import TARGETS  # noqa: E402
+from regional_report import ALL as TARGETS  # noqa: E402
 from services import PREFS  # noqa: E402
 
 STAT = "https://www.e-stat.go.jp/gis/statmap-search/data?statsId=T001082&code={:02d}&downloadType=2"
