@@ -476,7 +476,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     rel = "../" * depth
     canonical = SITE_URL + "/" + urllib.parse.quote(path)
     full_title = title if title.startswith(SITE_NAME) else f"{title}｜{SITE_NAME}"
-    ld = breadcrumb_ld(hero, canonical)
+    ld = breadcrumb_ld(hero, canonical) if path else website_ld()
     doc = f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -525,6 +525,17 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
     dest.write_text(doc, encoding="utf-8")
     if not noindex:
         PAGES.append(path)
+
+
+SITE_ALT_NAMES = ["じもふく", "ジモフク", "jimofuku"]
+
+
+def website_ld() -> str:
+    """トップページに「このサイトの名前は ジモふく」と Google に伝える目印（構造化データ）。
+    「ジモふく」は Google にとって新しい言葉で、ジモティーなど似た言葉に読み替えられやすいので、読み方や別の書き方も添える。"""
+    data = {"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME,
+            "alternateName": SITE_ALT_NAMES, "url": SITE_URL + "/", "inLanguage": "ja"}
+    return '\n<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + "</script>"
 
 
 def breadcrumb_ld(hero: str, canonical: str) -> str:
@@ -2453,7 +2464,7 @@ def build_about(codes):
 </div>"""
     body = f"""<section><h2>サイトの概要</h2>
 <div class="table-wrap"><table class="info"><tbody>
-<tr><th scope="row">サイト名</th><td>{SITE_NAME}（{TAGLINE}）</td></tr>
+<tr><th scope="row">サイト名</th><td>{SITE_NAME}（じもふく・{TAGLINE}）</td></tr>
 <tr><th scope="row">URL</th><td><a href="{rel or './'}">{E(SITE_URL)}/</a></td></tr>
 <tr><th scope="row">運営者</th><td>システムM（個人で運営しています）</td></tr>
 <tr><th scope="row">内容</th><td>障害福祉サービス{len(codes)}種類の事業所の一覧と地図、地域ごとの事業所数の推移、事業を考える方向けの地域レポート</td></tr>
