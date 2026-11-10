@@ -88,3 +88,37 @@ jobs:
           else
             echo "お問い合わせの届け先（CONTACT_TO）が未登録なので、フォームは「受け付けていません」と表示します"
           fi
+
+      - name: http と www を https://jimofuku.jp へまとめる
+        env:
+          HOST: ${{ secrets.XSERVER_HOST }}
+          USER: ${{ secrets.XSERVER_USER }}
+        run: |
+          # Google が http:// と www. を別のページとして数えないよう、サーバーの .htaccess の先頭に転送の決まりを足す（1回だけ）
+          # 足したあとトップが開けなければ、元の .htaccess に戻す
+          cat > redirect.txt <<'RULES'
+          # BEGIN jimofuku-redirect
+          <IfModule mod_rewrite.c>
+          RewriteEngine On
+          RewriteCond %{HTTPS} !on [OR]
+          RewriteCond %{HTTP_HOST} ^www\. [NC]
+          RewriteRule ^(.*)$ https://jimofuku.jp/$1 [R=301,L]
+          </IfModule>
+          # END jimofuku-redirect
+          RULES
+          sed -i 's/^          //' redirect.txt
+          S="ssh -p 10022 -i $HOME/xserver_key $USER@$HOST"
+          if $S 'grep -q "BEGIN jimofuku-redirect" jimofuku.jp/public_html/.htaccess 2>/dev/null'; then
+            echo "転送の決まりはもう入っています"
+            exit 0
+          fi
+          $S 'f=jimofuku.jp/public_html/.htaccess; touch $f; cp $f $f.before-redirect; { cat; echo; cat $f.before-redirect; } > $f.new && mv $f.new $f' < redirect.txt
+          sleep 3
+          top=$(curl -s -o /dev/null -w '%{http_code}' https://jimofuku.jp/)
+          old=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' http://jimofuku.jp/kurashi/)
+          echo "https のトップ: $top / http のくらしやすさ: $old"
+          if [ "$top" != "200" ]; then
+            echo "トップが開けなくなったので元に戻します"
+            $S 'cp jimofuku.jp/public_html/.htaccess.before-redirect jimofuku.jp/public_html/.htaccess'
+            exit 1
+          fi

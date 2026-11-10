@@ -1,3 +1,7 @@
 # 名前 URL（Actions の report-data.yml が data/report/raw/<名前>.txt に文字にして置く）
 # 令和7年国勢調査 人口等基本集計 表2-7 男女，年齢（5歳階級及び3区分）別人口－全国，都道府県，市区町村
 r7_age5 https://www.e-stat.go.jp/stat-search/file-download?statInfId=000040506431&fileKind=0
+# 東京都の都加算（東京都障害者グループホーム支援事業）：説明会資料4（令和8年度版）・取扱要領・単価表
+tokasan_r8 https://www.shougaifukushi.metro.tokyo.lg.jp/Lib/Download.php?sqid=3728
+tokasan_youryou https://www.shougaifukushi.metro.tokyo.lg.jp/Lib/Download.php?sqid=3421
+tokasan_tanka https://www.shougaifukushi.metro.tokyo.lg.jp/Lib/Download.php?sqid=3418
