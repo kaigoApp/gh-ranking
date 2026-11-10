@@ -314,6 +314,50 @@ def wage_text(no):
     k = KOUCHIN.get(no)
     return f"平均工賃 月{k['yen']:,}円（{k['year']}）" if k else ""
 
+# 東京都の福祉サービス第三者評価を受けた事業所。scripts/fetch_hyoka.py が とうきょう福祉ナビゲーション の検索結果を取り、
+# scripts/parse_hyoka.py が事業所名・電話・法人名で WAM NET の事業所番号に結びつける（data/hyoka/matched.csv）。
+# 評価の点数や文章は載せず、受けた年度と公式の評価結果ページへのリンクだけを出す。
+HYOKA_TOP = "https://www.fukunavi.or.jp/fukunavi/hyoka/hyokatop.htm"
+HYOKA_LINK_KEYS = ("actionID cmd BEF_PRC HYK_ID HYK_ID1 HYK_ID2 HYK_ID3 HYK_ID4 HYK_ID5 JGY_CD1 JGY_CD2 JGY_CD3 JGY_CD4 "
+                   "JGY_CD5 SCHSVCSBRCD SVCDBRCD PTN_CD SVCSBRCDALL SVCSBRCD AREA1 AREA2 AREA3 HYK_YR SCHHYK_YR NAME "
+                   "JGY_CD MODE DVS_CD SVCDBR_CD SVCSBR_CD ROW").split()
+
+
+def load_hyoka():
+    """事業所番号 → [{c: WAM のサービス番号, year, svcname, url}]"""
+    path = ROOT / "data" / "hyoka" / "matched.csv"
+    out = collections.defaultdict(list)
+    if not path.exists():
+        return out
+    with path.open(encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            v = dict(actionID="hyk", cmd="hyklstdtldigest", BEF_PRC="hyk", HYK_ID=r["hyk_id"], SVCSBRCD=r["svc"],
+                     JGY_CD=r["fno"], MODE="multi", SVCDBR_CD="23")
+            url = ("https://www.fukunavi.or.jp/fukunavi/controller?"
+                   + urllib.parse.urlencode({k: v.get(k, "") for k in HYOKA_LINK_KEYS}))
+            out[r["no"]].append(dict(c=r["c"], year=r["year"], svcname=r["svcname"], url=url))
+    return out
+
+
+HYOKA = load_hyoka()
+
+
+def hyoka_for(no, c=None):
+    """その事業所（c があればそのサービス）の第三者評価。いちばん新しい年度のものを先に。"""
+    hs = [h for h in HYOKA.get(no, []) if c is None or c == h["c"]]
+    return sorted(hs, key=lambda h: int(re.sub(r"\D", "", h["year"]) or 0), reverse=True)
+
+
+def hyoka_chip(no, c):
+    h = hyoka_for(no, c)
+    return f'<span class="chip eval">第三者評価 {E(h[0]["year"])}</span>' if h else ""
+
+
+HYOKA_NOTE = ("東京都の福祉サービス第三者評価は、事業所とは別の評価機関が、利用者へのアンケートや事業所への訪問で運営やサービスの内容を調べ、結果を公表するしくみです。"
+              "障がい福祉のサービスでは、受けるかどうかを事業所が決めます。"
+              "受けていないことは、サービスがよくないという意味ではありません。")
+
+
 POP_PREF: dict = {}
 POP_MUNI: dict = collections.defaultdict(dict)
 POP_ASOF = [""]
@@ -1198,6 +1242,7 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                 t = E(o["munis"][mk][0])
                 chip = fresh_chip(no) if c == GH else (NEW_CHIP if no in new_nos[c] else "")
                 wage = f'<span class="wage">{E(wage_text(no))}</span>' if c == B_CODE and no in KOUCHIN else ""
+                chip += hyoka_chip(no, c)
                 return (f'<li{" class=has-fav" if fp else ""}{li_attrs(no, o, c, no in new_nos[c])}><b>{f"""<a href="{href(rel, fp)}">{t}</a>""" if fp else t}{chip}</b>{fav_btn(no, o["munis"][mk][0]) if fp else ""}'
                         f'<span>{corp_link(rel, o["corp_key"], o["corp"])}</span><span>{E(join_addr(mname, o["munis"][mk][1]))}</span>{wage}{when_html(o)}</li>')
             items = "".join(li(no, o) for no, o in offs)
@@ -1240,6 +1285,10 @@ def build_muni_services(S, codes, periods, latest, prev, new_nos, pref_munis):
                 wage_note = (f'<p class="sec-sub">平均工賃（利用者に支払った工賃の1人あたりの月平均）は、{E(KOUCHIN_PREF.get(k0["src"], pref))}が公表している{E(k0["year"])}の工賃実績から、'
                              f'事業所名で結びつけられた{n_wage}か所に出しています。この{n_wage}か所では、まん中の事業所が<b>月{ws[len(ws) // 2]:,}円</b>です。'
                              f'金額は事業所の作業や利用日数によって大きく変わるので、見学のときに確かめてください。</p>')
+            n_eval = sum(1 for no, _ in offs if hyoka_for(no, c))
+            if n_eval:
+                wage_note += (f'<p class="sec-sub"><span class="chip eval" style="margin-left:0">第三者評価</span> の印は、東京都の福祉サービス第三者評価を受けて結果が公表されている事業所です（{n_eval}か所）。'
+                              f'受けるかどうかは事業所が決めるもので、印がないことはサービスがよくないという意味ではありません。評価の内容は各事業所のページからご覧ください。</p>')
             body = f"""
 <section><h2>{E(mname)}の{E(short)}の一覧</h2>{density}<p class="sec-sub">{cur:,}か所の事業所があります。事業所名を押すと、電話番号や地図のある詳しいページへ移れます。{fresh_note}空き状況や費用などは、各事業所にお問い合わせください。</p>{wage_note}
 {tools}
@@ -1645,7 +1694,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
         """近くの同じサービスの事業所（まっすぐ測った距離）。"""
         hits = near.find(c, la, ln, k=k, skip=skip)
         return "".join(
-            f'<li><b><a href="{href(rel, fac_path(x))}">{E(names[x])}</a></b><span><b class="km tnum">{km_text(d)}</b>｜{E(offs[x][main[x]]["corp"])}｜{E(place_of(x))}</span>'
+            f'<li><b><a href="{href(rel, fac_path(x))}">{E(names[x])}</a>{hyoka_chip(x, c)}</b><span><b class="km tnum">{km_text(d)}</b>｜{E(offs[x][main[x]]["corp"])}｜{E(place_of(x))}</span>'
             + (f'<span class="wage">{E(wage_text(x))}</span>' if c == B_CODE and x in KOUCHIN else "") + '</li>'
             for d, x in hits), len(hits)
     by_corp = collections.defaultdict(list)
@@ -1741,6 +1790,13 @@ def build_facilities(S, codes, periods, latest, new_nos):
                          f'<b class="tnum">{k["yen"]:,}円</b><br><span class="note">就労継続支援B型で利用者に支払った工賃の1人あたりの月平均です。'
                          f'{E(src)}の公表資料（{E(k["year"])}の工賃実績）より。'
                          f'<a href="{E(KOUCHIN_URLS.get(k["src"], ""))}" rel="nofollow noopener" target="_blank">資料</a></span>'))
+        hs = list({h["url"]: h for h in hyoka_for(no) if h["c"] in cs}.values())  # 多機能型は1つの評価が2つのサービスに当たる
+        if hs:
+            info.append(("第三者評価（東京都）",
+                         "<br>".join(f'<b>{E(h["year"])}に受けています</b>（{E(h["svcname"])}）　'
+                                     f'<a href="{E(h["url"])}" rel="nofollow noopener" target="_blank">評価結果を見る</a>' for h in hs)
+                         + f'<br><span class="note">{E(HYOKA_NOTE)}評価の内容は、東京都福祉保健財団の'
+                           f'「<a href="{HYOKA_TOP}" rel="nofollow noopener" target="_blank">とうきょう福祉ナビゲーション</a>」でご覧ください。</span>'))
         if o["hours"]:
             info.append(("利用できる時間（平日）", E(o["hours"])))
         if o["closed"]:
