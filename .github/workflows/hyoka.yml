@@ -3,7 +3,7 @@ name: 第三者評価の取得
 on:
   push:
     branches: [main, hyoka]
-    paths: [scripts/fetch_hyoka.py, scripts/parse_hyoka.py, .github/workflows/hyoka.yml]
+    paths: [scripts/fetch_hyoka.py, scripts/hyoka_link.py, scripts/parse_hyoka.py, .github/workflows/hyoka.yml]
   schedule:
     # 毎月28日 9:43（日本時間）。月1日のページ更新で取りこまれる
     - cron: "43 0 28 * *"

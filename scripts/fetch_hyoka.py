@@ -15,6 +15,9 @@ import time
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from hyoka_link import hyoka_url  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "hyoka"
 B = "https://www.fukunavi.or.jp/fukunavi/"
@@ -98,11 +101,28 @@ def main():
                 out.append(r)
     if len(out) < 1000:  # 相手のサイトの作りが変わったときなど。前の一覧を消さないように止める
         sys.exit(f"取れた事業所が少なすぎます（{len(out)}件）。fukunavi の検索ページの作りが変わっていないか確かめてください")
+    check_links(out)
     with (OUT / "hyoka.csv").open("w", encoding="utf-8", newline="") as fp:
         w = csv.DictWriter(fp, fieldnames=["no", "svc", "svcname", "hyk_id", "year", "years", "name", "corp", "addr"])
         w.writeheader()
         w.writerows(sorted(out, key=lambda r: (r["no"], r["svc"])))
     print("written", len(out))
+
+
+def check_links(out):
+    """サイトに出すリンクで評価結果ページが開けるか、いくつか確かめる。福ナビの作りが変わったら止めて知らせる。"""
+    fresh = urllib.request.build_opener()  # リンクを初めて押す人と同じく、クッキーなし
+    bad = 0
+    for r in out[:: max(1, len(out) // 5)][:5]:
+        u = hyoka_url(r["hyk_id"], r["svc"], r["no"])
+        res = fresh.open(urllib.request.Request(u, headers=UA), timeout=40)
+        t = res.read().decode("utf-8", "replace")
+        ok = "error.html" not in res.geturl() and "評価結果" in t and r["name"].split("／")[0][:4] in t
+        print("link", "OK" if ok else "NG", r["name"], res.geturl()[-40:])
+        bad += not ok
+        time.sleep(1.5)
+    if bad:
+        sys.exit("評価結果ページへのリンクが開けません。scripts/hyoka_link.py の項目を、福ナビの一覧で事業所名を押したときの URL に合わせて直してください")
 
 
 if __name__ == "__main__":

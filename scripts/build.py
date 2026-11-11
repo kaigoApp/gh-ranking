@@ -317,10 +317,8 @@ def wage_text(no):
 # 東京都の福祉サービス第三者評価を受けた事業所。scripts/fetch_hyoka.py が とうきょう福祉ナビゲーション の検索結果を取り、
 # scripts/parse_hyoka.py が事業所名・電話・法人名で WAM NET の事業所番号に結びつける（data/hyoka/matched.csv）。
 # 評価の点数や文章は載せず、受けた年度と公式の評価結果ページへのリンクだけを出す。
+from hyoka_link import hyoka_url  # noqa: E402  福ナビの評価結果ページへのリンク
 HYOKA_TOP = "https://www.fukunavi.or.jp/fukunavi/hyoka/hyokatop.htm"
-HYOKA_LINK_KEYS = ("actionID cmd BEF_PRC HYK_ID HYK_ID1 HYK_ID2 HYK_ID3 HYK_ID4 HYK_ID5 JGY_CD1 JGY_CD2 JGY_CD3 JGY_CD4 "
-                   "JGY_CD5 SCHSVCSBRCD SVCDBRCD PTN_CD SVCSBRCDALL SVCSBRCD AREA1 AREA2 AREA3 HYK_YR SCHHYK_YR NAME "
-                   "JGY_CD MODE DVS_CD SVCDBR_CD SVCSBR_CD ROW").split()
 
 
 def load_hyoka():
@@ -331,10 +329,7 @@ def load_hyoka():
         return out
     with path.open(encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            v = dict(actionID="hyk", cmd="hyklstdtldigest", BEF_PRC="hyk", HYK_ID=r["hyk_id"], SVCSBRCD=r["svc"],
-                     JGY_CD=r["fno"], MODE="multi", SVCDBR_CD="23")
-            url = ("https://www.fukunavi.or.jp/fukunavi/controller?"
-                   + urllib.parse.urlencode({k: v.get(k, "") for k in HYOKA_LINK_KEYS}))
+            url = hyoka_url(r["hyk_id"], r["svc"], r["fno"])
             out[r["no"]].append(dict(c=r["c"], year=r["year"], svcname=r["svcname"], url=url))
     return out
 
