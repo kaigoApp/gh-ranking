@@ -726,3 +726,23 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 /* グループホームのまわり（事業所ページ） */
 .gh-around table.info th { white-space: nowrap; }
 .gh-around table.info td b { font-weight: 700; }
+
+/* ---- トップの帯：写真（手と手）。写真は生成画像なので「イメージ」と小さく書く ---- */
+.band.photo { position: relative; background: var(--ink) url(../img/hero-hands-sp.webp) center bottom / 100% auto no-repeat; }
+.band.photo::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, var(--ink) 0%, var(--ink) 48%, rgb(12 71 70 / .55) 64%, rgb(12 71 70 / 0) 82%); pointer-events: none; }
+.band.photo .hero { position: relative; }
+.band.photo .hero.split .container { padding-bottom: min(70vw, 420px); }
+.band.photo .hero-copy h1 { font-family: "Noto Sans JP", var(--f-display); letter-spacing: 0; }
+.band.photo .hero .lede { color: var(--on-ink); opacity: .9; }
+.photo-note { position: absolute; right: 12px; bottom: 76px; font-size: 10px; color: rgb(255 255 255 / .85); letter-spacing: .05em; text-shadow: 0 1px 3px rgb(0 0 0 / .6); }
+@media (min-width: 900px) {
+  .band.photo { background: #1d2a26 url(../img/hero-hands.webp) center / cover no-repeat; }
+  .band.photo::before { background: linear-gradient(90deg, rgb(0 0 0 / .55), rgb(0 0 0 / .1) 60%); }
+  .band.photo .hero.split .container { grid-template-columns: minmax(0, 1fr); min-height: 600px; padding-bottom: 140px; }
+  .band.photo .hero-copy { max-width: 560px; }
+  .band.photo .hero-copy h1 { font-size: 64px; line-height: 1.22; }
+  .photo-note { right: 20px; bottom: 92px; }
+}
+.top-map { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; margin-bottom: 18px; box-shadow: var(--shadow); }
+.top-map .map-h span { color: var(--muted); }
+@media (min-width: 900px) { .top-map { max-width: 520px; } }

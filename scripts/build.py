@@ -508,7 +508,7 @@ LOGO = ('<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2C9.4 2 4 7.3 
         '<circle cx="23.5" cy="6.5" r="3.5" fill="var(--sun)"/></svg>')
 
 
-def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False, og: str = "og/top.png", noindex=False) -> None:
+def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = "", split=False, og: str = "og/top.png", noindex=False, band: str = "") -> None:
     """path は public/ からの相対パス（"s/group-home/" など、末尾スラッシュ）。og はシェア用画像の public/ からのパス。
     noindex のページ（保存した事業所など、人ごとに中身が変わるページ）は検索に出さず、sitemap にも入れない。"""
     depth = path.count("/")
@@ -536,7 +536,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
 <link rel="apple-touch-icon" href="{rel}apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@900&display=swap">
 <link rel="stylesheet" href="{rel}assets/site.css">{ld}{GA_TAG.format(id=GA_ID) if GA_ID else ""}
 </head>
 <body>
@@ -544,7 +544,7 @@ def page(path: str, title: str, desc: str, hero: str, body: str, scripts: str = 
   <a class="brand" href="{rel or './'}">{LOGO}<span class="wm">{SITE_NAME}</span><span class="tag">{TAGLINE}</span></a>
   <nav class="site-nav" aria-label="サイト内"><a href="{rel}#purpose">目的からさがす</a><a href="{rel}#prefs">地域からさがす</a><a href="{rel}data/">データ</a><a class="rep" href="{rel}report/area/"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h7l3.5 3.5v11.5h-10.5z M12 2.5v3.5h3.5 M7.5 10h5 M7.5 13h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>地域レポート</a><a class="find" href="{rel or './'}#search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>さがす</a></nav>
 </div></header>
-<div class="band"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
+<div class="band{' ' + band if band else ''}"><div class="hero{' split' if split else ''}"><div class="container">{hero}</div></div></div>
 <main><div class="container">{body}</div></main>
 <footer class="site-foot"><div class="container">
   <div class="foot-brand">{LOGO}<div><b>{SITE_NAME}</b><span>{TAGLINE}。全国の障害福祉サービスの事業所を、国の公表データからまとめています。</span></div></div>
@@ -782,7 +782,8 @@ def build():
   <p class="lede">グループホーム、就労支援、放課後等デイサービスまで。国の公表データをもとに、全国{tot:,}か所の事業所を地域とサービスからさがせます。</p>
   {SEARCH_FORM}
 </div>
-<div class="hero-map">
+<span class="photo-note" aria-hidden="true">写真はイメージです</span>"""
+    top_map = f"""<div class="top-map">
   <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
   {tilemap(rates, links, titles, "都道府県を押すと、その地域のページへ移ります。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}
 </div>"""
@@ -833,7 +834,7 @@ def build():
 <a class="pro-link" href="data/"><span class="eyebrow">お仕事で使う方へ</span><b>地域ごとのくらべ表と、ダウンロードできるデータ</b><span>事業所の運営・相談支援・自治体の計画づくりに。市区町村ごとの事業所数と増え方、半年間に新しく載った事業所の一覧を、Excel で開けるファイルでも配っています。</span><i aria-hidden="true">→</i></a>
 <a class="pro-link" href="report/{latest}/"><span class="eyebrow">レポート</span><b>障害福祉の事業所はどう変わったか（{E(LATEST_LABEL)}）</b><span>増え方、地域の差、入れ替わり、運営法人の変化を、国の公表データからまとめました。データが新しくなるたびに更新します。</span><i aria-hidden="true">→</i></a>
 {fresh_top}
-<section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p><div class="regions">{prefs_html}</div></section>
+<section id="prefs"><h2>地域からさがす</h2><p class="sec-sub">都道府県を選ぶと、市区町村ごとの事業所の一覧へ進めます。数字は全サービスの延べ事業所数です。</p>{top_map}<div class="regions">{prefs_html}</div></section>
 <section class="data-zone"><div class="data-h"><span class="eyebrow">データで見る</span><h2>障害福祉の事業所は、いまも増えています</h2>
 <p class="sec-sub">全サービスの延べ事業所数の推移。{E(label(periods[first_i]))}から<b>{ratio:.2f}倍</b>になりました。初期の数字は、公表システムへの登録が行き渡る前のため少なめに出ている可能性があります。</p></div>
 {trend_chart(periods, total_series)}
@@ -841,7 +842,7 @@ def build():
 <div class="table-wrap"><table><thead><tr><th class="r">順位</th><th>市区町村</th><th class="r">事業所数</th><th class="r">半年の増減</th></tr></thead><tbody>{inc_rows}</tbody></table></div></div>
 </section>"""
     page("", f"{SITE_NAME}｜{TAGLINE}", f"全国の障害福祉サービス事業所（{LATEST_LABEL}時点 {tot:,}件）を、グループホーム・就労支援・放課後等デイなどサービス別、都道府県・市区町村別にさがせます。国の公表データから自動更新。",
-         hero, body, '<script src="assets/search.js" defer></script>', split=True,
+         hero, body, '<script src="assets/search.js" defer></script>', split=True, band="photo",
          og=og_image("top", "全国の障害福祉サービス", "地元の障害福祉を、ちゃんと見つける。", tot, "か所",
                      [f"{len(codes)}種類のサービス", f"{len(all_munis):,}の市区町村", "地域と目的からさがせます"]))
 
