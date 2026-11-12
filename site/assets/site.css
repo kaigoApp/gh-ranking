@@ -727,21 +727,34 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .gh-around table.info th { white-space: nowrap; }
 .gh-around table.info td b { font-weight: 700; }
 
-/* ---- トップの帯：写真（手と手）。写真は生成画像なので「イメージ」と小さく書く ---- */
-.band.photo { position: relative; background: var(--ink) url(../img/hero-hands-sp.webp) center bottom / 100% auto no-repeat; }
-.band.photo::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, var(--ink) 0%, var(--ink) 48%, rgb(12 71 70 / .55) 64%, rgb(12 71 70 / 0) 82%); pointer-events: none; }
+/* ---- トップの帯：写真（手と手）。写真は生成画像なので「イメージ」と小さく書く ----
+   スマホ：明るい地に濃い文字、写真は検索欄の下に角丸で置く（暗い帯だと怖く見えるため）
+   パソコン：写真を帯いっぱいに敷き、左を少し暗くして白い文字 */
+.band.photo { position: relative; background: #f5f2ec; color: var(--fg); }
+.band.photo a { color: var(--fg); }
+.band.photo .eyebrow { color: var(--accent); }
+.band.photo .hero .lede { color: #3b4846; }
+.band.photo .search label { color: var(--fg); }
+.band.photo .search .status { color: var(--muted); }
+.band.photo .search .field { border-color: var(--line); box-shadow: 0 6px 20px rgb(12 71 70 / .1); }
+.band.photo .search .field:focus-within { border-color: var(--brand); }
 .band.photo .hero { position: relative; }
-.band.photo .hero.split .container { padding-bottom: min(70vw, 420px); }
+.band.photo .hero.split .container::after { content: ""; display: block; aspect-ratio: 4 / 3; border-radius: 18px; background: url(../img/hero-hands-sp.webp) center / cover no-repeat; box-shadow: 0 10px 30px rgb(12 71 70 / .15); }
 .band.photo .hero-copy h1 { font-family: "Noto Sans JP", var(--f-display); letter-spacing: 0; }
-.band.photo .hero .lede { color: var(--on-ink); opacity: .9; }
-.photo-note { position: absolute; right: 12px; bottom: 76px; font-size: 10px; color: rgb(255 255 255 / .85); letter-spacing: .05em; text-shadow: 0 1px 3px rgb(0 0 0 / .6); }
+.photo-note { position: absolute; right: 28px; bottom: 106px; font-size: 10px; color: #fff; letter-spacing: .05em; text-shadow: 0 1px 3px rgb(0 0 0 / .6); }
 @media (min-width: 900px) {
-  .band.photo { background: #1d2a26 url(../img/hero-hands.webp) center / cover no-repeat; }
-  .band.photo::before { background: linear-gradient(90deg, rgb(0 0 0 / .55), rgb(0 0 0 / .1) 60%); }
+  .band.photo { background: #1d2a26 url(../img/hero-hands.webp) center / cover no-repeat; color: var(--on-ink); }
+  .band.photo::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgb(0 0 0 / .55), rgb(0 0 0 / .1) 60%); pointer-events: none; }
+  .band.photo a, .band.photo .search label { color: var(--on-ink); }
+  .band.photo .eyebrow { color: var(--accent-on-ink); }
+  .band.photo .hero .lede { color: var(--on-ink); opacity: .9; }
+  .band.photo .search .status { color: var(--on-ink-muted); }
+  .band.photo .search .field { border-color: transparent; box-shadow: 0 8px 30px rgb(0 0 0 / .25); }
   .band.photo .hero.split .container { grid-template-columns: minmax(0, 1fr); min-height: 600px; padding-bottom: 140px; }
+  .band.photo .hero.split .container::after { display: none; }
   .band.photo .hero-copy { max-width: 560px; }
   .band.photo .hero-copy h1 { font-size: 64px; line-height: 1.22; }
-  .photo-note { right: 20px; bottom: 92px; }
+  .photo-note { right: 20px; bottom: 92px; color: rgb(255 255 255 / .85); }
 }
 .top-map { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; margin-bottom: 18px; box-shadow: var(--shadow); }
 .top-map .map-h span { color: var(--muted); }
