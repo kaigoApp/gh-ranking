@@ -781,9 +781,10 @@ def build():
   <h1>地元の障害福祉を、<br>ちゃんと見つける。</h1>
   <p class="lede">グループホーム、就労支援、放課後等デイサービスまで。国の公表データをもとに、全国{tot:,}か所の事業所を地域とサービスからさがせます。</p>
   {SEARCH_FORM}
+  <a class="map-jump" href="#map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5l5-2 5 2 5-2v12l-5 2-5-2-5 2z M7.5 3v12 M12.5 5v12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>地図からさがす</a>
 </div>
 <span class="photo-note" aria-hidden="true">写真はイメージです</span>"""
-    top_map = f"""<div class="top-map">
+    top_map = f"""<div class="top-map" id="map">
   <div class="map-h"><b>地図からさがす</b><span>色が濃いほど、この1年で事業所が増えた都道府県</span></div>
   {tilemap(rates, links, titles, "都道府県を押すと、その地域のページへ移ります。", f"{min(rv):+.1f}%", f"{max(rv):+.1f}%")}
 </div>"""
