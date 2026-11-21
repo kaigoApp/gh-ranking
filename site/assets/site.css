@@ -763,3 +763,9 @@ ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .map-jump svg { width: 20px; height: 20px; }
 .map-jump:hover { border-color: var(--brand); }
 #map { scroll-margin-top: 80px; }
+/* 地域レポートの受け取りフォーム（/report/area/） */
+.form fieldset.chks { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; min-width: 0; }
+.form fieldset.chks legend { font-weight: 700; font-size: 16px; padding: 0; margin-bottom: 8px; }
+.form label.chk { display: flex; gap: 10px; align-items: center; font-weight: 400; }
+.form label.chk input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--brand); }
+#dl-form > label { align-content: start; }

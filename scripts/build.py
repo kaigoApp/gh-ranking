@@ -637,13 +637,11 @@ def href(rel, path):
 
 PAGES: list[str] = []
 OG_JOBS: dict = {}        # シェア用画像のパス → 画像に書く内容
-# BOOTH へのボタンが押されたら booth_click として記録する（city は売り場の表の行の市区名）。
 # 地域レポートへの案内（data-cta のあるリンク）が押されたら report_cta として、どの入口からかを記録する
 # 広告（data-ad のあるリンク）が押されたら ad_click として、どのページの種類からかを記録する
 GA_TAG = """
 <script async src="https://www.googletagmanager.com/gtag/js?id={id}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','{id}');
-document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[href*="booth.pm"]');if(!a)return;var r=a.closest('tr[id]');gtag('event','booth_click',{{link_url:a.href,city:r?r.id:'',transport_type:'beacon'}});}});
 document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-cta]');if(a)gtag('event','report_cta',{{cta_from:a.getAttribute('data-cta'),link_url:a.href,transport_type:'beacon'}});}});
 document.addEventListener('click',function(e){{var a=e.target.closest&&e.target.closest('a[data-ad]');if(a)gtag('event','ad_click',{{ad_from:a.getAttribute('data-ad'),transport_type:'beacon'}});}});</script>"""
 OG_META = """
@@ -1834,7 +1832,7 @@ def build_facilities(S, codes, periods, latest, new_nos):
                 if mpop and ppop and Lm["pref"].get(pi):
                     tiles.append((f"{mk[1]}の人口1万人あたり（{pref}は{Lm['pref'][pi] / ppop * 10000:.1f}）", f"{Lm['muni'].get(mk, 0) / mpop * 10000:.1f}", "か所"))
             ar = area_report_for(pi, mk[1]) if mk else None
-            more = (f'<a href="{href(rel, AREA_PATH)}" data-cta="fac_around">{E(ar["city"])}の地域レポート（くわしい数字・有料）</a>' if ar
+            more = (f'<a href="{href(rel, AREA_PATH)}" data-cta="fac_around">{E(ar["city"])}の地域レポート（くわしい数字・無料）</a>' if ar
                     else (f'<a href="{href(rel, matome_path(*mk))}">{E(mk[1])}のまとめ（サービス別の数と増え方）</a>' if mk else ""))
             around_sec = (f'<section class="around"><h2>この事業所のまわり</h2><p class="sec-sub">事業所の方へ。{E(LATEST_LABEL)}時点の国の公表データから、同じ{E(short)}のまわりの様子をまとめました。距離はまっすぐ測ったものです。</p>'
                           '<div class="around-tiles">' + "".join(f'<div><span>{E(t)}</span><b class="tnum">{v}</b><i>{u}</i></div>' for t, v, u in tiles) + '</div>'
@@ -2414,7 +2412,7 @@ def build_kurashi(S, codes, periods, latest, prev):
 <li>空きがあるか、どんな支援をしているかは、事業所ごとに違います。気になる事業所には見学を申しこんでみてください（<a href="{href(rel, "start/kengaku/")}">見学チェックシート</a>）。</li>
 <li>どのサービスを使えばいいかわからないときは、<a href="{href(rel, "start/")}">どのサービスを探せばいい？</a>や、{E(mname)}の障がい福祉の窓口・相談支援事業所に相談できます。</li>
 </ul></section>
-<aside class="ks-pro noprint"><p>{E(mname)}で事業所の開設を考えている方へ：人口あたりの数や競合の状況、収支の試算をまとめた<a data-cta="kurashi" href="{href(rel, AREA_PATH)}{('#' + urllib.parse.quote(x['city'])) if x else ''}">地域レポート（有料）</a>もあります。</p></aside>
+<aside class="ks-pro noprint"><p>{E(mname)}で事業所の開設を考えている方へ：人口あたりの数や競合の状況、収支の試算をまとめた<a data-cta="kurashi" href="{href(rel, AREA_PATH)}{('#' + urllib.parse.quote(x['city'])) if x else ''}">地域レポート（無料）</a>もあります。</p></aside>
 <p class="note">{E(CSV_SOURCE)}（{E(LATEST_LABEL)}時点）。{E(POP_SOURCE)}（{E(POP_ASOF[0])}）。{"就労B型の工賃は各都道府県の工賃実績の公表資料から。" if wage_html else ""}</p>"""
         words = "・".join(f"{r['h']}{r['word'][1]}" for r in rows)
         page(kurashi_path(pi, mname), f"{mname}（{pref}）の障がいのある方のくらしやすさ｜福祉サービスの充実度",
@@ -2562,6 +2560,14 @@ def build_privacy():
 <p>★で保存した事業所と、書きこんだメモは、お使いの端末のブラウザの中にだけ残ります。{SITE_NAME}には送られません。ブラウザの記録を消すと、保存も消えます。保存した事業所のページの地図は、国土地理院の地図（地理院タイル）を読みこんで表示しています。</p></section>
 <section><h2>お問い合わせで送られた情報</h2>
 <p><a href="{rel}contact/">お問い合わせ</a>で入力されたお名前・メールアドレス・内容は、メールで{SITE_NAME}の運営者に届きます。お返事をするためだけに使い、ほかの目的には使いません。続けて大量に送られるのを防ぐため、送った日時と、IP アドレスを元に戻せない形に変えたものを3日間だけ残します。</p></section>
+<section id="report"><h2>地域レポートの受け取りで入力された情報</h2>
+<p><a href="{rel}{AREA_PATH}">地域レポート（無料）</a>の受け取りで入力されたメールアドレス・お立場・法人・団体名・選んだ市区と版は、{SITE_NAME}のサーバー（エックスサーバー）の公開されていない場所に保存し、運営者にもメールで届きます。</p>
+<ul>
+<li>使いみち：レポートのダウンロード用のリンクを送るため、どんな方に使われているかを知ってレポートやサイトをよくするため、運営者からのご案内（新しいレポート、データの更新、事業所の開設・運営に役立つサービスのご案内）を送るため。</li>
+<li>ご案内のメールは「お知らせを受け取る」に印をつけた方だけに送ります。不要になったときは、メールに書いてある方法か<a href="{rel}contact/">お問い合わせ</a>から止められ、保存した情報の削除もお申し出いただけます。</li>
+<li>法令にもとづく場合をのぞき、ご本人の同意なく第三者に渡したり、売ったりすることはありません。</li>
+<li>続けて大量に送られるのを防ぐため、送った日時と、IP アドレスを元に戻せない形に変えたものを3日間だけ残します。</li>
+</ul></section>
 <section><h2>掲載している情報</h2>
 <p>事業所の情報は、独立行政法人福祉医療機構 <a href="https://www.wam.go.jp/content/wamnet/pcpub/top/sfkopendata/">WAM NET のオープンデータ</a>をもとにしています。内容は国の公表データのとおりで、{SITE_NAME}が事業所に確認したものではありません。</p></section>"""
     page("privacy/", "プライバシーとアクセス解析について",
@@ -2963,12 +2969,12 @@ def build_contact():
   });
   // 「もどる」で戻ったときにボタンが押せないままにならないように
   window.addEventListener("pageshow", function () { f.querySelector("button[type=submit]").disabled = false; });
-  // 市区町村のページの「レポートを注文する」から来たときは、種類と内容を先に入れておく
+  // 市区町村のページの「レポートをリクエストする」から来たときは、種類と内容を先に入れておく
   var q = new URLSearchParams(location.search), r = q.get("r");
   if (r && r.length <= 40) {
     f.elements.kind.value = "レポートについて";
     var ed = (q.get("ed") || "").slice(0, 40);
-    f.elements.body.value = r + "の地域レポート" + (ed ? "（" + ed + "）" : "") + "を注文したいです。\\n";
+    f.elements.body.value = r + "の地域レポート" + (ed ? "（" + ed + "）" : "") + "を作ってほしいです（リクエスト）。\\n";
   }
   // 事業所ページの「まちがいを知らせる」から来たとき
   var fno = q.get("f") || "", fn = (q.get("fn") || "").slice(0, 80);
@@ -3049,47 +3055,42 @@ def area_box(rel, pi, mname, c, per=None, half=None, n_new=0):
         facts.append(f'<li><b>新しく開くときの規制</b>：{E(short)}は、市区町村によって新しい指定を止めていることがあります（総量規制）。'
                      f'<a href="{href(rel, KISEI_PATH)}">わかっている市区町村の一覧</a></li>')
     if x:
-        cta = (f'<p>{E(x["city"])}の地域レポート（{E(ed["name"])}）では、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめています（{E(LATEST_LABEL)}のデータ、すぐにダウンロードできます）。</p>'
-               f'<a class="area-btn" data-cta="muni-svc" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">内容と価格を見る</a>')
+        cta = (f'<p>{E(x["city"])}の地域レポート（{E(ed["name"])}）では、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめています（{E(LATEST_LABEL)}のデータ、無料でお送りします）。</p>'
+               f'<a class="area-btn" data-cta="muni-svc" href="{href(rel, AREA_PATH)}#{urllib.parse.quote(x["city"])}">無料で受け取る</a>')
     else:
         q = urllib.parse.urlencode({"r": PREFS[pi] + mname, "ed": ed["name"]})
-        cta = (f'<p>{E(mname)}の地域レポート（{E(ed["name"])}）をご注文いただければ、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめてお届けします。'
-               f'価格は{SHOP["price_one"]:,}円（税込み）、ご注文から1週間前後です。</p>'
-               f'<a class="area-btn" data-cta="muni-svc-order" href="{href(rel, "contact/")}?{E(q)}">{E(mname)}のレポートを注文する</a>'
-               f'<a class="area-sub" href="{href(rel, AREA_PATH)}">内容と見本を見る</a>')
+        cta = (f'<p>{E(mname)}の地域レポート（{E(ed["name"])}）をリクエストいただければ、開設候補地の評価、競合の状況、収支試算と回収期間までを1冊にまとめて、無料でお届けします。'
+               f'リクエストから1週間前後です。</p>'
+               f'<a class="area-btn" data-cta="muni-svc-order" href="{href(rel, "contact/")}?{E(q)}">{E(mname)}のレポートをリクエストする</a>'
+               f'<a class="area-sub" href="{href(rel, AREA_PATH)}">内容を見る</a>')
     return (f'<aside class="area-box"><p class="eyebrow">{E(mname)}で{E(short)}の開設を考えている方へ</p>'
             f'<h2>開設の前に見ておきたい数字</h2><ul class="area-facts">{"".join(facts)}</ul>{cta}'
             f'<p class="area-more">あわせて読む：<a href="{href(rel, KISEI_PATH)}">新しく開けない市区町村</a>　<a href="{href(rel, GH2027_PATH)}">グループホームの総量規制（2027年4月から）</a>　<a href="{href(rel, RANKING_PATH)}">人口あたりの事業所が多い市・少ない市</a></p></aside>')
 
 
-def build_area_reports():
-    """地域別レポート（有料、BOOTH で販売）の売り場。"""
-    rel = "../../"
-    one, st = SHOP["price_one"], SHOP["price_set"]
+REPORT_ROLES = ["ご本人・ご家族", "事業所の開設を考えている", "事業所を運営している", "相談支援・支援の仕事", "行政・学校・研究・報道", "その他"]   # site/report/dl.php は files.json の roles で確かめる
 
-    def buy(x, label_):
-        if x["booth"]:
-            return f'<a class="area-btn" href="{E(x["booth"])}" rel="noopener" target="_blank">{label_}</a>'
-        return '<span class="area-btn off">準備中</span>'
+
+def build_area_reports():
+    """地域別レポート（無料）の配布ページ。メールアドレスと引き換えに、ダウンロード用のリンクをメールで送る（site/report/dl.php）。"""
+    rel = "../../"
     eds = "".join(
         f'<div><h3>{E(e["name"])}</h3><p class="note">{E(e["for"])}</p><ul>' + "".join(f"<li>{E(s)}</li>" for s in e["points"]) + "</ul></div>"
         for e in SHOP["editions"])
-    def city_cell(x):
-        name = E(x["city"])
-        if x["booth"]:
-            name = f'<a href="{E(x["booth"])}" rel="noopener" target="_blank">{name}</a>'
-        return f'<th>{name}<small>{E(x["pref"])}</small></th>'
     rows = "".join(
-        f'<tr id="{E(x["city"])}">{city_cell(x)}'
-        f'<td>{buy(x, "BOOTH で買う")}</td></tr>'
+        f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small></th>'
+        f'<td><a class="area-btn" href="#dl" data-city="{E(x["city"])}">無料で受け取る</a></td></tr>'
         for x in SHOP["cities"])
-    sample = SHOP.get("sample_pdf")
+    city_opts = "".join(f'<option value="{E(x["city"])}">{E(x["city"])}（{E(x["pref"])}）</option>' for x in SHOP["cities"])
+    ed_boxes = "".join(f'<label class="chk"><input type="checkbox" name="ed[]" value="{E(e["key"])}" checked> {E(e["name"])}</label>' for e in SHOP["editions"])
+    role_opts = "".join(f"<option>{E(r)}</option>" for r in REPORT_ROLES)
     contact = href(rel, "contact/")
     hero = f"""<div>
   {crumbs(rel, [("レポート", href(rel, "report/")), ("地域レポート", None)])}
   <div class="eyebrow" style="margin-top:12px">数字ならジモふく　{E(LATEST_LABEL)}のデータ</div>
-  <h1>開設・事業拡大を、データで判断するための地域レポート</h1>
-  <p class="lede">全国の市区町村に対応します。開設候補地の評価、競合の状況、収支試算と回収期間を1冊にまとめた PDF です。商圏分析やセミナー資料にも使えます。下の{len(SHOP["cities"])}市区はすぐにダウンロードでき、ほかの市区町村はご注文を受けてから作成します。サービスごとに3つの版があります。</p>
+  <h1>開設・事業拡大を、データで判断するための地域レポート（無料）</h1>
+  <p class="lede">開設候補地の評価、競合の状況、収支試算と回収期間を1冊にまとめた PDF です。商圏分析やセミナー資料にも使えます。下の{len(SHOP["cities"])}市区は、メールアドレスを入力するとすぐに受け取れます。ほかの市区町村も、リクエストをいただければ作成します。サービスごとに3つの版があります。</p>
+  <p><a class="area-btn" href="#dl">無料で受け取る</a></p>
 </div>"""
     uses = [("開設・事業拡大を検討している方", "どの地域に、どのサービスで開設・増設するかを、需要と競合の数字で判断できます。収支試算と必要資金は、事業計画や融資の相談の下書きに使えます。"),
             ("商圏分析をしたい法人の方", "既存の事業所の周辺や、新しい拠点の候補地について、需給指数と競合の状況を町丁目単位で確認できます。"),
@@ -3097,19 +3098,28 @@ def build_area_reports():
     uses_html = "".join(f"<div><h3>{E(h)}</h3><p>{E(t)}</p></div>" for h, t in uses)
     body = f"""
 <section><h2>こんな方に</h2><div class="report-cols area-eds">{uses_html}</div></section>
-<section><h2>価格</h2>
-<div class="price-row"><div><span class="n">{one:,}</span><span class="u">円</span><p>1つの市区町村・1つの版</p></div>
-<div><span class="n">{st:,}</span><span class="u">円</span><p>1つの市区町村・3つの版のセット</p></div></div>
-<p class="note">税込みの価格です。下の一覧にある市区は、BOOTH（ピクシブが運営するショップのサービス）で購入後すぐに PDF をダウンロードできます。</p></section>
-<section><h2>無料の見本</h2><p class="sec-sub">見本として、千葉県船橋市の放課後等デイ・児童発達支援版の前半を公開しています（数字の一部はぼかしています）。どの市区町村・どの版も、同じ構成で作成します。</p>
-{f'<a class="area-btn" href="{href(rel, sample)}">見本の PDF を見る</a>' if sample else ''}</section>
 <section><h2>3つの版の内容</h2><div class="report-cols area-eds">{eds}</div>
 <h3>どの版にも入っている内容</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
-<section><h2>すぐにダウンロードできる市区</h2><p class="sec-sub">作成済みの市区です。どの市区も3つの版（放デイ・児発／グループホーム／就労B型）があります。市区の名前か「BOOTH で買う」を押すと BOOTH の商品ページに移り、そこで版を選べます。</p>
+<section><h2>作成済みの市区</h2><p class="sec-sub">どの市区も3つの版（放デイ・児発／グループホーム／就労B型）があります。「無料で受け取る」を押すと、下の入力欄にその市区が入ります。</p>
 <div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
+<section id="dl"><h2>無料で受け取る</h2>
+<p class="sec-sub">入力したメールアドレスに、ダウンロード用のリンクをお送りします（リンクは30日間使えます）。</p>
+<form class="form" method="post" action="dl.php" id="dl-form">
+  <label><span>市区<span class="req">必須</span></span><select name="city" required><option value="">選んでください</option>{city_opts}</select></label>
+  <fieldset class="chks"><legend>版<span class="req">必須</span></legend>{ed_boxes}</fieldset>
+  <label class="wide"><span>メールアドレス<span class="req">必須</span></span><input name="email" type="email" maxlength="254" required autocomplete="email" inputmode="email"></label>
+  <label><span>お立場<span class="req">必須</span></span><select name="role" required><option value="">選んでください</option>{role_opts}</select></label>
+  <label><span>法人・団体名<span class="opt">任意</span></span><input name="org" maxlength="100" autocomplete="organization"></label>
+  <label class="chk wide"><input type="checkbox" name="news" value="1" checked> 新しいレポートやデータの更新のお知らせを、メールで受け取る</label>
+  <div class="hp" aria-hidden="true"><label>空けておいてください<input name="website" tabindex="-1" autocomplete="off"></label></div>
+  <input type="hidden" name="e" value="0">
+  <p class="note wide">入力された内容の扱いは<a href="{href(rel, "privacy/")}#report">プライバシーについて</a>をご覧ください。メールが届かないときは、迷惑メールのフォルダもご確認ください。</p>
+  <button class="btn" type="submit">メールで受け取る</button>
+  <noscript><p class="callout">送るには、ブラウザの JavaScript を有効にしてください。</p></noscript>
+</form></section>
 <section id="order"><h2>ほかの市区町村のレポート</h2>
-<p>上の一覧にない市区町村も作成できます。<a href="{contact}">お問い合わせ</a>から、種類で「レポートについて」を選び、市区町村名と版（放デイ・児発／グループホーム／就労B型）をお知らせください。作成できるかを確認したうえで、お届けの時期と購入方法をメールでご案内します。価格は上と同じです。</p>
-<a class="area-btn" href="{contact}">お問い合わせから注文する</a></section>
+<p>上の一覧にない市区町村も作成できます（無料）。<a href="{contact}">お問い合わせ</a>から、種類で「レポートについて」を選び、市区町村名と版（放デイ・児発／グループホーム／就労B型）をお知らせください。作成できるかを確認したうえで、お届けの時期をメールでご案内します。</p>
+<a class="area-btn" href="{contact}">お問い合わせからリクエストする</a></section>
 <section><h2>開設を考える方への読み物（無料）</h2><ul>
 <li><a href="{href(rel, KISEI_PATH)}">新しく開けない市区町村は？ 障害福祉の総量規制まとめ</a></li>
 <li><a href="{href(rel, GH2027_PATH)}">グループホームは2027年4月から総量規制の対象に</a></li>
@@ -3119,12 +3129,49 @@ def build_area_reports():
 <li>総量規制の状況は、作成時点で市区町村の公表資料を確認したものです。開設の準備を始める前に、必ず市区町村の最新の案内を確認してください。</li>
 <li>収支試算は、全国の事業所の経営データを地域の報酬単価・給与水準・家賃に合わせたもので、開設を判断するためのたたき台です。</li>
 <li>レポートの数字や図は、出典（ジモふく）を明記すれば資料などに引用できます。PDF そのものの再配布はご遠慮ください。</li></ul></section>"""
-    page(AREA_PATH, "地域レポート｜障害福祉事業所の開設を検討する方へ",
-         f"障害福祉事業所の開設・商圏分析・セミナー資料に。全国の市区町村について、開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF（{LATEST_LABEL}のデータ）。",
-         hero, body,
-         og=og_image("report-area", "数字ならジモふく", "地域レポート", None, "",
-                     ("開設候補地の評価・競合・収支試算を1冊に", "全国の市区町村に対応（PDF）", f"{len(SHOP['cities'])}市区はすぐにダウンロード"),
+    script = """<script>
+(function () {
+  var f = document.getElementById("dl-form"), t0 = Date.now(), sel = f.elements.city;
+  function pick(c) { for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === c) { sel.value = c; return true; } return false; }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-city]");
+    if (a) pick(a.getAttribute("data-city"));
+  });
+  // 市区町村のページから #市区名 で来たときは、その市区を先に選んでおく
+  try { var h = decodeURIComponent(location.hash.slice(1)); if (h) pick(h); } catch (e) {}
+  f.addEventListener("submit", function (ev) {
+    if (!f.querySelector("input[name='ed[]']:checked")) { ev.preventDefault(); alert("版を1つ以上選んでください。"); return; }
+    f.elements.e.value = Date.now() - t0;
+    f.querySelector("button[type=submit]").disabled = true;
+    if (window.gtag) gtag("event", "report_dl", { city: sel.value, role: f.elements.role.value, transport_type: "beacon" });
+  });
+  window.addEventListener("pageshow", function () { f.querySelector("button[type=submit]").disabled = false; });
+})();
+</script>"""
+    page(AREA_PATH, "地域レポート（無料）｜障害福祉事業所の開設を検討する方へ",
+         f"障害福祉事業所の開設・商圏分析・セミナー資料に。開設候補地の評価・競合の状況・収支試算と回収期間をまとめた PDF を無料でお送りします（{LATEST_LABEL}のデータ）。",
+         hero, body, script,
+         og=og_image("report-area", "数字ならジモふく", "地域レポート（無料）", None, "",
+                     ("開設候補地の評価・競合・収支試算を1冊に", f"{len(SHOP['cities'])}市区の PDF を無料で", "ほかの市区町村もリクエストで作成"),
                      pic=OG_SRC / "report-covers.png"))
+    # 受け取りのしくみ（PHP）と、PHP が確かめる一覧
+    out = OUT / AREA_PATH
+    for n in ("common.php", "dl.php", "get.php", "list.php"):
+        shutil.copy(ROOT / "site" / "report" / n, out / n)
+    (out / "files.json").write_text(json.dumps({
+        "cities": {x["city"]: {"pref": x["pref"], "file": x["file"]} for x in SHOP["cities"]},
+        "editions": {e["key"]: {"name": e["name"], "file": e["file"]} for e in SHOP["editions"]},
+        "roles": REPORT_ROLES}, ensure_ascii=False), encoding="utf-8")
+    hero = f"""<div>
+  {crumbs("../../../", [("地域レポート", "../"), ("メールを送りました", None)])}
+  <h1>メールを送りました</h1>
+</div>"""
+    body = """<section class="form-done"><p>お申し込みありがとうございます。入力されたメールアドレスに、ダウンロード用のリンクをお送りしました。メールのリンクを開くと、PDF をダウンロードできます（30日間使えます）。</p>
+<p>数分たってもメールが届かないときは、迷惑メールのフォルダをご確認ください。それでも見つからないときは、メールアドレスをお確かめのうえ、もう一度お申し込みください。</p>
+<p><a href="../">地域レポートのページへもどる</a></p></section>"""
+    page(AREA_PATH + "sent/", "メールを送りました", "地域レポートのお申し込みを受け付けました。", hero, body, noindex=True)
+    if AREA_PATH + "sent/" in PAGES:
+        PAGES.remove(AREA_PATH + "sent/")   # サイトマップには載せない
 
 
 GUIDE_SRC = "https://www.mhlw.go.jp/content/12200000/001716171.pdf"   # 厚生労働省・こども家庭庁「障害福祉サービス事業者等の指定のガイドライン」（令和8年6月）
@@ -3137,8 +3184,8 @@ def guide_cta(rel, frm, lead):
     """読み物の最後に置く、地域レポートへの案内。"""
     return (f'<aside class="area-box"><p class="eyebrow">数字ならジモふく</p><h2>開設を考えている市区町村の地域レポート</h2>'
             f'<p>{E(lead)}開設候補地の評価、競合の状況、総量規制の状況、収支試算と回収期間までを1冊にまとめた PDF です。'
-            f'全国の市区町村で作成でき、{len(SHOP["cities"])}市区はすぐにダウンロードできます（1版{SHOP["price_one"]:,}円・税込み）。</p>'
-            f'<a class="area-btn" data-cta="{E(frm)}" href="{href(rel, AREA_PATH)}">内容と見本を見る</a></aside>')
+            f'{len(SHOP["cities"])}市区は無料ですぐに受け取れ、ほかの市区町村もリクエストで作成します。</p>'
+            f'<a class="area-btn" data-cta="{E(frm)}" href="{href(rel, AREA_PATH)}">無料で受け取る</a></aside>')
 
 
 def guide_links(rel, here):
@@ -3317,7 +3364,7 @@ def build_reports(S, codes, periods):
 </div>"""
     page("report/", "レポート｜障害福祉の事業所はどう変わったか",
          "国の公表データから、障害福祉の事業所の増え方・地域の差・入れ替わり・運営法人の変化をまとめたレポート。",
-         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（有料）</b><span>障害福祉事業所の開設を検討する方へ。開設候補地の評価・競合・収支試算を市区町村ごとに1冊に。全国の市区町村で作成できます。無料の見本あり。</span></a></section>'
+         hero, f'<section><a class="area-promo" href="{href(rel, AREA_PATH)}"><b>地域レポート（無料）</b><span>障害福祉事業所の開設を検討する方へ。開設候補地の評価・競合・収支試算を市区町村ごとに1冊にまとめた PDF を、無料でお送りします。ほかの市区町村もリクエストで作成します。</span></a></section>'
          f'<section><h2>開設を考える方への読み物</h2><ul class="report-list">'
          f'<li><a href="{href(rel, KISEI_PATH)}"><b>新しく開けない市区町村は？ 障害福祉の総量規制まとめ</b><span>対象のサービス、規制があるとわかっている市、自分の地域の確かめ方</span></a></li>'
          f'<li><a href="{href(rel, GH2027_PATH)}"><b>グループホームは2027年4月から総量規制の対象に</b><span>何が変わるか、例外、全国の数の推移</span></a></li>'
