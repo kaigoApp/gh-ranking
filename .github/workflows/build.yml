@@ -81,6 +81,21 @@ jobs:
           rsync -rlz --checksum --delete --exclude .htaccess --exclude .user.ini \
             -e "ssh -p 10022 -i ~/xserver_key" \
             public/ "$USER@$HOST:jimofuku.jp/public_html/"
+          # 地域レポートの PDF を、公開フォルダの外（jimofuku.jp/reports/）に置く。メールのリンクから get.php が渡す。
+          # PDF は枝 report-pdfs にある。前に送ったものと同じなら送らない
+          read -r PDF_BRANCH PDF_DIR < <(python3 -c "import json;d=json.load(open('data/report/shop.json'));print(d['pdf_branch'],d['pdf_dir'])")
+          want="$(git ls-remote origin "refs/heads/$PDF_BRANCH" | cut -f1) $PDF_DIR"
+          have=$(ssh -p 10022 -i ~/xserver_key "$USER@$HOST" 'cat jimofuku.jp/reports/.version 2>/dev/null' || true)
+          if [ "$want" != "$have" ]; then
+            git fetch --depth 1 origin "$PDF_BRANCH"
+            mkdir -p pdfs && git archive FETCH_HEAD "$PDF_DIR" | tar -x -C pdfs
+            echo "$want" > "pdfs/$PDF_DIR/.version"
+            ssh -p 10022 -i ~/xserver_key "$USER@$HOST" 'mkdir -p jimofuku.jp/reports && chmod 700 jimofuku.jp/reports'
+            rsync -rz --checksum --delete -e "ssh -p 10022 -i ~/xserver_key" "pdfs/$PDF_DIR/" "$USER@$HOST:jimofuku.jp/reports/"
+            echo "地域レポートの PDF を送りました（$(ls pdfs/$PDF_DIR | wc -l) ファイル）"
+          else
+            echo "地域レポートの PDF は前と同じなので送りません"
+          fi
           # お問い合わせの届け先を、公開フォルダの外に置く（ページからは見えない）
           if [ -n "$CONTACT_TO" ]; then
             printf '%s\n' "$CONTACT_TO" | ssh -p 10022 -i ~/xserver_key "$USER@$HOST" \
