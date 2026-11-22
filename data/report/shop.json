@@ -1,5 +1,5 @@
 {
-  "note": "地域別レポート（無料、メールアドレスと引き換えにダウンロード）の設定。cities は作成済みの市区で、file は PDF の名前（<file>_<版の file>.pdf）。PDF は GitHub の枝 pdf_branch の pdf_dir/ に入れ、GitHub Actions がサーバーの公開フォルダの外（jimofuku.jp/reports/）に置く。受け取りの申し込みは site/report/dl.php が jimofuku.jp/leads/ に残す。ほかの市区町村は、お問い合わせからリクエストを受けて作る。データの時点はサイトの最新データ（LATEST_LABEL）を自動で表示する。",
+  "note": "地域別レポート（無料、メールアドレスと引き換えにダウンロード）の設定。cities は作成済みの市区で、file は PDF の名前（<file>_<版の file>.pdf）。PDF は GitHub の枝 pdf_branch の pdf_dir/ に入れ、GitHub Actions がサーバーの公開フォルダの外（jimofuku.jp/reports/）に置く。受け取りの申し込みは site/report/dl.php が jimofuku.jp/leads/ に残す。ほかの市区町村は、お問い合わせからリクエストを受けて作る。データの時点はサイトの最新データ（LATEST_LABEL）を自動で表示する。eds を書いた市区は、その版だけがある（リクエストで作った市区）。",
   "pdf_branch": "report-pdfs",
   "pdf_dir": "202609",
   "sample_pdf": "assets/report/sample-funabashi.pdf",
@@ -167,6 +167,14 @@
       "pref": "千葉県",
       "city": "船橋市",
       "file": "funabashi"
+    },
+    {
+      "pref": "新潟県",
+      "city": "上越市",
+      "file": "joetsu",
+      "eds": [
+        "b"
+      ]
     }
   ]
 }

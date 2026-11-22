@@ -18,7 +18,8 @@ $news = field('news', 1) === '1' ? 'はい' : 'いいえ';
 $eds = isset($_POST['ed']) && is_array($_POST['ed']) ? array_values(array_unique(array_filter($_POST['ed'], 'is_string'))) : [];
 
 if (!isset($cat['cities'][$city])) fail(400, '市区を選んでください。');
-$eds = array_values(array_filter($eds, fn($k) => isset($cat['editions'][$k])));
+$okEds = $cat['cities'][$city]['eds'] ?? array_keys($cat['editions']);   // リクエストで作った市区は、作った版だけ
+$eds = array_values(array_filter($eds, fn($k) => isset($cat['editions'][$k]) && in_array($k, $okEds, true)));
 if (!$eds) fail(400, '版を1つ以上選んでください。');
 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) fail(400, 'メールアドレスを正しく入れてください。');
 if (!in_array($role, $cat['roles'], true)) fail(400, 'お立場を選んでください。');

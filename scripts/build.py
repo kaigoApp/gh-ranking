@@ -3011,6 +3011,17 @@ def area_report_for(pi, mname):
     return None
 
 
+def city_eds(x):
+    """その市区で受け取れる版のキー。リクエストで作った市区は、作った版だけ（shop.json の eds）。"""
+    return x.get("eds") or [e["key"] for e in SHOP["editions"]]
+
+
+def eds_label(x):
+    if not x.get("eds"):
+        return ""
+    return "・".join(e["short"] if "short" in e else e["name"].replace("継続支援", "").replace("放課後等デイ・児童発達支援", "放デイ・児発") for e in SHOP["editions"] if e["key"] in x["eds"]) + "のみ"
+
+
 CITY_FACTS = json.loads((ROOT / "data" / "report" / "city_facts.json").read_text(encoding="utf-8"))["city"]
 KISEI_PATH = "report/kisei/"      # 読み物：新しく開けない市区町村（総量規制）
 GH2027_PATH = "report/gh-2027/"   # 読み物：グループホームの総量規制（2027年4月から）
@@ -3036,6 +3047,8 @@ def area_box(rel, pi, mname, c, per=None, half=None, n_new=0):
     if not ed:
         return ""
     x = area_report_for(pi, mname)
+    if x and ed["key"] not in city_eds(x):
+        x = None   # この市区には、このサービスの版がまだない（リクエストで作る）
     short = SERVICES[c][1]
     facts = []
     if per:
@@ -3078,10 +3091,11 @@ def build_area_reports():
         f'<div><h3>{E(e["name"])}</h3><p class="note">{E(e["for"])}</p><ul>' + "".join(f"<li>{E(s)}</li>" for s in e["points"]) + "</ul></div>"
         for e in SHOP["editions"])
     rows = "".join(
-        f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small></th>'
+        f'<tr id="{E(x["city"])}"><th>{E(x["city"])}<small>{E(x["pref"])}</small>'
+        + (f'<small>{E(eds_label(x))}</small>' if x.get("eds") else "") + '</th>'
         f'<td><a class="area-btn" href="#dl" data-city="{E(x["city"])}">無料で受け取る</a></td></tr>'
         for x in SHOP["cities"])
-    city_opts = "".join(f'<option value="{E(x["city"])}">{E(x["city"])}（{E(x["pref"])}）</option>' for x in SHOP["cities"])
+    city_opts = "".join(f'<option value="{E(x["city"])}" data-eds="{E(" ".join(city_eds(x)))}">{E(x["city"])}（{E(x["pref"])}）</option>' for x in SHOP["cities"])
     ed_boxes = "".join(f'<label class="chk"><input type="checkbox" name="ed[]" value="{E(e["key"])}" checked> {E(e["name"])}</label>' for e in SHOP["editions"])
     role_opts = "".join(f"<option>{E(r)}</option>" for r in REPORT_ROLES)
     contact = href(rel, "contact/")
@@ -3100,7 +3114,7 @@ def build_area_reports():
 <section><h2>こんな方に</h2><div class="report-cols area-eds">{uses_html}</div></section>
 <section><h2>3つの版の内容</h2><div class="report-cols area-eds">{eds}</div>
 <h3>どの版にも入っている内容</h3><ul>{"".join(f"<li>{E(s)}</li>" for s in SHOP["common"])}</ul></section>
-<section><h2>作成済みの市区</h2><p class="sec-sub">どの市区も3つの版（放デイ・児発／グループホーム／就労B型）があります。「無料で受け取る」を押すと、下の入力欄にその市区が入ります。</p>
+<section><h2>作成済みの市区</h2><p class="sec-sub">ほとんどの市区は3つの版（放デイ・児発／グループホーム／就労B型）があります。リクエストで作った市区は、作った版だけです。「無料で受け取る」を押すと、下の入力欄にその市区が入ります。</p>
 <div class="table-wrap"><table class="area-table"><thead><tr><th>市区</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>
 <section id="dl"><h2>無料で受け取る</h2>
 <p class="sec-sub">入力したメールアドレスに、ダウンロード用のリンクをお送りします（リンクは30日間使えます）。</p>
@@ -3132,7 +3146,17 @@ def build_area_reports():
     script = """<script>
 (function () {
   var f = document.getElementById("dl-form"), t0 = Date.now(), sel = f.elements.city;
-  function pick(c) { for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === c) { sel.value = c; return true; } return false; }
+  // 市区によって受け取れる版がちがう（リクエストで作った市区は、作った版だけ）
+  function syncEds() {
+    var o = sel.options[sel.selectedIndex], ok = o && o.getAttribute("data-eds");
+    var bs = f.querySelectorAll("input[name='ed[]']");
+    for (var i = 0; i < bs.length; i++) {
+      var on = !ok || (" " + ok + " ").indexOf(" " + bs[i].value + " ") >= 0;
+      bs[i].disabled = !on; bs[i].checked = on; bs[i].parentNode.style.opacity = on ? "" : ".45";
+    }
+  }
+  function pick(c) { for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === c) { sel.value = c; syncEds(); return true; } return false; }
+  sel.addEventListener("change", syncEds);
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest("a[data-city]");
     if (a) pick(a.getAttribute("data-city"));
@@ -3159,7 +3183,7 @@ def build_area_reports():
     for n in ("common.php", "dl.php", "get.php", "list.php"):
         shutil.copy(ROOT / "site" / "report" / n, out / n)
     (out / "files.json").write_text(json.dumps({
-        "cities": {x["city"]: {"pref": x["pref"], "file": x["file"]} for x in SHOP["cities"]},
+        "cities": {x["city"]: {"pref": x["pref"], "file": x["file"], "eds": city_eds(x)} for x in SHOP["cities"]},
         "editions": {e["key"]: {"name": e["name"], "file": e["file"]} for e in SHOP["editions"]},
         "roles": REPORT_ROLES}, ensure_ascii=False), encoding="utf-8")
     hero = f"""<div>
